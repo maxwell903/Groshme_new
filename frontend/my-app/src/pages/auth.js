@@ -1,3 +1,4 @@
+// src/pages/auth.js
 import { useState } from 'react'
 import { supabase } from '../lib/supabaseClient'
 import { useRouter } from 'next/router'
@@ -32,7 +33,7 @@ export default function Auth() {
     <div className="min-h-screen bg-gray-50 flex items-center justify-center">
       <div className="max-w-md w-full space-y-8 p-8 bg-white rounded-lg shadow">
         <div>
-          <h2 className="text-3xl font-bold text-center">Welcome to Groshme</h2>
+          <h2 className="text-3xl font-bold text-center">Welcome to Recipe Tracker</h2>
           <p className="mt-2 text-center text-gray-600">
             Enter your email to get started
           </p>

@@ -1,12 +1,16 @@
+// src/pages/_app.js
 import { useState, useEffect } from 'react'
-import { supabase } from '@/lib/supabaseClient'
+import { createBrowserSupabaseClient } from '@supabase/auth-helpers-nextjs'
+import { SessionContextProvider } from '@supabase/auth-helpers-react'
 import { useRouter } from 'next/router'
+import { supabase } from '../lib/supabaseClient'  // Import the supabase client
 import '@/styles/globals.css'
 
-export default function App({ Component, pageProps }) {
-  const [user, setUser] = useState(null)
+function App({ Component, pageProps }) {
   const [loading, setLoading] = useState(true)
+  const [user, setUser] = useState(null)
   const router = useRouter()
+  const [supabaseClient] = useState(() => createBrowserSupabaseClient())
 
   useEffect(() => {
     // Check for initial session
@@ -52,5 +56,14 @@ export default function App({ Component, pageProps }) {
     return null
   }
 
-  return <Component {...pageProps} user={user} />
+  return (
+    <SessionContextProvider
+      supabaseClient={supabaseClient}
+      initialSession={pageProps.initialSession}
+    >
+      <Component {...pageProps} user={user} />
+    </SessionContextProvider>
+  )
 }
+
+export default App
