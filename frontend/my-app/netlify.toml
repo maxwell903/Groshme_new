@@ -1,6 +1,6 @@
 # Path: C:\Users\maxwa\Groshme_new\frontend\my-app\netlify.toml
 [build]
-  command = "npm run build"
+  command = "npm install && npm run build && pwd && ls -la"
   publish = ".next"
 
 [[plugins]]
