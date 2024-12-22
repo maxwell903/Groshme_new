@@ -4,8 +4,44 @@ import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/router';
 import { Plus, X, Search, ChevronDown, ChevronUp, Check } from 'lucide-react';
+import { supabase } from '../lib/supabaseClient'
 
 import emailjs from '@emailjs/browser';
+
+const Home = () => {
+  const handleSignUp = async (e) => {
+    e.preventDefault()
+    const { email, password } = e.target.elements
+    
+    try {
+      const { user, error } = await supabase.auth.signUp({
+        email: email.value,
+        password: password.value,
+      })
+      
+      if (error) throw error
+      
+      // Create a new user record in the Supabase database
+      await supabase.from('users').insert({ id: user.id, email: user.email })
+    } catch (error) {
+      console.error('Error signing up:', error)
+    }
+  }
+
+  return (
+    <form onSubmit={handleSignUp}>
+      <label>
+        Email:
+        <input type="email" name="email" />
+      </label>
+      <label>
+        Password:
+        <input type="password" name="password" />
+      </label>
+      <button type="submit">Sign Up</button>
+    </form>
+  )
+}
 
 
 
