@@ -32,7 +32,10 @@ CORS(app, resources={
     }
 })
  
-app.config['SQLALCHEMY_DATABASE_URI'] = 'mysql+pymysql://root:RecipePassword123!@localhost/recipe_finder'
+app.config['SQLALCHEMY_DATABASE_URI'] = os.environ.get(
+    'DATABASE_URL', 
+    'postgresql://postgres:RecipeFinder123!@db.bvgnlxznztqggtqswovg.supabase.co:5432/postgres'
+)
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
  
 db = SQLAlchemy()
