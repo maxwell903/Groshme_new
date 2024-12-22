@@ -8,40 +8,9 @@ import { supabase } from '../lib/supabaseClient'
 
 import emailjs from '@emailjs/browser';
 
-const Home = () => {
-  const handleSignUp = async (e) => {
-    e.preventDefault()
-    const { email, password } = e.target.elements
-    
-    try {
-      const { user, error } = await supabase.auth.signUp({
-        email: email.value,
-        password: password.value,
-      })
-      
-      if (error) throw error
-      
-      // Create a new user record in the Supabase database
-      await supabase.from('users').insert({ id: user.id, email: user.email })
-    } catch (error) {
-      console.error('Error signing up:', error)
-    }
-  }
 
-  return (
-    <form onSubmit={handleSignUp}>
-      <label>
-        Email:
-        <input type="email" name="email" />
-      </label>
-      <label>
-        Password:
-        <input type="password" name="password" />
-      </label>
-      <button type="submit">Sign Up</button>
-    </form>
-  )
-}
+  
+
 
 
 
@@ -381,6 +350,28 @@ const EmailToMyselfButton = () => {
 
 
 export default function Home() {
+
+
+  const handleSignUp = async (e) => {
+    e.preventDefault()
+    const { email, password } = e.target.elements
+    
+    try {
+      const { user, error } = await supabase.auth.signUp({
+        email: email.value,
+        password: password.value,
+      })
+      
+      if (error) throw error
+      
+      // Create a new user record in the Supabase database
+      await supabase.from('users').insert({ id: user.id, email: user.email })
+    } catch (error) {
+      console.error('Error signing up:', error)
+    }
+  }
+
+  
   const router = useRouter();
   const [homeData, setHomeData] = useState({
     total_recipes: 0,
@@ -420,6 +411,14 @@ export default function Home() {
     );
   }
 
+
+
+
+    
+  
+
+  
+
   return (
     <div className="min-h-screen bg-gray-50">
       <div className="relative bg-white">
@@ -429,6 +428,17 @@ export default function Home() {
             <h1 className="mb-6 text-4xl font-bold text-gray-900">
               Recipe Finder
             </h1>
+            <form onSubmit={handleSignUp}>
+      <label>
+        Email:
+        <input type="email" name="email" />
+      </label>
+      <label>
+        Password:
+        <input type="password" name="password" />
+      </label>
+      <button type="submit">Sign Up</button>
+    </form>
             <p className="mb-8 text-gray-600">
               Total Recipes: {homeData.total_recipes}
             </p>
