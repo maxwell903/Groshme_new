@@ -1,16 +1,17 @@
 // src/pages/_app.js
 import { useState, useEffect } from 'react'
-import { createBrowserSupabaseClient } from '@supabase/auth-helpers-nextjs'
+import { createPagesBrowserClient } from '@supabase/auth-helpers-nextjs'
 import { SessionContextProvider } from '@supabase/auth-helpers-react'
 import { useRouter } from 'next/router'
-import { supabase } from '../lib/supabaseClient'  // Import the supabase client
+import { supabase } from '../lib/supabaseClient'
 import '@/styles/globals.css'
 
 function App({ Component, pageProps }) {
   const [loading, setLoading] = useState(true)
   const [user, setUser] = useState(null)
   const router = useRouter()
-  const [supabaseClient] = useState(() => createBrowserSupabaseClient())
+  // Update to use createPagesBrowserClient
+  const [supabaseClient] = useState(() => createPagesBrowserClient())
 
   useEffect(() => {
     // Check for initial session
