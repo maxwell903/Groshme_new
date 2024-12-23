@@ -1,7 +1,7 @@
 # app.py
 import re
 from flask import Flask, jsonify, request
-from flask_sqlalchemy import SQLAlchemy # type: ignore
+from flask_sqlalchemy import SQLAlchemy  # type: ignore
 from flask_migrate import Migrate # type: ignore
 from flask_cors import CORS # type: ignore
 from datetime import datetime, timedelta
@@ -25,21 +25,32 @@ from werkzeug.utils import secure_filename
 app = Flask(__name__)
 CORS(app, resources={
     r"/api/*": {
-        "origins": ["http://localhost:3000"],
+        "origins": ["http://localhost:3000", "https://your-netlify-app.netlify.app"],
         "methods": ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
         "allow_headers": ["Content-Type", "Authorization", "Accept"],
         "supports_credentials": True
     }
 })
- 
-app.config['SQLALCHEMY_DATABASE_URI'] = os.environ.get(
-    'DATABASE_URL', 
-    'postgresql://postgres:RecipeFinder123!@db.bvgnlxznztqggtqswovg.supabase.co:5432/postgres'
-)
+
+# Supabase PostgreSQL connection
+SUPABASE_URL = os.environ.get('https://bvgnlxznztqggtqswovg.supabase.co')
+SUPABASE_KEY = os.environ.get('eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImJ2Z25seHpuenRxZ2d0cXN3b3ZnIiwicm9sZSI6ImFub24iLCJpYXQiOjE3MzQ5MDI1ODIsImV4cCI6MjA1MDQ3ODU4Mn0.I8alzEBJYt_D1PDZHvuyZzLzlAEANTGkeR3IRyp1gCc')
+DB_PASSWORD = os.environ.get('RecipeFinder123!')
+
+# Construct database URL
+if not all([SUPABASE_URL, SUPABASE_KEY, DB_PASSWORD]):
+    raise ValueError("Missing required environment variables")
+
+# Extract host and database name from Supabase URL
+db_host = SUPABASE_URL.replace('https://', '').split('.')[0] + '.supabase.co'
+db_name = 'postgres'  # Supabase uses 'postgres' as default database name
+
+# Configure SQLAlchemy
+app.config['SQLALCHEMY_DATABASE_URI'] = f'postgresql://postgres:{DB_PASSWORD}@db.{db_host}:5432/{db_name}'
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
- 
-db = SQLAlchemy()
-db.init_app(app)
+
+# Initialize SQLAlchemy
+db = SQLAlchemy(app)
 migrate = Migrate(app, db)
 
 
