@@ -5,6 +5,8 @@ import { ChevronDown, ChevronRight, Plus, X, Search, Check, Loader } from 'lucid
 import ExerciseDisplay from '../components/ExerciseDisplay';
 import WorkoutDisplay from '../components/WorkoutDisplay';
 import { Calendar } from 'lucide-react';
+import NutritionSummary from '@/components/NutritionModal';
+
 
 const SearchableRecipeSelector = ({ isOpen, onClose, onSelect, mealType }) => {
   const [recipes, setRecipes] = useState([]);

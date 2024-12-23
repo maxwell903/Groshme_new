@@ -21,6 +21,10 @@ export default function MenuDetail() {
       fetchFridgeItems();
     }
   }, [menuId]);
+  
+  useEffect(() => {
+    fetchMenuRecipes();
+  }, [fetchMenuRecipes]);
 
   // Add this new function for handling menu deletion
   const handleDeleteMenu = async () => {

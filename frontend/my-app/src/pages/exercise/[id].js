@@ -15,9 +15,8 @@ export default function ExerciseHistory() {
   const [showEditModal, setShowEditModal] = useState(false);
 
   useEffect(() => {
-    if (!id) return;
     fetchExerciseAndHistory();
-  }, [id]);
+  }, [fetchExerciseAndHistory]);
 
   const fetchExerciseAndHistory = async () => {
     try {

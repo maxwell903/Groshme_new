@@ -41,7 +41,7 @@ const NutritionModal = ({
         carbs_grams: ''
       });
     }
-  }, [currentNutrition, ingredientQuantity]);
+  }, [currentNutrition, ingredientQuantity, , calculateDisplayedValues]);
 
   const calculateDisplayedValues = (data) => {
     if (!data.serving_size || data.serving_size === '0') return;
