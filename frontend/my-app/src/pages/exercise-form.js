@@ -177,7 +177,7 @@ const handleSubmit = async (e) => {
 
       <div className="mt-8 text-sm text-gray-600">
         <p>Note: After saving the exercise, you can add specific set details (reps and weights) 
-        by clicking the "Sets" button on the exercise card in the workout view.</p>
+        by clicking the Sets button on the exercise card in the workout view.</p>
       </div>
     </div>
   </div>
