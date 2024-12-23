@@ -1,34 +1,44 @@
 import { useState } from 'react';
 import { supabase } from '../lib/supabaseClient';
-import Link from 'next/link';
-import { useRouter } from 'next/router';
 
-export default function Auth() {
-  const [loading, setLoading] = useState(false);
+const Auth = () => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const [error, setError] = useState(null);
-  const router = useRouter();
+  const [loading, setLoading] = useState(false);
+  const [message, setMessage] = useState('');
 
   const handleSignUp = async (e) => {
     e.preventDefault();
     try {
-      setError(null);
       setLoading(true);
-      
-      const { data: { user }, error } = await supabase.auth.signUp({
+      const { error } = await supabase.auth.signUp({
         email,
         password,
       });
-
+      
       if (error) throw error;
-
-      if (user) {
-        await supabase.from('users').insert({ id: user.id, email: user.email });
-        router.push('/');
-      }
+      
+      setMessage('Check your email for the confirmation link!');
     } catch (error) {
-      setError(error.message);
+      setMessage(error.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleResendConfirmation = async () => {
+    try {
+      setLoading(true);
+      const { error } = await supabase.auth.resend({
+        type: 'signup',
+        email,
+      });
+      
+      if (error) throw error;
+      
+      setMessage('Confirmation email resent! Please check your inbox.');
+    } catch (error) {
+      setMessage(error.message);
     } finally {
       setLoading(false);
     }
@@ -37,121 +47,84 @@ export default function Auth() {
   const handleSignIn = async (e) => {
     e.preventDefault();
     try {
-      setError(null);
       setLoading(true);
-      
-      const { data: { user }, error } = await supabase.auth.signInWithPassword({
+      const { error } = await supabase.auth.signInWithPassword({
         email,
         password,
       });
-
+      
       if (error) throw error;
-
-      if (user) {
-        router.push('/');
-      }
     } catch (error) {
-      setError(error.message);
+      setMessage(error.message);
     } finally {
       setLoading(false);
     }
   };
 
   return (
-    <div className="min-h-screen bg-gray-50 flex flex-col justify-center">
-      <div className="max-w-md w-full mx-auto">
-        <div className="bg-white py-8 px-4 shadow sm:rounded-lg sm:px-10">
-          <div className="sm:mx-auto sm:w-full sm:max-w-md">
-            <h2 className="mt-6 text-center text-3xl font-extrabold text-gray-900">
-              Sign in to your account
-            </h2>
+    <div className="min-h-screen flex items-center justify-center bg-gray-50">
+      <div className="max-w-md w-full p-6 bg-white rounded-lg shadow-md">
+        <h2 className="text-2xl font-bold mb-6 text-center">Welcome</h2>
+        
+        <form className="space-y-4">
+          <div>
+            <label className="block text-sm font-medium text-gray-700">Email</label>
+            <input
+              type="email"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              className="mt-1 block w-full rounded-md border border-gray-300 p-2"
+              required
+            />
           </div>
 
-          <form className="space-y-6 mt-8" onSubmit={handleSignIn}>
-            {error && (
-              <div className="bg-red-50 border border-red-200 text-red-600 px-4 py-3 rounded relative">
-                {error}
-              </div>
-            )}
-
-            <div>
-              <label htmlFor="email" className="block text-sm font-medium text-gray-700">
-                Email address
-              </label>
-              <div className="mt-1">
-                <input
-                  id="email"
-                  name="email"
-                  type="email"
-                  autoComplete="email"
-                  required
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  className="appearance-none block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm placeholder-gray-400 focus:outline-none focus:ring-blue-500 focus:border-blue-500"
-                />
-              </div>
-            </div>
-
-            <div>
-              <label htmlFor="password" className="block text-sm font-medium text-gray-700">
-                Password
-              </label>
-              <div className="mt-1">
-                <input
-                  id="password"
-                  name="password"
-                  type="password"
-                  autoComplete="current-password"
-                  required
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  className="appearance-none block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm placeholder-gray-400 focus:outline-none focus:ring-blue-500 focus:border-blue-500"
-                />
-              </div>
-            </div>
-
-            <div className="flex items-center justify-between">
-              <div className="text-sm">
-                <Link href="#" className="font-medium text-blue-600 hover:text-blue-500">
-                  Forgot your password?
-                </Link>
-              </div>
-            </div>
-
-            <div>
-              <button
-                type="submit"
-                disabled={loading}
-                className="w-full flex justify-center py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:bg-blue-300"
-              >
-                {loading ? 'Loading...' : 'Sign in'}
-              </button>
-            </div>
-          </form>
-
-          <div className="mt-6">
-            <div className="relative">
-              <div className="absolute inset-0 flex items-center">
-                <div className="w-full border-t border-gray-300" />
-              </div>
-              <div className="relative flex justify-center text-sm">
-                <span className="px-2 bg-white text-gray-500">Or</span>
-              </div>
-            </div>
-
-            <div className="mt-6">
-              <button
-                type="button"
-                onClick={handleSignUp}
-                disabled={loading}
-                className="w-full flex justify-center py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-blue-600 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
-              >
-                Create new account
-              </button>
-            </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700">Password</label>
+            <input
+              type="password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              className="mt-1 block w-full rounded-md border border-gray-300 p-2"
+              required
+            />
           </div>
-        </div>
+
+          {message && (
+            <div className="p-3 rounded bg-blue-50 text-blue-800">
+              {message}
+            </div>
+          )}
+
+          <div className="flex gap-4">
+            <button
+              onClick={handleSignIn}
+              disabled={loading}
+              className="flex-1 bg-blue-600 text-white p-2 rounded hover:bg-blue-700 disabled:opacity-50"
+            >
+              Sign In
+            </button>
+            
+            <button
+              onClick={handleSignUp}
+              disabled={loading}
+              className="flex-1 bg-green-600 text-white p-2 rounded hover:bg-green-700 disabled:opacity-50"
+            >
+              Sign Up
+            </button>
+          </div>
+
+          <button
+            type="button"
+            onClick={handleResendConfirmation}
+            disabled={loading || !email}
+            className="w-full mt-4 text-blue-600 hover:text-blue-800 text-sm"
+          >
+            Resend confirmation email
+          </button>
+        </form>
       </div>
     </div>
   );
-}
+};
+
+export default Auth;
