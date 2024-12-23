@@ -1,24 +1,62 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
+import { useRouter } from 'next/router';
 import { supabase } from '../lib/supabaseClient';
 
 const Auth = () => {
+  const router = useRouter();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState('');
 
+  useEffect(() => {
+    // Check if user is already logged in
+    const checkUser = async () => {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (session) {
+        router.push('/');
+      }
+    };
+    checkUser();
+  }, [router]);
+
   const handleSignUp = async (e) => {
     e.preventDefault();
     try {
       setLoading(true);
-      const { error } = await supabase.auth.signUp({
+      const { data, error } = await supabase.auth.signUp({
         email,
         password,
       });
       
       if (error) throw error;
       
-      setMessage('Check your email for the confirmation link!');
+      if (data.user && !data.user.confirmed_at) {
+        setMessage('Check your email for the confirmation link!');
+      } else if (data.user) {
+        router.push('/');
+      }
+    } catch (error) {
+      setMessage(error.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleSignIn = async (e) => {
+    e.preventDefault();
+    try {
+      setLoading(true);
+      const { data, error } = await supabase.auth.signInWithPassword({
+        email,
+        password,
+      });
+      
+      if (error) throw error;
+      
+      if (data.user) {
+        router.push('/');
+      }
     } catch (error) {
       setMessage(error.message);
     } finally {
@@ -44,29 +82,12 @@ const Auth = () => {
     }
   };
 
-  const handleSignIn = async (e) => {
-    e.preventDefault();
-    try {
-      setLoading(true);
-      const { error } = await supabase.auth.signInWithPassword({
-        email,
-        password,
-      });
-      
-      if (error) throw error;
-    } catch (error) {
-      setMessage(error.message);
-    } finally {
-      setLoading(false);
-    }
-  };
-
   return (
     <div className="min-h-screen flex items-center justify-center bg-gray-50">
       <div className="max-w-md w-full p-6 bg-white rounded-lg shadow-md">
         <h2 className="text-2xl font-bold mb-6 text-center">Welcome</h2>
         
-        <form className="space-y-4">
+        <form onSubmit={handleSignIn} className="space-y-4">
           <div>
             <label className="block text-sm font-medium text-gray-700">Email</label>
             <input
@@ -97,7 +118,7 @@ const Auth = () => {
 
           <div className="flex gap-4">
             <button
-              onClick={handleSignIn}
+              type="submit"
               disabled={loading}
               className="flex-1 bg-blue-600 text-white p-2 rounded hover:bg-blue-700 disabled:opacity-50"
             >
@@ -105,6 +126,7 @@ const Auth = () => {
             </button>
             
             <button
+              type="button"
               onClick={handleSignUp}
               disabled={loading}
               className="flex-1 bg-green-600 text-white p-2 rounded hover:bg-green-700 disabled:opacity-50"
