@@ -1,7 +1,11 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
-  output: 'standalone',
-  distDir: '.next'
+  pageExtensions: ['page.js', 'page.tsx'],
+  
+  // Specify the source directory for pages
+  experimental: {
+    pagesDir: './src/pages'
+  }
 }
 
 module.exports = nextConfig
