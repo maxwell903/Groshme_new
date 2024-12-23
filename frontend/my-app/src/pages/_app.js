@@ -3,35 +3,37 @@ import { useState, useEffect } from 'react'
 import { createPagesBrowserClient } from '@supabase/auth-helpers-nextjs'
 import { SessionContextProvider } from '@supabase/auth-helpers-react'
 import { useRouter } from 'next/router'
-import { supabase } from '../lib/supabaseClient'
 import '@/styles/globals.css'
 
 function App({ Component, pageProps }) {
   const [loading, setLoading] = useState(true)
   const [user, setUser] = useState(null)
   const router = useRouter()
-  // Update to use createPagesBrowserClient
+  // Create a single supabase client for the entire session
   const [supabaseClient] = useState(() => createPagesBrowserClient())
 
   useEffect(() => {
     // Check for initial session
-    supabase.auth.getSession().then(({ data: { session } }) => {
+    const checkSession = async () => {
+      const { data: { session } } = await supabaseClient.auth.getSession()
       setUser(session?.user || null)
       setLoading(false)
-    })
 
-    // Set up auth state listener
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
-      setUser(session?.user || null)
-      if (!session?.user && router.pathname !== '/auth') {
-        router.push('/auth')
+      // Set up auth state listener
+      const { data: { subscription } } = supabaseClient.auth.onAuthStateChange((_event, session) => {
+        setUser(session?.user || null)
+        if (!session?.user && router.pathname !== '/auth') {
+          router.push('/auth')
+        }
+      })
+
+      return () => {
+        subscription.unsubscribe()
       }
-    })
-
-    return () => {
-      subscription.unsubscribe()
     }
-  }, [])
+
+    checkSession()
+  }, [router, supabaseClient])
 
   if (loading) {
     return (
