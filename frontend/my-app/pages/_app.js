@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { createPagesBrowserClient } from '@supabase/auth-helpers-nextjs';
 import { SessionContextProvider } from '@supabase/auth-helpers-react';
 import { useRouter } from 'next/router';
-import { supabase } from '../lib/supabaseClient';
+import { supabase } from '../src/lib/supabaseClient';
 import '@/styles/globals.css';
 
 function App({ Component, pageProps }) {

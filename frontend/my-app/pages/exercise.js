@@ -1,7 +1,7 @@
 // pages/exercise.js
 import React from 'react';
 import Link from 'next/link';
-import ExerciseDisplay from '../components/ExerciseDisplay';
+import ExerciseDisplay from '../src/components/ExerciseDisplay';
 
 const ExercisePage = () => {
   return (
