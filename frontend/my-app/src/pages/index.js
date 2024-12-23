@@ -428,17 +428,7 @@ export default function Home() {
             <h1 className="mb-6 text-4xl font-bold text-gray-900">
               Recipe Finder
             </h1>
-            <form onSubmit={handleSignUp}>
-      <label>
-        Email:
-        <input type="email" name="email" />
-      </label>
-      <label>
-        Password:
-        <input type="password" name="password" />
-      </label>
-      <button type="submit">Sign Up</button>
-    </form>
+            
             <p className="mb-8 text-gray-600">
               Total Recipes: {homeData.total_recipes}
             </p>
