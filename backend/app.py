@@ -1,5 +1,6 @@
 # app.py
 import re
+from sqlalchemy import create_engine, text # type: ignore
 from flask import Flask, jsonify, request
 from flask_sqlalchemy import SQLAlchemy  # type: ignore
 from flask_migrate import Migrate # type: ignore
@@ -47,7 +48,7 @@ db_name = 'postgres'  # Supabase uses 'postgres' as default database name
 
 
 # Configure SQLAlchemy
-db_url = 'postgresql://postgres:RecipeFinder123!@bvgnlxznztqggtqswovg.supabase.co:5432/postgres'
+db_url = 'postgresql://postgres.bvgnlxznztqggtqswovg:RecipeFinder123!@aws-0-us-east-2.pooler.supabase.com:5432/postgres'
 app.config['SQLALCHEMY_DATABASE_URI'] = db_url
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 
@@ -1139,56 +1140,79 @@ def home_data():
 @app.route('/api/all-recipes')
 def get_all_recipes():
     try:
-        # Get all recipes with eager loading of related data
-        recipes = Recipe.query\
-            .options(
-                db.joinedload(Recipe.ingredients),
-                db.joinedload(Recipe.ingredient_quantities)\
-                  .joinedload(RecipeIngredientQuantity.nutrition)
-            )\
-            .order_by(Recipe.id.asc())\
-            .all()
-            
-        print(f"Found {len(recipes)} recipes")
+        # Update the database URL to use your Supabase credentials
+        db_url = 'postgresql://postgres.bvgnlxznztqggtqswovg:RecipeFinder123!@aws-0-us-east-2.pooler.supabase.com:5432/postgres'
+        engine = create_engine(db_url)
         
-        recipes_data = []
-        for recipe in recipes:
-            # Get ingredients using the recipe_ingredients3 table
-            ingredients = db.session.query(RecipeIngredient3.name)\
-                .filter(db.text('JSON_CONTAINS(recipe_ids, CAST(:recipe_id AS JSON))'))\
-                .params(recipe_id=recipe.id)\
-                .all()
+        with engine.connect() as connection:
+            # First get all recipes
+            recipes_result = connection.execute(text("""
+                SELECT id, name, description, prep_time 
+                FROM recipe 
+                ORDER BY id ASC
+            """))
+            recipes = recipes_result.fetchall()
             
-            # Calculate nutrition totals
-            recipes_data.append({
-                'id': recipe.id,
-                'name': recipe.name,
-                'description': recipe.description,
-                'prep_time': recipe.prep_time,
-                'ingredients': [ingredient[0] for ingredient in ingredients],
-                'total_nutrition': {
-                    'protein_grams': sum(
-                        (ing.nutrition.protein_grams or 0) * (ing.quantity / ing.nutrition.serving_size)
-                        for ing in recipe.ingredient_quantities 
-                        if ing.nutrition and ing.nutrition.serving_size
-                    ),
-                    'fat_grams': sum(
-                        (ing.nutrition.fat_grams or 0) * (ing.quantity / ing.nutrition.serving_size)
-                        for ing in recipe.ingredient_quantities 
-                        if ing.nutrition and ing.nutrition.serving_size
-                    ),
-                    'carbs_grams': sum(
-                        (ing.nutrition.carbs_grams or 0) * (ing.quantity / ing.nutrition.serving_size)
-                        for ing in recipe.ingredient_quantities 
-                        if ing.nutrition and ing.nutrition.serving_size
-                    )
+            print(f"Found {len(recipes)} recipes")
+            
+            recipes_data = []
+            for recipe in recipes:
+                # Get ingredients using Supabase's JSON functions
+                ingredients_result = connection.execute(text("""
+                    SELECT name 
+                    FROM recipe_ingredients3 
+                    WHERE recipe_ids::jsonb ? :recipe_id
+                """), {'recipe_id': str(recipe.id)})
+                
+                ingredients = ingredients_result.fetchall()
+                
+                # Get nutrition data
+                nutrition_result = connection.execute(text("""
+                    SELECT 
+                        riq.quantity,
+                        rin.protein_grams,
+                        rin.fat_grams,
+                        rin.carbs_grams,
+                        rin.serving_size
+                    FROM recipe_ingredient_quantities riq
+                    LEFT JOIN recipe_ingredient_nutrition rin 
+                        ON rin.recipe_ingredient_quantities_id = riq.id
+                    WHERE riq.recipe_id = :recipe_id
+                """), {'recipe_id': recipe.id})
+                
+                nutrition_data = nutrition_result.fetchall()
+                
+                # Calculate total nutrition
+                total_nutrition = {
+                    'protein_grams': 0,
+                    'fat_grams': 0,
+                    'carbs_grams': 0
                 }
+                
+                for nutr in nutrition_data:
+                    if nutr.serving_size and nutr.serving_size > 0:
+                        ratio = nutr.quantity / nutr.serving_size
+                        total_nutrition['protein_grams'] += (nutr.protein_grams or 0) * ratio
+                        total_nutrition['fat_grams'] += (nutr.fat_grams or 0) * ratio
+                        total_nutrition['carbs_grams'] += (nutr.carbs_grams or 0) * ratio
+                
+                recipes_data.append({
+                    'id': recipe.id,
+                    'name': recipe.name,
+                    'description': recipe.description,
+                    'prep_time': recipe.prep_time,
+                    'ingredients': [ingredient[0] for ingredient in ingredients],
+                    'total_nutrition': {
+                        'protein_grams': round(total_nutrition['protein_grams'], 1),
+                        'fat_grams': round(total_nutrition['fat_grams'], 1),
+                        'carbs_grams': round(total_nutrition['carbs_grams'], 1)
+                    }
+                })
+            
+            return jsonify({
+                'recipes': recipes_data,
+                'count': len(recipes_data)
             })
-        
-        return jsonify({
-            'recipes': recipes_data,
-            'count': len(recipes_data)
-        })
     except Exception as e:
         print(f"Error fetching all recipes: {str(e)}")
         return jsonify({

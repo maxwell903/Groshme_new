@@ -1,6 +1,10 @@
 flask
 flask_sqlalchemy
+SQLAlchemy>=1.4.36
 flask_migrate 
 flask_cors
 mysql-connector-python
 fuzzywuzzy
+
+psycopg2-binary>=2.9.3
+python-dotenv
