@@ -1472,44 +1472,89 @@ def add_fridge_item():
         # Clean the name
         name = data.get('name', '').strip()
         if not name:
-            return jsonify({'success': False, 'error': 'Name is required'}), 400
+            return jsonify({
+                'success': False,
+                'error': 'Name is required'
+            }), 400
             
         # Remove any formatting markers
         name = re.sub(r'\[(red|green)\]•\s*', '', name)
         
-        # Check if item already exists
-        existing_item = FridgeItem.query.filter(
-            db.func.lower(FridgeItem.name) == db.func.lower(name)
-        ).first()
-        
-        if existing_item:
-            # Update existing item
-            existing_item.quantity = float(data.get('quantity', existing_item.quantity or 0))
-            existing_item.unit = data.get('unit', existing_item.unit)
-            existing_item.price_per = float(data.get('price_per', existing_item.price_per or 0))
-            db.session.commit()
+        engine = create_engine(db_url, poolclass=NullPool)
+        with engine.connect() as connection:
+            # Check if item already exists
+            result = connection.execute(
+                text("""
+                    SELECT id, quantity, unit, price_per 
+                    FROM fridge_item 
+                    WHERE LOWER(name) = LOWER(:name)
+                    AND user_id = :user_id
+                """),
+                {
+                    "name": name,
+                    "user_id": "bc6ae242-c238-4a6b-a884-2fd1fc03ed72"
+                }
+            )
+            existing_item = result.fetchone()
+            
+            if existing_item:
+                # Update existing item
+                connection.execute(
+                    text("""
+                        UPDATE fridge_item 
+                        SET quantity = :quantity,
+                            unit = :unit,
+                            price_per = :price_per
+                        WHERE id = :id
+                    """),
+                    {
+                        "id": existing_item.id,
+                        "quantity": float(data.get('quantity', existing_item.quantity or 0)),
+                        "unit": data.get('unit', existing_item.unit),
+                        "price_per": float(data.get('price_per', existing_item.price_per or 0))
+                    }
+                )
+                item_id = existing_item.id
+            else:
+                # Create new item
+                result = connection.execute(
+                    text("""
+                        INSERT INTO fridge_item (name, quantity, unit, price_per, user_id)
+                        VALUES (:name, :quantity, :unit, :price_per, :user_id)
+                        RETURNING id
+                    """),
+                    {
+                        "name": name,
+                        "quantity": float(data.get('quantity', 0)),
+                        "unit": data.get('unit', ''),
+                        "price_per": float(data.get('price_per', 0)),
+                        "user_id": "bc6ae242-c238-4a6b-a884-2fd1fc03ed72"
+                    }
+                )
+                item_id = result.fetchone()[0]
+            
+            connection.commit()
+            
+            # Return the updated/created item
+            result = connection.execute(
+                text("SELECT * FROM fridge_item WHERE id = :id"),
+                {"id": item_id}
+            )
+            item = result.fetchone()
+            
             return jsonify({
                 'success': True,
-                'item': existing_item.to_dict()
+                'item': {
+                    'id': item.id,
+                    'name': item.name,
+                    'quantity': float(item.quantity) if item.quantity is not None else 0,
+                    'unit': item.unit or '',
+                    'price_per': float(item.price_per) if item.price_per is not None else 0
+                }
             })
-        
-        # Create new item
-        new_item = FridgeItem(
-            name=name,
-            quantity=float(data.get('quantity', 0)),
-            unit=data.get('unit', ''),
-            price_per=float(data.get('price_per', 0))
-        )
-        
-        db.session.add(new_item)
-        db.session.commit()
-        
-        return jsonify({
-            'success': True,
-            'item': new_item.to_dict()
-        })
+            
     except Exception as e:
-        db.session.rollback()
+        print(f"Error adding fridge item: {str(e)}")
         return jsonify({
             'success': False,
             'error': str(e)
@@ -1552,11 +1597,10 @@ def parse_receipt():
 @app.route('/api/fridge', methods=['GET'])
 def get_fridge_items():
     try:
-        # Create connection to Supabase PostgreSQL
         engine = create_engine(db_url, poolclass=NullPool)
         
         with engine.connect() as connection:
-            # Query fridge items with proper user_id
+            # Query fridge items
             result = connection.execute(
                 text("""
                     SELECT id, name, quantity, unit, price_per
@@ -1564,7 +1608,7 @@ def get_fridge_items():
                     WHERE user_id = :user_id
                     ORDER BY name
                 """),
-                {"user_id": "bc6ae242-c238-4a6b-a884-2fd1fc03ed72"}
+                {"user_id": "bc6ae242-c238-4a6b-a884-2fd1fc03ed72"}  # Default user ID
             )
             
             items = []
@@ -1639,73 +1683,176 @@ def create_grocery_list():
         print(f"Error creating grocery list: {str(e)}")
         return jsonify({'error': str(e)}), 500
     
+
 @app.route('/api/fridge/<int:item_id>', methods=['DELETE'])
 def delete_fridge_item(item_id):
     try:
-        item = FridgeItem.query.get_or_404(item_id)
-        db.session.delete(item)
-        db.session.commit()
-        return jsonify({'message': 'Item deleted successfully'}), 200
-    except Exception as e:
-        db.session.rollback()
-        return jsonify({'error': str(e)}), 500
-
-@app.route('/api/fridge/<int:item_id>', methods=['PUT'])
-def update_fridge_item(item_id):
-    try:
-        item = FridgeItem.query.get(item_id)
-        if not item:
-            return jsonify({
-                'success': False,
-                'error': 'Item not found'
-            }), 404
-
-        data = request.json
+        engine = create_engine(db_url, poolclass=NullPool)
         
-        # Update fields if provided
-        if 'quantity' in data:
-            item.quantity = float(data['quantity'])
-        if 'unit' in data:
-            item.unit = data['unit']
-        if 'price_per' in data:
-            item.price_per = float(data['price_per'])
+        with engine.connect() as connection:
+            # Verify item exists and belongs to user
+            result = connection.execute(
+                text("""
+                    DELETE FROM fridge_item 
+                    WHERE id = :id AND user_id = :user_id
+                    RETURNING id
+                """),
+                {
+                    "id": item_id,
+                    "user_id": "bc6ae242-c238-4a6b-a884-2fd1fc03ed72"
+                }
+            )
             
-        db.session.commit()
-        
-        return jsonify({
-            'success': True,
-            'item': item.to_dict()
-        })
+            if not result.fetchone():
+                return jsonify({
+                    'success': False,
+                    'error': 'Item not found'
+                }), 404
+            
+            connection.commit()
+            
+            return jsonify({
+                'success': True,
+                'message': 'Item deleted successfully'
+            })
+            
     except Exception as e:
-        db.session.rollback()
+        print(f"Error deleting fridge item: {str(e)}")
         return jsonify({
             'success': False,
             'error': str(e)
         }), 500
-    
 
+    
+@app.route('/api/fridge/<int:item_id>', methods=['PUT'])
+def update_fridge_item(item_id):
+    try:
+        data = request.json
+        engine = create_engine(db_url, poolclass=NullPool)
+        
+        with engine.connect() as connection:
+            # Verify item exists and belongs to user
+            result = connection.execute(
+                text("""
+                    SELECT id FROM fridge_item 
+                    WHERE id = :id AND user_id = :user_id
+                """),
+                {
+                    "id": item_id,
+                    "user_id": "bc6ae242-c238-4a6b-a884-2fd1fc03ed72"
+                }
+            )
+            
+            if not result.fetchone():
+                return jsonify({
+                    'success': False,
+                    'error': 'Item not found'
+                }), 404
+            
+            # Update the item
+            connection.execute(
+                text("""
+                    UPDATE fridge_item 
+                    SET quantity = COALESCE(:quantity, quantity),
+                        unit = COALESCE(:unit, unit),
+                        price_per = COALESCE(:price_per, price_per)
+                    WHERE id = :id
+                """),
+                {
+                    "id": item_id,
+                    "quantity": float(data.get('quantity')) if 'quantity' in data else None,
+                    "unit": data.get('unit'),
+                    "price_per": float(data.get('price_per')) if 'price_per' in data else None
+                }
+            )
+            
+            connection.commit()
+            
+            # Return updated item
+            result = connection.execute(
+                text("SELECT * FROM fridge_item WHERE id = :id"),
+                {"id": item_id}
+            )
+            item = result.fetchone()
+            
+            return jsonify({
+                'success': True,
+                'item': {
+                    'id': item.id,
+                    'name': item.name,
+                    'quantity': float(item.quantity) if item.quantity is not None else 0,
+                    'unit': item.unit or '',
+                    'price_per': float(item.price_per) if item.price_per is not None else 0
+                }
+            })
+            
+    except Exception as e:
+        print(f"Error updating fridge item: {str(e)}")
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
 
 
 @app.route('/api/fridge/clear', methods=['POST'])
 def clear_fridge():
     try:
-        # Set all quantities to 0
-        FridgeItem.query.update({FridgeItem.quantity: 0})
-        db.session.commit()
-        return jsonify({'message': 'All fridge items cleared'}), 200
+        engine = create_engine(db_url, poolclass=NullPool)
+        
+        with engine.connect() as connection:
+            # Set all quantities to 0 for the user's items
+            connection.execute(
+                text("""
+                    UPDATE fridge_item 
+                    SET quantity = 0
+                    WHERE user_id = :user_id
+                """),
+                {"user_id": "bc6ae242-c238-4a6b-a884-2fd1fc03ed72"}
+            )
+            
+            connection.commit()
+            
+            return jsonify({
+                'success': True,
+                'message': 'All quantities cleared successfully'
+            })
+            
     except Exception as e:
-        db.session.rollback()
-        return jsonify({'error': str(e)}), 500
+        print(f"Error clearing fridge: {str(e)}")
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
 
 @app.route('/api/fridge/delete-all', methods=['DELETE'])
 def delete_all_fridge_items():
     try:
-        FridgeItem.query.delete()
-        db.session.commit()
-        return jsonify({'message': 'All fridge items deleted'}), 200
+        engine = create_engine(db_url, poolclass=NullPool)
+        
+        with engine.connect() as connection:
+            # Delete all items for the user
+            connection.execute(
+                text("""
+                    DELETE FROM fridge_item 
+                    WHERE user_id = :user_id
+                """),
+                {"user_id": "bc6ae242-c238-4a6b-a884-2fd1fc03ed72"}
+            )
+            
+            connection.commit()
+            
+            return jsonify({
+                'success': True,
+                'message': 'All items deleted successfully'
+            })
+            
     except Exception as e:
-        db.session.rollback()
-        return jsonify({'error': str(e)}), 500
+        print(f"Error deleting all fridge items: {str(e)}")
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
     
 @app.route('/api/fridge/clear', methods=['POST'])
 def clear_fridge_items():

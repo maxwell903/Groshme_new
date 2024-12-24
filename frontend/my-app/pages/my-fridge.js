@@ -9,13 +9,7 @@ const InventoryRow = React.memo(({ item, isEven, onUpdate }) => {
   const [localQuantity, setLocalQuantity] = useState(parseFloat(item.quantity) || 0);
   const [localUnit, setLocalUnit] = useState(item.unit || '');
 
-  const handleQuantityUpdate = useCallback(() => 
-    handleUpdate({ quantity: localQuantity }), [handleUpdate, localQuantity]);
-  
-  const handleUnitUpdate = useCallback(() => 
-    handleUpdate({ unit: localUnit }), [handleUpdate, localUnit]);
-
-  const handleUpdate = useCallback(async (updateData) => {
+  const handleUpdate = async (updateData) => {
     try {
       setIsUpdating(true);
       const response = await fetch(`http://localhost:5000/api/fridge/${item.id}`, {
@@ -31,13 +25,13 @@ const InventoryRow = React.memo(({ item, isEven, onUpdate }) => {
       if (!response.ok) throw new Error('Failed to update item');
       await onUpdate?.();
     } catch (error) {
-      console.error('Error updating item: ', error);
+      console.error('Error updating item:', error);
     } finally {
       setIsUpdating(false);
     }
-  }, [localUnit, onUpdate, item]);
+  };
 
-  const handleDelete = useCallback(async () => {
+  const handleDelete = async () => {
     if (window.confirm(`Are you sure you want to delete ${item.name} from your fridge?`)) {
       try {
         const response = await fetch(`http://localhost:5000/api/fridge/${item.id}`, {
@@ -51,7 +45,7 @@ const InventoryRow = React.memo(({ item, isEven, onUpdate }) => {
         console.error('Error deleting item:', error);
       }
     }
-  }, [item.id, item.name, onUpdate]);
+  };
 
   useEffect(() => {
     setLocalQuantity(item.quantity);
@@ -75,7 +69,7 @@ const InventoryRow = React.memo(({ item, isEven, onUpdate }) => {
           type="number"
           value={localQuantity}
           onChange={(e) => setLocalQuantity(parseFloat(e.target.value) || 0)}
-          onBlur={handleQuantityUpdate}
+          onBlur={() => handleUpdate({ quantity: localQuantity })}
           onKeyDown={(e) => {
             if (e.key === 'Enter') {
               e.preventDefault();
@@ -93,7 +87,7 @@ const InventoryRow = React.memo(({ item, isEven, onUpdate }) => {
           type="text"
           value={localUnit}
           onChange={(e) => setLocalUnit(e.target.value)}
-          onBlur={handleUnitUpdate}
+          onBlur={() => handleUpdate({ unit: localUnit })}
           onKeyDown={(e) => {
             if (e.key === 'Enter') {
               e.preventDefault();
@@ -107,6 +101,7 @@ const InventoryRow = React.memo(({ item, isEven, onUpdate }) => {
     </div>
   );
 });
+
 
 InventoryRow.displayName = 'InventoryRow';
 
