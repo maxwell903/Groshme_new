@@ -113,9 +113,10 @@ const MenuSelectionModal = ({ listId, onClose, onSelect }) => {
 
 
 // GroceryItem component for displaying and editing individual items
-const GroceryItem = ({ item, listId, onUpdate, onDelete }) => {
+const GroceryItem = ({ item, listId, onUpdate, onDelete, onToggleMarked }) => {
   const isMenuHeader = item.name.startsWith('###');
   const isRecipeHeader = item.name.startsWith('**');
+  const isMarkedForDeletion = item.name.startsWith('✓');
   const [localData, setLocalData] = useState({
     quantity: parseFloat(item.quantity) || 0,
     unit: item.unit || '',
@@ -226,7 +227,7 @@ const GroceryItem = ({ item, listId, onUpdate, onDelete }) => {
       isRecipeHeader ? 'bg-gray-100 font-bold italic' : ''
     }`}>
       <td className="py-2 px-4">
-      {(isRecipeHeader || isMenuHeader) ? (
+        {(isRecipeHeader || isMenuHeader) ? (
           <div className="flex items-center gap-2">
             <span>{item.name}</span>
             {item.quantity > 1 && (
@@ -293,7 +294,8 @@ const GroceryItem = ({ item, listId, onUpdate, onDelete }) => {
           <td className="py-2 px-4">
             <button
               onClick={handleDelete}
-              className="text-red-500 hover:text-red-700"
+              className={`text-${item.name.startsWith('✓') ? 'red' : 'green'}-500 hover:text-${item.name.startsWith('✓') ? 'red' : 'green'}-700`}
+              aria-label={item.name.startsWith('✓') ? "Unmark for deletion" : "Mark for deletion"}
             >
               {item.name.startsWith('✓') ? <X size={20} /> : <Check size={20} />}
             </button>
@@ -859,20 +861,51 @@ export default function GroceryListsPage() {
                       ))}
                     </tbody>
                     <tfoot>
-                      <tr className="font-bold">
-                        <td colSpan="4" className="py-2 text-right">Total:</td>
-                        <td className="py-2 px-4 text-right">
-                          ${calculateListTotal(list.items || []).toFixed(2)}
-                        </td>
-                        <td></td>
-                      </tr>
-                    </tfoot>
+  <tr className="font-bold">
+    <td colSpan="4" className="py-2 px-4 text-right">Total:</td>
+    <td className="py-2 px-4 text-right">
+      ${calculateListTotal(list.items || []).toFixed(2)}
+    </td>
+    <td className="py-2 px-4">
+      {/* Add delete marked items button */}
+      {list.items?.some(item => item.name.startsWith('✓')) && (
+        <button
+          onClick={async () => {
+            try {
+              const markedItems = list.items.filter(item => item.name.startsWith('✓'));
+              
+              // Delete each marked item
+              for (const item of markedItems) {
+                await fetch(`http://localhost:5000/api/grocery-lists/${list.id}/items/${item.id}`, {
+                  method: 'DELETE',
+                  headers: { 
+                    'Content-Type': 'application/json',
+                    'Accept': 'application/json'
+                  }
+                });
+              }
+              
+              // Refresh the list
+              await fetchData();
+            } catch (error) {
+              console.error('Error deleting marked items:', error);
+              setError('Failed to delete marked items');
+            }
+          }}
+          className="px-3 py-1 bg-red-600 text-black rounded-md hover:bg-red-700 text-sm"
+        >
+          <Trash size={20}/> ({list.items.filter(item => item.name.startsWith('✓')).length})
+        </button>
+      )}
+    </td>
+  </tr>
+</tfoot>
                   </table>
 
                   <div className="mt-4 flex space-x-4">
                     <button
                       onClick={() => setShowAddItem(true)}
-                      className="flex items-center gap-2 rounded-lg bg-green-600 px-4 py-2 text-white hover:bg-green-700"
+                      className="flex items-left gap-2 rounded-lg bg-green-600 px-4 py-2 text-white hover:bg-green-700"
                     >
                       <Plus size={20} />
                       Add Item
