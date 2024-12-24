@@ -25,7 +25,7 @@ from werkzeug.utils import secure_filename
 app = Flask(__name__)
 CORS(app, resources={
     r"/api/*": {
-        "origins": ["http://localhost:3000", "https://your-netlify-app.netlify.app"],
+        "origins": ["http://localhost:3000", "https://groshmebeta.netlify.app"],
         "methods": ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
         "allow_headers": ["Content-Type", "Authorization", "Accept"],
         "supports_credentials": True
