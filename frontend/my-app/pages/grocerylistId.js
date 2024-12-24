@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { ChevronDown, ChevronUp, Plus, Edit, Trash, X, Check } from 'lucide-react';
+import { ChevronDown, ChevronUp, Plus, Edit, Trash, X, Check, Layers } from 'lucide-react';
 import { useRouter } from 'next/router';
 import Link from 'next/link';
 
@@ -719,8 +719,9 @@ export default function GroceryListsPage() {
           }
         }
       }}
-      className="flex items-center gap-2 rounded-lg bg-yellow-600 px-4 py-2 text-white hover:bg-yellow-700"
+      className="flex items-center gap-2 px-4 py-2 text-gray-700 font-medium bg-transparent hover:bg-gray-100 border border-gray-300 rounded-lg transition-colors duration-200"
     >
+      <Layers size={20} />
       Condense List
     </button>
     <button
@@ -921,7 +922,7 @@ export default function GroceryListsPage() {
 
                     <button
                       onClick={() => setSelectedMenu(true)}
-                      className="flex items-center gap-2 rounded-lg bg-purple-600 px-4 py-2 text-white hover:bg-purple-700"
+                      className="flex items-center gap-2 rounded-lg bg-purple-600 px-4 py-2 text-black hover:bg-purple-700"
                     >
                       <Plus size={20} />
                       Add Menu

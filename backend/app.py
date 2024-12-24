@@ -582,7 +582,7 @@ class GroceryList(db.Model):
     user_id = db.Column(db.UUID, nullable=False, default='bc6ae242-c238-4a6b-a884-2fd1fc03ed72')
     name = db.Column(db.String(100), nullable=False)
     created_date = db.Column(db.DateTime, default=db.func.current_timestamp())
-    items = db.relationship('GroceryItem', backref='grocery_list', lazy=True, cascade='all, delete-orphan')
+    items = db.relationship('GroceryItem', back_populates='list', cascade='all, delete-orphan')
 
 class RecipeIngredientDetails(db.Model):
     __tablename__ = 'recipe_ingredient_details'
@@ -2083,10 +2083,11 @@ def update_grocery_item(list_id, item_id):
 
 # Find and replace the existing GroceryItem model with this:
 class GroceryItem(db.Model):
+    __tablename__ = 'grocery_item'
     id = db.Column(db.Integer, primary_key=True)
     name = db.Column(db.String(100), nullable=False)
     list_id = db.Column(db.Integer, db.ForeignKey('grocery_list.id'), nullable=False)
-    grocery_list = db.relationship('GroceryList', backref=db.backref('items', lazy=True, cascade='all, delete-orphan'))
+    list = db.relationship('GroceryList', back_populates='items')
     quantity = db.Column(db.Float, default=0)
     unit = db.Column(db.String(20))
     price_per = db.Column(db.Float, default=0)
@@ -2147,61 +2148,7 @@ def merge_grocery_items(list_id, items_to_add):
     return merged_items
 
 
-@app.route('/api/grocery-lists/<int:list_id>/add-recipe/<int:recipe_id>', methods=['POST'])
-def add_recipe_to_grocery_list(list_id, recipe_id):
-    try:
-        recipe = Recipe.query.get_or_404(recipe_id)
-        
-        # Prepare items to add
-        items_to_add = []
-        
-        # Add recipe header
-        items_to_add.append({
-            'name': f"**{recipe.name}**",
-            'quantity': 1,
-            'unit': '',
-            'price_per': 0,
-            'total':  ''
-        })
-        
-        # Get recipe ingredients
-        ingredients = RecipeIngredientDetails.query.filter_by(recipe_id=recipe_id).all()
-        fridge_items = FridgeItem.query.all()
-        
-        # Prepare ingredient items
-        for ingredient in ingredients:
-            inFridge = any(
-                item.name.lower() == ingredient.ingredient_name.lower() and 
-                item.quantity > 0 
-                for item in fridge_items
-            )
-            
-            items_to_add.append({
-                'name': f"{'✓' if inFridge else '•'} {ingredient.ingredient_name}",
-                'quantity': ingredient.quantity,
-                'unit': ingredient.unit,
-                'price_per': 0,
-                'total': 0
-            })
-        
-        # Merge with existing items
-        merged_items = merge_grocery_items(list_id, items_to_add)
-        
-        # Add new items to database
-        for item in merged_items:
-            grocery_item = GroceryItem(
-                list_id=list_id,
-                **item
-            )
-            db.session.add(grocery_item)
-        
-        db.session.commit()
-        return jsonify({'message': 'Recipe added successfully'}), 201
-        
-    except Exception as e:
-        db.session.rollback()
-        print(f"Error adding recipe: {str(e)}")
-        return jsonify({'error': str(e)}), 500
+
 
 @app.route('/api/grocery-lists/<int:list_id>/add-menu/<int:menu_id>', methods=['POST'])
 def add_menu_to_grocery_list(list_id, menu_id):
@@ -2554,29 +2501,34 @@ def delete_exercise_by_id(exercise_id):
 @app.route('/api/recipe/<int:recipe_id>/ingredients', methods=['GET'])
 def get_recipe_ingredients(recipe_id):
     try:
-        # Query to get ingredients with quantities and units
-        ingredients_query = db.session.query(
-            RecipeIngredientQuantity,
-            Ingredient
-        ).join(
-            Ingredient,
-            RecipeIngredientQuantity.ingredient_id == Ingredient.id
-        ).filter(
-            RecipeIngredientQuantity.recipe_id == recipe_id
-        ).all()
+        # Create connection to Supabase PostgreSQL
+        db_url = 'postgresql://postgres.bvgnlxznztqggtqswovg:RecipeFinder123!@aws-0-us-east-2.pooler.supabase.com:5432/postgres'
+        engine = create_engine(db_url)
 
-        # Format the ingredients data
-        ingredients = [{
-            'name': ingredient.name,
-            'quantity': float(quantity.quantity) if quantity.quantity else 0,
-            'unit': quantity.unit or '',
-            'ingredient_id': ingredient.id
-        } for quantity, ingredient in ingredients_query]
+        with engine.connect() as connection:
+            # Query ingredients with quantities and units
+            result = connection.execute(text("""
+                SELECT 
+                    i.name,
+                    riq.quantity,
+                    riq.unit,
+                    i.id as ingredient_id
+                FROM recipe_ingredient_quantities riq
+                JOIN ingredients i ON riq.ingredient_id = i.id
+                WHERE riq.recipe_id = :recipe_id
+            """), {"recipe_id": recipe_id})
 
-        return jsonify({
-            'success': True,
-            'ingredients': ingredients
-        })
+            ingredients = [{
+                'name': row.name,
+                'quantity': float(row.quantity) if row.quantity else 0,
+                'unit': row.unit or '',
+                'ingredient_id': row.ingredient_id
+            } for row in result]
+
+            return jsonify({
+                'success': True,
+                'ingredients': ingredients
+            })
 
     except Exception as e:
         print(f"Error fetching recipe ingredients: {str(e)}")
