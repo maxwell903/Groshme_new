@@ -234,6 +234,7 @@ export default function RecipePage() {
     if (!recipe) return;
     
     try {
+      // Add recipe name as header
       await fetch(`http://localhost:5000/api/grocery-lists/${listId}/items`, {
         method: 'POST',
         headers: {
@@ -242,22 +243,27 @@ export default function RecipePage() {
         body: JSON.stringify({ name: `**${recipe.name}**` }),
       });
 
+      // Add each ingredient with proper formatting
       for (const ingredient of recipe.ingredients) {
         const inFridge = fridgeItems.some(item => 
           item.name.toLowerCase() === ingredient.name.toLowerCase() && 
           item.quantity > 0
         );
-
-        const colorPrefix = inFridge ? '[green]' : '[red]';
         
+        // Add ingredient with bullet point prefix and quantity/unit details
         await fetch(`http://localhost:5000/api/grocery-lists/${listId}/items`, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
           },
-          body: JSON.stringify({ name: `${colorPrefix}• ${ingredient.quantity} ${ingredient.unit} ${ingredient.name}` }),
+          body: JSON.stringify({
+            name: `${inFridge ? '✓' : '•'} ${ingredient.name}`,
+            quantity: ingredient.quantity,
+            unit: ingredient.unit
+          }),
         });
 
+        // Add to fridge tracking if not already present
         await fetch('http://localhost:5000/api/fridge/add', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
