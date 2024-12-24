@@ -45,14 +45,15 @@ if not all([SUPABASE_URL, SUPABASE_KEY, DB_PASSWORD]):
 db_host = SUPABASE_URL.replace('https://', '').split('.')[0] + '.supabase.co'
 db_name = 'postgres'  # Supabase uses 'postgres' as default database name
 
+
+# Configure SQLAlchemy
+db_url = 'postgresql://postgres:RecipeFinder123!@bvgnlxznztqggtqswovg.supabase.co:5432/postgres'
+app.config['SQLALCHEMY_DATABASE_URI'] = db_url
+app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
+
 # Initialize SQLAlchemy
 db = SQLAlchemy(app)
 migrate = Migrate(app, db)
-
-# Configure SQLAlchemy
-db_url = f'postgresql://postgres:{DB_PASSWORD}@db.bvgnlxznztqggtqswovg.supabase.co:5432/postgres'
-app.config['SQLALCHEMY_DATABASE_URI'] = db_url
-app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 
 
 
@@ -163,7 +164,7 @@ class SetHistory(db.Model):
     created_at = db.Column(db.DateTime, default=db.func.current_timestamp())
     sets = db.relationship('IndividualSet', backref='history', lazy=True, cascade='all, delete-orphan')
 
-from sqlalchemy import text
+
 
 @app.route('/health', methods=['GET'])
 def health_check():
@@ -223,36 +224,8 @@ def get_grocery_bill():
         print(f"Error fetching grocery bill: {str(e)}")
         return jsonify({'error': str(e)}), 500
     
-# app.py route:
-@app.route('/api/parse-receipt-image', methods=['POST'])
-def parse_receipt_image():
-    try:
-        if 'receipt' not in request.files:
-            return jsonify({'error': 'No file uploaded'}), 400
 
-        file = request.files['receipt']
-        content = file.read()
 
-        # Initialize Vision client with service account
-        credentials = service_account.Credentials.from_service_account_file(
-            'oauth_setup/service-account-key.json',
-            scopes=['https://www.googleapis.com/auth/cloud-vision']
-        )
-        client = vision.ImageAnnotatorClient(credentials=credentials)
-        
-        image = vision.Image(content=content)
-        response = client.text_detection(image=image)
-        
-        # Extract detected text
-        detected_text = response.text_annotations[0].description if response.text_annotations else "No text detected"
-
-        return jsonify({
-            'text': detected_text
-        })
-
-    except Exception as e:
-        print(f"Error processing receipt: {str(e)}")
-        return jsonify({'error': str(e)}), 500
 
 @app.route('/api/exercise/<int:exercise_id>/sets', methods=['GET'])
 def get_exercise_sets(exercise_id):
