@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/router';
 import { Plus, X, Search, ChevronDown, ChevronUp, Check } from 'lucide-react';
-import { supabase } from '../lib/supabaseClient'
+import { supabase } from '../src/lib/supabaseClient'
 
 import emailjs from '@emailjs/browser';
 

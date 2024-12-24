@@ -2,8 +2,8 @@
 import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { ChevronDown, ChevronRight, Plus, X, Search, Check, Loader } from 'lucide-react';
-import ExerciseDisplay from '../components/ExerciseDisplay';
-import WorkoutDisplay from '../components/WorkoutDisplay';
+import ExerciseDisplay from '../src/components/ExerciseDisplay';
+import WorkoutDisplay from '../src/components/WorkoutDisplay';
 import { Calendar } from 'lucide-react';
 import NutritionSummary from '@/components/NutritionModal';
 
