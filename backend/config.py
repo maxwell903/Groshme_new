@@ -1,23 +1,19 @@
-import os
-from dotenv import load_dotenv # type: ignore
-
-# Load environment variables
-load_dotenv()
-
 class Config:
-    SUPABASE_URL = os.environ.get('SUPABASE_URL')
-    SUPABASE_KEY = os.environ.get('SUPABASE_KEY')
-    DB_PASSWORD = os.environ.get('DB_PASSWORD')
+    # Fixed values since we're deploying
+    SUPABASE_URL = 'https://bvgnlxznztqggtqswovg.supabase.co'
+    SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImJ2Z25seHpuenRxZ2d0cXN3b3ZnIiwicm9sZSI6ImFub24iLCJpYXQiOjE3MzQ5MDI1ODIsImV4cCI6MjA1MDQ3ODU4Mn0.I8alzEBJYt_D1PDZHvuyZzLzlAEANTGkeR3IRyp1gCc'
+    DB_PASSWORD = 'RecipeFinder123!'
     
-    # Extract database connection details from Supabase URL
-    db_host = SUPABASE_URL.replace('https://', '').split('.')[0] + '.supabase.co'
-    
-    # Database configuration
-    SQLALCHEMY_DATABASE_URI = f"postgresql://postgres:{DB_PASSWORD}@db.{db_host}:5432/postgres"
+    # Direct database URI instead of constructing it
+    SQLALCHEMY_DATABASE_URI = 'postgresql://postgres:RecipeFinder123!@db.bvgnlxznztqggtqswovg.supabase.co:5432/postgres'
     SQLALCHEMY_TRACK_MODIFICATIONS = False
-
-    # CORS configuration
+    
+    # Add your Heroku domain to CORS origins
     CORS_ORIGINS = [
         'http://localhost:3000',
-        'https://groshmebeta.netlify.app'
+        'https://groshmebeta.netlify.app',
+        'https://groshme-beta-c6285c415769.herokuapp.com'
     ]
+    
+    # Add a secret key for Flask
+    SECRET_KEY = 'Hannahmax1!'

@@ -45,13 +45,16 @@ if not all([SUPABASE_URL, SUPABASE_KEY, DB_PASSWORD]):
 db_host = SUPABASE_URL.replace('https://', '').split('.')[0] + '.supabase.co'
 db_name = 'postgres'  # Supabase uses 'postgres' as default database name
 
-# Configure SQLAlchemy
-app.config['SQLALCHEMY_DATABASE_URI'] = f'postgresql://postgres:{DB_PASSWORD}@db.{db_host}:5432/{db_name}'
-app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
-
 # Initialize SQLAlchemy
 db = SQLAlchemy(app)
 migrate = Migrate(app, db)
+
+# Configure SQLAlchemy
+db_url = f'postgresql://postgres:{DB_PASSWORD}@db.bvgnlxznztqggtqswovg.supabase.co:5432/postgres'
+app.config['SQLALCHEMY_DATABASE_URI'] = db_url
+app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
+
+
 
 
 def get_vision_credentials():
@@ -2613,9 +2616,7 @@ def add_workout():
        print(f"Error adding workout: {str(e)}")
        return jsonify({'error': str(e)}), 500
    
-@app.route('/api/health-check', methods=['GET'])
-def health_check():
-    return jsonify({'status': 'ok'}), 200
+
 
 @app.route('/api/send-email', methods=['OPTIONS'])
 def handle_email_preflight():
