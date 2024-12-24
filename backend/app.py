@@ -468,20 +468,14 @@ class MealPlan(db.Model):
 
 class Recipe(db.Model):
     id = db.Column(db.Integer, primary_key=True)
-    user_id = db.Column(db.UUID, nullable=False, default='00000000-0000-0000-0000-000000000000')
+    user_id = db.Column(db.UUID, nullable=False, default='bc6ae242-c238-4a6b-a884-2fd1fc03ed72')
     name = db.Column(db.String(100), nullable=False)
     description = db.Column(db.Text)
     instructions = db.Column(db.Text)
     prep_time = db.Column(db.Integer)
     created_date = db.Column(db.DateTime, default=db.func.current_timestamp())
     
-    # Define relationships
-    ingredients = db.relationship(
-        'Ingredient',
-        secondary='recipe_ingredient_quantities',
-        backref=db.backref('recipes', lazy=True),
-        overlaps="ingredient_quantities"
-    )
+   
     ingredient_quantities = db.relationship(
         'RecipeIngredientQuantity',
         backref='recipe',
@@ -1058,7 +1052,7 @@ def add_recipe():
             description=data['description'],
             instructions=data['instructions'],
             prep_time=int(data['prep_time']),
-            user_id=uuid.UUID('00000000-0000-0000-0000-000000000000')
+            user_id=uuid.UUID('bc6ae242-c238-4a6b-a884-2fd1fc03ed72')
         )
         db.session.add(new_recipe)
         db.session.flush()
