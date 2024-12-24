@@ -543,11 +543,10 @@ class MenuRecipe(db.Model):
 
 class FridgeItem(db.Model):
     __tablename__ = 'fridge_item'
-    __table_args__ = {'extend_existing': True}  # Add this line
-    
     id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.UUID, nullable=False, default='bc6ae242-c238-4a6b-a884-2fd1fc03ed72')
     name = db.Column(db.String(100), nullable=False)
-    quantity = db.Column(db.Float(precision=2), nullable=False)
+    quantity = db.Column(db.Float, default=0)
     unit = db.Column(db.String(20))
     price_per = db.Column(db.Float, default=0)
 
@@ -556,9 +555,8 @@ class FridgeItem(db.Model):
             'id': self.id,
             'name': self.name,
             'quantity': float(self.quantity) if self.quantity is not None else 0,
-            'unit': self.unit,
-            'price_per': float(self.price_per) if self.price_per is not None else 0,
-            'total': float(self.quantity * self.price_per) if self.quantity is not None and self.price_per is not None else 0
+            'unit': self.unit or '',
+            'price_per': float(self.price_per) if self.price_per is not None else 0
         }
 
 
@@ -579,9 +577,12 @@ def upgrade_database():
 # Add to your existing models in app.py
 
 class GroceryList(db.Model):
+    __tablename__ = 'grocery_list'
     id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.UUID, nullable=False, default='bc6ae242-c238-4a6b-a884-2fd1fc03ed72')
     name = db.Column(db.String(100), nullable=False)
     created_date = db.Column(db.DateTime, default=db.func.current_timestamp())
+    items = db.relationship('GroceryItem', backref='grocery_list', lazy=True, cascade='all, delete-orphan')
 
 class RecipeIngredientDetails(db.Model):
     __tablename__ = 'recipe_ingredient_details'
@@ -1006,38 +1007,78 @@ def get_exercises():
         return jsonify({'error': str(e)}), 500
     
 # Add these new routes above the existing grocery list routes
-
 @app.route('/api/grocery-lists/<int:list_id>', methods=['DELETE'])
 def delete_grocery_list(list_id):
     try:
-        # Get the list
-        grocery_list = GroceryList.query.get_or_404(list_id)
+        # Create connection to Supabase PostgreSQL
+        db_url = 'postgresql://postgres.bvgnlxznztqggtqswovg:RecipeFinder123!@aws-0-us-east-2.pooler.supabase.com:5432/postgres'
+        engine = create_engine(db_url)
+
+        with engine.connect() as connection:
+            # Start a transaction
+            with connection.begin():
+                # Delete the grocery items associated with the list
+                connection.execute(
+                    text("""
+                        DELETE FROM grocery_item
+                        WHERE list_id = :list_id
+                    """),
+                    {"list_id": list_id}
+                )
+                
+                # Delete the grocery list
+                result = connection.execute(
+                    text("""
+                        DELETE FROM grocery_list
+                        WHERE id = :list_id
+                    """),
+                    {"list_id": list_id}
+                )
+                
+                if result.rowcount == 0:
+                    return jsonify({'error': 'Grocery list not found'}), 404
+            
+            # Commit the transaction
+            connection.commit()
+            
+            return jsonify({'message': 'Grocery list deleted successfully'}), 200
         
-        # Delete will cascade to items due to relationship configuration
-        db.session.delete(grocery_list)
-        db.session.commit()
-        
-        return jsonify({'message': 'Grocery list deleted successfully'}), 200
     except Exception as e:
-        db.session.rollback()
         print(f"Error deleting grocery list: {str(e)}")
         return jsonify({'error': str(e)}), 500
+
 
 @app.route('/api/grocery-lists/<int:list_id>/items/<int:item_id>', methods=['DELETE'])
 def delete_grocery_item(list_id, item_id):
     try:
-        item = GroceryItem.query.get_or_404(item_id)
-        
-        # Verify the item belongs to the specified list
-        if item.list_id != list_id:
-            return jsonify({'error': 'Item not found in the specified list'}), 404
+        # Create connection to Supabase PostgreSQL
+        db_url = 'postgresql://postgres.bvgnlxznztqggtqswovg:RecipeFinder123!@aws-0-us-east-2.pooler.supabase.com:5432/postgres'
+        engine = create_engine(db_url)
+
+        with engine.connect() as connection:
+            # Start a transaction
+            with connection.begin():
+                # Delete the grocery item
+                result = connection.execute(
+                    text("""
+                        DELETE FROM grocery_item
+                        WHERE id = :item_id AND list_id = :list_id
+                    """),
+                    {
+                        "item_id": item_id,
+                        "list_id": list_id
+                    }
+                )
+                
+                if result.rowcount == 0:
+                    return jsonify({'error': 'Item not found in the specified list'}), 404
             
-        db.session.delete(item)
-        db.session.commit()
+            # Commit the transaction
+            connection.commit()
+            
+            return jsonify({'message': 'Item deleted successfully'}), 200
         
-        return jsonify({'message': 'Item deleted successfully'}), 200
     except Exception as e:
-        db.session.rollback()
         print(f"Error deleting grocery item: {str(e)}")
         return jsonify({'error': str(e)}), 500
 
@@ -1511,12 +1552,38 @@ def parse_receipt():
 @app.route('/api/fridge', methods=['GET'])
 def get_fridge_items():
     try:
-        items = FridgeItem.query.all()
-        return jsonify({
-            'success': True,
-            'ingredients': [item.to_dict() for item in items]
-        })
+        # Create connection to Supabase PostgreSQL
+        engine = create_engine(db_url, poolclass=NullPool)
+        
+        with engine.connect() as connection:
+            # Query fridge items with proper user_id
+            result = connection.execute(
+                text("""
+                    SELECT id, name, quantity, unit, price_per
+                    FROM fridge_item
+                    WHERE user_id = :user_id
+                    ORDER BY name
+                """),
+                {"user_id": "bc6ae242-c238-4a6b-a884-2fd1fc03ed72"}
+            )
+            
+            items = []
+            for row in result:
+                items.append({
+                    'id': row.id,
+                    'name': row.name,
+                    'quantity': float(row.quantity) if row.quantity is not None else 0,
+                    'unit': row.unit or '',
+                    'price_per': float(row.price_per) if row.price_per is not None else 0
+                })
+            
+            return jsonify({
+                'success': True,
+                'ingredients': items
+            })
+            
     except Exception as e:
+        print(f"Error fetching fridge items: {str(e)}")
         return jsonify({
             'success': False,
             'error': str(e)
@@ -1528,18 +1595,48 @@ def get_fridge_items():
 def create_grocery_list():
     try:
         data = request.json
-        new_list = GroceryList(name=data['name'])
-        db.session.add(new_list)
-        db.session.commit()
+        default_user_id = 'bc6ae242-c238-4a6b-a884-2fd1fc03ed72'  # Same default user ID as used in recipes
         
-        for item_name in data['items']:
-            item = GroceryItem(name=item_name, list_id=new_list.id)
-            db.session.add(item)
-        
-        db.session.commit()
-        return jsonify({'message': 'Grocery list created', 'id': new_list.id}), 201
+        # Create new list in Supabase/PostgreSQL
+        with db.engine.connect() as connection:
+            # Insert the grocery list with user_id
+            result = connection.execute(
+                text("""
+                    INSERT INTO grocery_list (name, created_date, user_id)
+                    VALUES (:name, CURRENT_TIMESTAMP, :user_id)
+                    RETURNING id
+                """),
+                {
+                    "name": data['name'],
+                    "user_id": default_user_id
+                }
+            )
+            list_id = result.fetchone()[0]
+
+            # If items are provided, insert them
+            if 'items' in data and data['items']:
+                for item_name in data['items']:
+                    connection.execute(
+                        text("""
+                            INSERT INTO grocery_item 
+                            (list_id, name, quantity, unit, price_per, total)
+                            VALUES (:list_id, :name, 0, '', 0, 0)
+                        """),
+                        {
+                            "list_id": list_id,
+                            "name": item_name
+                        }
+                    )
+
+            connection.commit()
+            
+            return jsonify({
+                'message': 'Grocery list created', 
+                'id': list_id
+            }), 201
+            
     except Exception as e:
-        db.session.rollback()
+        print(f"Error creating grocery list: {str(e)}")
         return jsonify({'error': str(e)}), 500
     
 @app.route('/api/fridge/<int:item_id>', methods=['DELETE'])
@@ -1885,60 +1982,103 @@ def get_grocery_list(list_id):
 @app.route('/api/grocery-lists', methods=['GET'])
 def get_grocery_lists():
     try:
-        lists = GroceryList.query.all()
-        return jsonify({
-            'lists': [{
-                'id': list.id,
-                'name': list.name,
-                'items': [{
-                    'id': item.id,
-                    'name': item.name,
-                    'quantity': float(item.quantity) if item.quantity is not None else 0,
-                    'unit': item.unit or '',
-                    'price_per': float(item.price_per) if item.price_per is not None else 0,
-                    'total': float(item.quantity * item.price_per) if item.quantity is not None and item.price_per is not None else 0
-                } for item in list.items]
-            } for list in lists]
-        })
+        # Create connection to Supabase PostgreSQL
+        db_url = 'postgresql://postgres.bvgnlxznztqggtqswovg:RecipeFinder123!@aws-0-us-east-2.pooler.supabase.com:5432/postgres'
+        engine = create_engine(db_url, poolclass=NullPool)
+
+        with engine.connect() as connection:
+            # Query grocery lists with their items using SQLAlchemy text
+            result = connection.execute(text("""
+                SELECT
+                    gl.id,
+                    gl.name,
+                    COALESCE(json_agg(json_build_object(
+                        'id', gi.id,
+                        'name', gi.name,
+                        'quantity', gi.quantity,
+                        'unit', gi.unit,
+                        'price_per', gi.price_per,
+                        'total', gi.total
+                    )) FILTER (WHERE gi.id IS NOT NULL), '[]') AS items
+                FROM grocery_list gl
+                LEFT JOIN grocery_item gi ON gl.id = gi.list_id
+                WHERE gl.user_id = :user_id
+                GROUP BY gl.id
+            """), {"user_id": "bc6ae242-c238-4a6b-a884-2fd1fc03ed72"})  
+
+            lists_data = []
+            for row in result:
+                lists_data.append({
+                    'id': row.id,
+                    'name': row.name,
+                    'items': row.items
+                })
+
+            return jsonify({'lists': lists_data})
+
     except Exception as e:
+        print(f"Error fetching grocery lists: {str(e)}")
         return jsonify({'error': str(e)}), 500
+
 
 @app.route('/api/grocery-lists/<int:list_id>/items/<int:item_id>', methods=['PUT'])
 def update_grocery_item(list_id, item_id):
     try:
         data = request.json
-        item = GroceryItem.query.get_or_404(item_id)
         
-        if item.list_id != list_id:
-            return jsonify({'error': 'Item not found in the specified list'}), 404
-        
-        if 'quantity' in data:
-            item.quantity = float(data['quantity'])
-        if 'unit' in data:
-            item.unit = data['unit']
-        if 'price_per' in data:
-            item.price_per = float(data['price_per'])
+        # Create connection to Supabase PostgreSQL
+        db_url = 'postgresql://postgres.bvgnlxznztqggtqswovg:RecipeFinder123!@aws-0-us-east-2.pooler.supabase.com:5432/postgres'
+        engine = create_engine(db_url)
+
+        with engine.connect() as connection:
+            # Start a transaction
+            with connection.begin():
+                # Update the grocery item
+                result = connection.execute(
+                    text("""
+                        UPDATE grocery_item
+                        SET 
+                            name = COALESCE(:name, name),
+                            quantity = COALESCE(:quantity, quantity),
+                            unit = COALESCE(:unit, unit),
+                            price_per = COALESCE(:price_per, price_per),
+                            total = COALESCE(:quantity, quantity) * COALESCE(:price_per, price_per)
+                        WHERE id = :item_id AND list_id = :list_id
+                        RETURNING id, name, quantity, unit, price_per, total
+                    """),
+                    {
+                        "item_id": item_id,
+                        "list_id": list_id,
+                        "name": data.get('name'),
+                        "quantity": float(data['quantity']) if 'quantity' in data else None,
+                        "unit": data.get('unit'),
+                        "price_per": float(data['price_per']) if 'price_per' in data else None
+                    }
+                )
+
+                updated_item = result.fetchone()
+                
+                if not updated_item:
+                    return jsonify({'error': 'Item not found in the specified list'}), 404
             
-        # Calculate total
-        item.total = float(item.quantity or 0) * float(item.price_per or 0)
-        
-        db.session.commit()
-        return jsonify({
-            'message': 'Item updated successfully',
-            'item': {
-                'id': item.id,
-                'name': item.name,
-                'list_id': item.list_id,
-                'quantity': float(item.quantity) if item.quantity is not None else 0,
-                'unit': item.unit or '',
-                'price_per': float(item.price_per) if item.price_per is not None else 0,
-                'total': float(item.total) if item.total is not None else 0
-            }
-        }), 200
+            # Commit the transaction
+            connection.commit()
+            
+            return jsonify({
+                'message': 'Item updated successfully',
+                'item': {
+                    'id': updated_item.id,
+                    'name': updated_item.name,
+                    'quantity': float(updated_item.quantity),
+                    'unit': updated_item.unit,
+                    'price_per': float(updated_item.price_per),
+                    'total': float(updated_item.total)
+                }
+            }), 200
+            
     except Exception as e:
-        db.session.rollback()
-        return jsonify({'error': str(e)}), 500
-    
+        print(f"Error updating grocery item: {str(e)}")
+        return jsonify({'error': str(e)}), 500   
 
 
 # Find and replace the existing GroceryItem model with this:
@@ -2212,25 +2352,49 @@ def add_item_to_list(list_id):
         data = request.json
         if not data or 'name' not in data:
             return jsonify({'error': 'Name is required'}), 400
-            
-        new_item = GroceryItem(
-            name=data['name'],
-            list_id=list_id,
-            quantity=float(data.get('quantity', 0)),
-            unit=data.get('unit', ''),
-            price_per=float(data.get('price_per', 0))
-        )
-        new_item.total = new_item.calculate_total()
-        
-        db.session.add(new_item)
-        db.session.commit()
-        
-        return jsonify({
-            'message': 'Item added successfully',
-            'item': new_item.to_dict()
-        }), 201
+
+        # Create connection to Supabase PostgreSQL
+        db_url = 'postgresql://postgres.bvgnlxznztqggtqswovg:RecipeFinder123!@aws-0-us-east-2.pooler.supabase.com:5432/postgres'
+        engine = create_engine(db_url)
+
+        with engine.connect() as connection:
+            # Start a transaction
+            with connection.begin():
+                # Insert the new item into the grocery_item table
+                result = connection.execute(
+                    text("""
+                        INSERT INTO grocery_item (list_id, name, quantity, unit, price_per, total)
+                        VALUES (:list_id, :name, :quantity, :unit, :price_per, :total)
+                        RETURNING id, name, quantity, unit, price_per, total
+                    """),
+                    {
+                        "list_id": list_id,
+                        "name": data['name'],
+                        "quantity": float(data.get('quantity', 0)),
+                        "unit": data.get('unit', ''),
+                        "price_per": float(data.get('price_per', 0)),
+                        "total": float(data.get('quantity', 0)) * float(data.get('price_per', 0))
+                    }
+                )
+
+                new_item = result.fetchone()
+
+            # Commit the transaction
+            connection.commit()
+
+            return jsonify({
+                'message': 'Item added successfully',
+                'item': {
+                    'id': new_item.id,
+                    'name': new_item.name,
+                    'quantity': float(new_item.quantity),
+                    'unit': new_item.unit,
+                    'price_per': float(new_item.price_per),
+                    'total': float(new_item.total)
+                }
+            }), 201
+
     except Exception as e:
-        db.session.rollback()
         print(f"Error adding item to list: {str(e)}")
         return jsonify({'error': str(e)}), 500
     

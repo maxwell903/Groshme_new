@@ -328,13 +328,19 @@ export default function GroceryListsPage() {
     try {
       const response = await fetch('http://localhost:5000/api/fridge');
       if (!response.ok) {
-        throw new Error('Failed to fetch fridge items');
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Failed to fetch fridge items');
       }
       const data = await response.json();
+      if (!data.success) {
+        throw new Error(data.error || 'Failed to fetch fridge items');
+      }
       setFridgeItems(data.ingredients || []);
     } catch (error) {
       console.error('Error fetching fridge items:', error);
-      setError('Failed to fetch fridge items');
+      setError('Failed to fetch fridge items. ' + error.message);
+      // Return empty array to prevent undefined errors
+      setFridgeItems([]);
     }
   };
 
@@ -356,13 +362,25 @@ export default function GroceryListsPage() {
     const fetchInitialData = async () => {
       try {
         setLoading(true);
-        await Promise.all([
+        setError(null); // Clear any existing errors
+        
+        // Fetch data in parallel but handle errors independently
+        const results = await Promise.allSettled([
           fetchData(),
           fetchFridgeItems()
         ]);
+        
+        // Check for any errors
+        results.forEach((result, index) => {
+          if (result.status === 'rejected') {
+            console.error(`Error in fetch ${index}:`, result.reason);
+            setError(prev => prev ? `${prev}\n${result.reason.message}` : result.reason.message);
+          }
+        });
+        
       } catch (error) {
         console.error('Error fetching initial data:', error);
-        setError('Failed to fetch data');
+        setError('Failed to fetch data: ' + error.message);
       } finally {
         setLoading(false);
       }
