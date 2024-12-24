@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 
 const NutritionModal = ({ 
   isOpen, 
@@ -7,7 +7,7 @@ const NutritionModal = ({
   ingredientName,
   ingredientIndex,
   currentNutrition,
-  ingredientQuantity // Add this prop
+  ingredientQuantity
 }) => {
   const [nutritionData, setNutritionData] = useState({
     protein_grams: '',
@@ -23,10 +23,29 @@ const NutritionModal = ({
     carbs_grams: ''
   });
 
+  // Move calculateDisplayedValues to useCallback
+  const calculateDisplayedValues = useCallback((data) => {
+    if (!data.serving_size || data.serving_size === '0' || !ingredientQuantity) return;
+
+    const ratio = ingredientQuantity / parseFloat(data.serving_size);
+    setDisplayedNutrition({
+      protein_grams: (parseFloat(data.protein_grams || 0) * ratio).toFixed(1),
+      fat_grams: (parseFloat(data.fat_grams || 0) * ratio).toFixed(1),
+      carbs_grams: (parseFloat(data.carbs_grams || 0) * ratio).toFixed(1)
+    });
+  }, [ingredientQuantity]);
+
   useEffect(() => {
     if (currentNutrition) {
-      setNutritionData(currentNutrition);
-      calculateDisplayedValues(currentNutrition);
+      const parsedNutrition = {
+        protein_grams: currentNutrition.protein_grams?.toString() || '',
+        fat_grams: currentNutrition.fat_grams?.toString() || '',
+        carbs_grams: currentNutrition.carbs_grams?.toString() || '',
+        serving_size: currentNutrition.serving_size?.toString() || '',
+        serving_unit: currentNutrition.serving_unit || ''
+      };
+      setNutritionData(parsedNutrition);
+      calculateDisplayedValues(parsedNutrition);
     } else {
       setNutritionData({
         protein_grams: '',
@@ -41,23 +60,21 @@ const NutritionModal = ({
         carbs_grams: ''
       });
     }
-  }, [currentNutrition, ingredientQuantity, , calculateDisplayedValues]);
+  }, [currentNutrition, calculateDisplayedValues]);
 
-  const calculateDisplayedValues = (data) => {
-    if (!data.serving_size || data.serving_size === '0') return;
-
-    const ratio = ingredientQuantity / parseFloat(data.serving_size);
-    setDisplayedNutrition({
-      protein_grams: (parseFloat(data.protein_grams || 0) * ratio).toFixed(1),
-      fat_grams: (parseFloat(data.fat_grams || 0) * ratio).toFixed(1),
-      carbs_grams: (parseFloat(data.carbs_grams || 0) * ratio).toFixed(1)
-    });
+  const handleInputChange = (key, value) => {
+    const updatedData = {
+      ...nutritionData,
+      [key]: value
+    };
+    setNutritionData(updatedData);
+    calculateDisplayedValues(updatedData);
   };
 
   const handleSubmit = (e) => {
     e.preventDefault();
     const formattedData = {
-      ingredientIndex: ingredientIndex,
+      ingredientIndex,
       protein_grams: parseFloat(nutritionData.protein_grams) || 0,
       fat_grams: parseFloat(nutritionData.fat_grams) || 0,
       carbs_grams: parseFloat(nutritionData.carbs_grams) || 0,
@@ -77,7 +94,13 @@ const NutritionModal = ({
           <h2 className="text-xl font-bold">
             {currentNutrition ? 'Edit' : 'Add'} Nutrition Information for {ingredientName}
           </h2>
-          <button onClick={onClose} className="text-gray-500 hover:text-gray-700">×</button>
+          <button 
+            onClick={onClose} 
+            className="text-gray-500 hover:text-gray-700"
+            type="button"
+          >
+            ×
+          </button>
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-4">
@@ -97,14 +120,7 @@ const NutritionModal = ({
                   step="0.1"
                   min="0"
                   value={nutritionData[key]}
-                  onChange={(e) => {
-                    const updatedData = {
-                      ...nutritionData,
-                      [key]: e.target.value
-                    };
-                    setNutritionData(updatedData);
-                    calculateDisplayedValues(updatedData);
-                  }}
+                  onChange={(e) => handleInputChange(key, e.target.value)}
                   className="w-full rounded-md border border-gray-300 p-2"
                   placeholder="0.0"
                 />
@@ -119,10 +135,7 @@ const NutritionModal = ({
             <input
               type="text"
               value={nutritionData.serving_unit}
-              onChange={(e) => setNutritionData(prev => ({
-                ...prev,
-                serving_unit: e.target.value
-              }))}
+              onChange={(e) => handleInputChange('serving_unit', e.target.value)}
               className="w-full rounded-md border border-gray-300 p-2"
               placeholder="e.g., grams, cups, oz"
             />

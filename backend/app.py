@@ -1,5 +1,5 @@
 # app.py
-import re
+import re, uuid
 from sqlalchemy import create_engine, text # type: ignore
 from flask import Flask, jsonify, request
 from flask_sqlalchemy import SQLAlchemy  # type: ignore
@@ -467,28 +467,35 @@ class MealPlan(db.Model):
     meal_prep_week = db.relationship('MealPrepWeek', backref=db.backref('meals', lazy=True, cascade='all, delete-orphan'))
 
 class Recipe(db.Model):
-   id = db.Column(db.Integer, primary_key=True)
-   name = db.Column(db.String(100), nullable=False)
-   description = db.Column(db.Text)
-   instructions = db.Column(db.Text)
-   prep_time = db.Column(db.Integer)
-   created_date = db.Column(db.DateTime, default=db.func.current_timestamp())
-   ingredients = db.relationship(
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.UUID, nullable=False, default='00000000-0000-0000-0000-000000000000')
+    name = db.Column(db.String(100), nullable=False)
+    description = db.Column(db.Text)
+    instructions = db.Column(db.Text)
+    prep_time = db.Column(db.Integer)
+    created_date = db.Column(db.DateTime, default=db.func.current_timestamp())
+    
+    # Define relationships
+    ingredients = db.relationship(
         'Ingredient',
         secondary='recipe_ingredient_quantities',
-        backref=db.backref('recipes', lazy=True)
+        backref=db.backref('recipes', lazy=True),
+        overlaps="ingredient_quantities"
+    )
+    ingredient_quantities = db.relationship(
+        'RecipeIngredientQuantity',
+        backref='recipe',
+        lazy=True,
+        cascade='all, delete-orphan'
     )
 
 class RecipeIngredientQuantity(db.Model):
     __tablename__ = 'recipe_ingredient_quantities'
-    id = db.Column(db.Integer, primary_key=True)
+    id = db.Column(db.Integer, primary_key=True, autoincrement=True)
     recipe_id = db.Column(db.Integer, db.ForeignKey('recipe.id', ondelete='CASCADE'), nullable=False)
     ingredient_id = db.Column(db.Integer, db.ForeignKey('ingredients.id', ondelete='CASCADE'), nullable=False)
     quantity = db.Column(db.Float, nullable=False)
     unit = db.Column(db.String(20))
-    
-    recipe = db.relationship('Recipe', backref=db.backref('ingredient_quantities', lazy=True))
-    ingredient = db.relationship('Ingredient', backref=db.backref('recipe_quantities', lazy=True))
 
 
 # Add this near the top with other model definitions
@@ -500,23 +507,32 @@ class RecipeIngredient3(db.Model):
 
 class RecipeIngredientNutrition(db.Model):
     __tablename__ = 'recipe_ingredient_nutrition'
-    
     id = db.Column(db.Integer, primary_key=True)
-    recipe_ingredient_quantities_id = db.Column(db.Integer, db.ForeignKey('recipe_ingredient_quantities.id', ondelete='CASCADE'), nullable=False)
+    recipe_ingredient_quantities_id = db.Column(db.Integer, 
+                                              db.ForeignKey('recipe_ingredient_quantities.id', ondelete='CASCADE'), 
+                                              nullable=False)
     protein_grams = db.Column(db.Float, nullable=True)
     fat_grams = db.Column(db.Float, nullable=True)
     carbs_grams = db.Column(db.Float, nullable=True)
     serving_size = db.Column(db.Float, nullable=True)
     serving_unit = db.Column(db.String(20), nullable=True)
     
-    # Add relationship to RecipeIngredientQuantity
-    recipe_ingredient = db.relationship('RecipeIngredientQuantity', backref=db.backref('nutrition', uselist=False, cascade='all, delete-orphan'))
+    recipe_ingredient = db.relationship('RecipeIngredientQuantity', 
+                                      backref=db.backref('nutrition', 
+                                                       uselist=False, 
+                                                       cascade='all, delete-orphan'))
 
 
 class Ingredient(db.Model):
     __tablename__ = 'ingredients'
-    id = db.Column(db.Integer, primary_key=True)
+    id = db.Column(db.Integer, primary_key=True, autoincrement=True)
     name = db.Column(db.String(100), nullable=False, unique=True)
+    recipes = db.relationship(
+        'Recipe',
+        secondary='recipe_ingredient_quantities',
+        backref=db.backref('ingredients', lazy=True),
+        overlaps="ingredient_quantities,recipe_quantities"
+    )
 
 class Menu(db.Model):
     id = db.Column(db.Integer, primary_key=True)
@@ -1031,110 +1047,138 @@ def delete_grocery_item(list_id, item_id):
         return jsonify({'error': str(e)}), 500
 
 
-@app.route('/api/recipe/<int:recipe_id>')
-def get_recipe(recipe_id):
+@app.route('/api/recipe', methods=['POST'])
+def add_recipe():
     try:
-        recipe = Recipe.query.get_or_404(recipe_id)
+        data = request.json
         
-        # Get ingredients with quantities and nutrition info
-        ingredient_quantities = RecipeIngredientQuantity.query\
-            .filter_by(recipe_id=recipe_id)\
-            .outerjoin(RecipeIngredientNutrition)\
-            .all()
+        # Create the recipe
+        new_recipe = Recipe(
+            name=data['name'],
+            description=data['description'],
+            instructions=data['instructions'],
+            prep_time=int(data['prep_time']),
+            user_id=uuid.UUID('00000000-0000-0000-0000-000000000000')
+        )
+        db.session.add(new_recipe)
+        db.session.flush()
         
-        ingredient_data = []
-        total_nutrition = {
-           'protein_grams': 0,
-           'fat_grams': 0,
-           'carbs_grams': 0
-        }
-
-        for qty in ingredient_quantities:
-            ingredient_info = {
-                'name': qty.ingredient.name,
-                'quantity': qty.quantity,
-                'unit': qty.unit,
-                'nutrition': None
-            }
+        # Process each ingredient
+        for ingredient_data in data['ingredients']:
+            # Find or create ingredient
+            ingredient = Ingredient.query.filter(
+                func.lower(Ingredient.name) == func.lower(ingredient_data['name'])
+            ).first()
             
-            # Add nutrition info if available
-            if hasattr(qty, 'nutrition') and qty.nutrition:
-                ingredient_info['nutrition'] = {
-                    'protein_grams': qty.nutrition.protein_grams,
-                    'fat_grams': qty.nutrition.fat_grams,
-                    'carbs_grams': qty.nutrition.carbs_grams,
-                    'serving_size': qty.nutrition.serving_size,
-                    'serving_unit': qty.nutrition.serving_unit
-                }
-
-                if qty.nutrition.serving_size and qty.nutrition.serving_size > 0:
-                   ratio = qty.quantity / qty.nutrition.serving_size
-                   total_nutrition['protein_grams'] += (qty.nutrition.protein_grams or 0) * ratio
-                   total_nutrition['fat_grams'] += (qty.nutrition.fat_grams or 0) * ratio
-                   total_nutrition['carbs_grams'] += (qty.nutrition.carbs_grams or 0) * ratio
+            if not ingredient:
+                ingredient = Ingredient(name=ingredient_data['name'])
+                db.session.add(ingredient)
+                db.session.flush()
             
-            ingredient_data.append(ingredient_info)
+            # Create quantity association
+            quantity = RecipeIngredientQuantity(
+                recipe_id=new_recipe.id,
+                ingredient_id=ingredient.id,
+                quantity=float(ingredient_data['quantity']),
+                unit=ingredient_data['unit']
+            )
+            db.session.add(quantity)
+            db.session.flush()
+            
+            # Add nutrition data if provided
+            if ingredient_data.get('nutritionData'):
+                nutrition = RecipeIngredientNutrition(
+                    recipe_ingredient_quantities_id=quantity.id,
+                    protein_grams=ingredient_data['nutritionData'].get('protein_grams'),
+                    fat_grams=ingredient_data['nutritionData'].get('fat_grams'),
+                    carbs_grams=ingredient_data['nutritionData'].get('carbs_grams'),
+                    serving_size=ingredient_data['nutritionData'].get('serving_size'),
+                    serving_unit=ingredient_data['nutritionData'].get('serving_unit')
+                )
+                db.session.add(nutrition)
         
-        recipe_data = {
-            'id': recipe.id,
-            'name': recipe.name,
-            'description': recipe.description,
-            'instructions': recipe.instructions,
-            'prep_time': recipe.prep_time,
-            'ingredients': ingredient_data,
-            'total_nutrition': {
-                'protein_grams': round(total_nutrition['protein_grams'], 1),
-               'fat_grams': round(total_nutrition['fat_grams'], 1),
-               'carbs_grams': round(total_nutrition['carbs_grams'], 1)
-           }
-       }
+        db.session.commit()
+        return jsonify({
+            'message': 'Recipe added successfully',
+            'recipe_id': new_recipe.id
+        }), 201
         
-        return jsonify(recipe_data)
     except Exception as e:
-        print(f"Recipe detail error: {str(e)}")
+        db.session.rollback()
+        print(f"Error adding recipe: {str(e)}")
         return jsonify({'error': str(e)}), 500
+
+
 
 @app.route('/api/home-data')
 def home_data():
-   try:
-       total_recipes = Recipe.query.count()
-       latest_recipes = Recipe.query.order_by(Recipe.created_date.desc()).limit(6).all()
-       
-       latest_recipes_data = [{
-           'id': recipe.id,
-           'name': recipe.name,
-           'description': recipe.description,
-           'prep_time': recipe.prep_time,
-           'ingredients': [ingredient.name for ingredient in recipe.ingredients],
-           'total_nutrition': {
-                'protein_grams': sum(
-                    (ing.nutrition.protein_grams or 0) * (ing.quantity / ing.nutrition.serving_size)
-                    for ing in recipe.ingredient_quantities 
-                    if ing.nutrition and ing.nutrition.serving_size
-                ),
-                'fat_grams': sum(
-                    (ing.nutrition.fat_grams or 0) * (ing.quantity / ing.nutrition.serving_size)
-                    for ing in recipe.ingredient_quantities 
-                    if ing.nutrition and ing.nutrition.serving_size
-                ),
-                'carbs_grams': sum(
-                    (ing.nutrition.carbs_grams or 0) * (ing.quantity / ing.nutrition.serving_size)
-                    for ing in recipe.ingredient_quantities 
-                    if ing.nutrition and ing.nutrition.serving_size
-                )
+    try:
+        # Get total recipes count
+        total_recipes = db.session.execute(text('SELECT COUNT(*) FROM recipe')).scalar()
+        
+        # Get latest recipes with nutrition data
+        latest_recipes = db.session.execute(text("""
+            WITH LatestRecipes AS (
+                SELECT id, name, description, prep_time, created_date
+                FROM recipe
+                ORDER BY created_date DESC
+                LIMIT 6
+            )
+            SELECT 
+                r.*,
+                json_agg(DISTINCT i.name) as ingredients,
+                COALESCE(SUM(
+                    CASE 
+                        WHEN rin.serving_size > 0 
+                        THEN (rin.protein_grams * riq.quantity / rin.serving_size)
+                        ELSE 0 
+                    END
+                ), 0) as total_protein,
+                COALESCE(SUM(
+                    CASE 
+                        WHEN rin.serving_size > 0 
+                        THEN (rin.fat_grams * riq.quantity / rin.serving_size)
+                        ELSE 0 
+                    END
+                ), 0) as total_fat,
+                COALESCE(SUM(
+                    CASE 
+                        WHEN rin.serving_size > 0 
+                        THEN (rin.carbs_grams * riq.quantity / rin.serving_size)
+                        ELSE 0 
+                    END
+                ), 0) as total_carbs
+            FROM LatestRecipes r
+            LEFT JOIN recipe_ingredient_quantities riq ON r.id = riq.recipe_id
+            LEFT JOIN ingredients i ON riq.ingredient_id = i.id
+            LEFT JOIN recipe_ingredient_nutrition rin ON rin.recipe_ingredient_quantities_id = riq.id
+            GROUP BY r.id, r.name, r.description, r.prep_time, r.created_date
+        """)).fetchall()
+        
+        latest_recipes_data = [{
+            'id': recipe.id,
+            'name': recipe.name,
+            'description': recipe.description,
+            'prep_time': recipe.prep_time,
+            'ingredients': recipe.ingredients if recipe.ingredients else [],
+            'total_nutrition': {
+                'protein_grams': round(float(recipe.total_protein), 1),
+                'fat_grams': round(float(recipe.total_fat), 1),
+                'carbs_grams': round(float(recipe.total_carbs), 1)
             }
-       } for recipe in latest_recipes]
-       
-       return jsonify({
-           'total_recipes': total_recipes,
-           'latest_recipes': latest_recipes_data
-       })
-   except Exception as e:
-       print(f"Error: {str(e)}")
-       return jsonify({
-           'total_recipes': 0,
-           'latest_recipes': []
-       })
+        } for recipe in latest_recipes]
+        
+        return jsonify({
+            'total_recipes': total_recipes,
+            'latest_recipes': latest_recipes_data
+        })
+    except Exception as e:
+        print(f"Error in home_data: {str(e)}")
+        db.session.rollback()
+        return jsonify({
+            'total_recipes': 0,
+            'latest_recipes': []
+        }), 500
     
 # All Recipes Route
 @app.route('/api/all-recipes')
@@ -1223,62 +1267,7 @@ def get_all_recipes():
 
 
 
-@app.route('/api/recipe', methods=['POST'])
-def add_recipe():
-    try:
-        data = request.json
-        
-        # Create the recipe
-        new_recipe = Recipe(
-            name=data['name'],
-            description=data['description'],
-            instructions=data['instructions'],
-            prep_time=int(data['prep_time'])
-        )
-        db.session.add(new_recipe)
-        db.session.flush()  # Get the recipe ID while keeping transaction open
-        
-        # Process each ingredient and its nutrition data
-        for ingredient_data in data['ingredients']:
-            # Get or create ingredient
-            ingredient = Ingredient.query.filter_by(name=ingredient_data['name']).first()
-            if not ingredient:
-                ingredient = Ingredient(name=ingredient_data['name'])
-                db.session.add(ingredient)
-                db.session.flush()
-            
-            # Create quantity association
-            quantity = RecipeIngredientQuantity(
-                recipe_id=new_recipe.id,
-                ingredient_id=ingredient.id,
-                quantity=float(ingredient_data['quantity']),
-                unit=ingredient_data['unit']
-            )
-            db.session.add(quantity)
-            db.session.flush()
-            
-            # Add nutrition data if provided
-            if ingredient_data.get('nutritionData'):
-                nutrition = RecipeIngredientNutrition(
-                    recipe_ingredient_quantities_id=quantity.id,
-                    protein_grams=ingredient_data['nutritionData'].get('protein_grams'),
-                    fat_grams=ingredient_data['nutritionData'].get('fat_grams'),
-                    carbs_grams=ingredient_data['nutritionData'].get('carbs_grams'),
-                    serving_size=ingredient_data['nutritionData'].get('serving_size'),
-                    serving_unit=ingredient_data['nutritionData'].get('serving_unit')
-                )
-                db.session.add(nutrition)
-        
-        db.session.commit()
-        return jsonify({
-            'message': 'Recipe added successfully',
-            'recipe_id': new_recipe.id
-        }), 201
-        
-    except Exception as e:
-        db.session.rollback()
-        print(f"Error adding recipe: {str(e)}")
-        return jsonify({'error': str(e)}), 500
+
 
 @app.route('/api/menus', methods=['GET'])
 def get_menus():
