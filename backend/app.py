@@ -1,6 +1,7 @@
 # app.py
 import re, uuid
 from sqlalchemy import create_engine, text # type: ignore
+from sqlalchemy.pool import NullPool
 from flask import Flask, jsonify, request
 from flask_sqlalchemy import SQLAlchemy  # type: ignore
 from flask_migrate import Migrate # type: ignore
@@ -1622,104 +1623,78 @@ def clear_fridge_items():
 
 @app.route('/api/search')
 def search():
+    db_url = 'postgresql://postgres.bvgnlxznztqggtqswovg:RecipeFinder123!@aws-0-us-east-2.pooler.supabase.com:5432/postgres'
+    engine = create_engine(db_url, poolclass=NullPool)
     ingredients = request.args.getlist('ingredient')
     try:
         if ingredients:
-            # Create a query that handles JSON array of recipe_ids
-            subquery = """
-                WITH RECURSIVE numbered_ingredients AS (
-                    SELECT name, recipe_ids
-                    FROM recipe_ingredients3
-                    WHERE LOWER(name) REGEXP LOWER(:ingredient_pattern)
-                ),
-                recipe_matches AS (
-                    SELECT DISTINCT 
-                        JSON_UNQUOTE(JSON_EXTRACT(r.recipe_ids, CONCAT('$[', numbers.n, ']'))) as recipe_id
-                    FROM numbered_ingredients r
-                    CROSS JOIN (
-                        SELECT a.N + b.N * 10 + c.N * 100 as n
-                        FROM (SELECT 0 as N UNION SELECT 1 UNION SELECT 2 UNION SELECT 3 UNION SELECT 4 
-                              UNION SELECT 5 UNION SELECT 6 UNION SELECT 7 UNION SELECT 8 UNION SELECT 9) a
-                        CROSS JOIN (SELECT 0 as N UNION SELECT 1 UNION SELECT 2 UNION SELECT 3 UNION SELECT 4 
-                                   UNION SELECT 5 UNION SELECT 6 UNION SELECT 7 UNION SELECT 8 UNION SELECT 9) b
-                        CROSS JOIN (SELECT 0 as N UNION SELECT 1 UNION SELECT 2 UNION SELECT 3 UNION SELECT 4 
-                                   UNION SELECT 5 UNION SELECT 6 UNION SELECT 7 UNION SELECT 8 UNION SELECT 9) c
-                    ) numbers
-                    WHERE JSON_UNQUOTE(JSON_EXTRACT(r.recipe_ids, CONCAT('$[', numbers.n, ']'))) IS NOT NULL
-                    GROUP BY JSON_UNQUOTE(JSON_EXTRACT(r.recipe_ids, CONCAT('$[', numbers.n, ']')))
-                    HAVING COUNT(DISTINCT r.name) >= :ingredient_count
-                )
-                SELECT r.id, r.name, r.description, r.instructions, r.prep_time
-                FROM recipe r
-                INNER JOIN recipe_matches rm ON r.id = CAST(rm.recipe_id AS SIGNED)
-            """
-            
-            ingredient_pattern = '|'.join(ingredients)
-            
-            # Execute the search query
-            recipes = db.session.execute(text(subquery), {
-                'ingredient_pattern': ingredient_pattern,
-                'ingredient_count': len(ingredients)
-            }).all()
-            
-            # Get recipes with nutrition data
-            recipes_data = []
-            for recipe_row in recipes:
-                recipe = Recipe.query\
-                    .options(
-                        db.joinedload(Recipe.ingredients),
-                        db.joinedload(Recipe.ingredient_quantities)\
-                          .joinedload(RecipeIngredientQuantity.nutrition)
-                    )\
-                    .get(recipe_row.id)
+            with engine.connect() as connection:
+                ingredient_list = ','.join([f"'{ing}'" for ing in ingredients])
+                query = text(f"""
+                    WITH matching_recipes AS (
+                        SELECT DISTINCT r.id, r.name, r.description, r.prep_time
+                        FROM recipe r
+                        JOIN recipe_ingredient_quantities riq ON r.id = riq.recipe_id
+                        JOIN ingredients i ON riq.ingredient_id = i.id
+                        WHERE LOWER(i.name) = ANY(ARRAY[{ingredient_list}]::text[])
+                        GROUP BY r.id, r.name, r.description, r.prep_time
+                        HAVING COUNT(DISTINCT i.name) >= :ingredient_count
+                    )
+                    SELECT 
+                        r.*,
+                        json_agg(DISTINCT i.name) as ingredients,
+                        COALESCE(SUM(
+                            CASE 
+                                WHEN rin.serving_size > 0 
+                                THEN (rin.protein_grams * riq.quantity / rin.serving_size)
+                                ELSE 0 
+                            END
+                        ), 0) as total_protein,
+                        COALESCE(SUM(
+                            CASE 
+                                WHEN rin.serving_size > 0 
+                                THEN (rin.fat_grams * riq.quantity / rin.serving_size)
+                                ELSE 0 
+                            END
+                        ), 0) as total_fat,
+                        COALESCE(SUM(
+                            CASE 
+                                WHEN rin.serving_size > 0 
+                                THEN (rin.carbs_grams * riq.quantity / rin.serving_size)
+                                ELSE 0 
+                            END
+                        ), 0) as total_carbs
+                    FROM matching_recipes r
+                    LEFT JOIN recipe_ingredient_quantities riq ON r.id = riq.recipe_id
+                    LEFT JOIN ingredients i ON riq.ingredient_id = i.id
+                    LEFT JOIN recipe_ingredient_nutrition rin ON rin.recipe_ingredient_quantities_id = riq.id
+                    GROUP BY r.id, r.name, r.description, r.prep_time
+                """)
                 
-                # Get ingredients using recipe_ingredients3 table
-                ingredients = db.session.query(RecipeIngredient3.name)\
-                    .filter(db.text('JSON_CONTAINS(recipe_ids, CAST(:recipe_id AS JSON))'))\
-                    .params(recipe_id=recipe.id)\
-                    .all()
+                results = connection.execute(query, {'ingredient_count': len(ingredients)}).fetchall()
                 
-                recipes_data.append({
+                recipes_data = [{
                     'id': recipe.id,
                     'name': recipe.name,
                     'description': recipe.description,
                     'prep_time': recipe.prep_time,
-                    'ingredients': [ingredient[0] for ingredient in ingredients],
+                    'ingredients': recipe.ingredients if recipe.ingredients else [],
                     'total_nutrition': {
-                        'protein_grams': sum(
-                            (ing.nutrition.protein_grams or 0) * (ing.quantity / ing.nutrition.serving_size)
-                            for ing in recipe.ingredient_quantities 
-                            if ing.nutrition and ing.nutrition.serving_size
-                        ),
-                        'fat_grams': sum(
-                            (ing.nutrition.fat_grams or 0) * (ing.quantity / ing.nutrition.serving_size)
-                            for ing in recipe.ingredient_quantities 
-                            if ing.nutrition and ing.nutrition.serving_size
-                        ),
-                        'carbs_grams': sum(
-                            (ing.nutrition.carbs_grams or 0) * (ing.quantity / ing.nutrition.serving_size)
-                            for ing in recipe.ingredient_quantities 
-                            if ing.nutrition and ing.nutrition.serving_size
-                        )
+                        'protein_grams': round(float(recipe.total_protein), 1),
+                        'fat_grams': round(float(recipe.total_fat), 1),
+                        'carbs_grams': round(float(recipe.total_carbs), 1)
                     }
+                } for recipe in results]
+                
+                return jsonify({
+                    'results': recipes_data,
+                    'count': len(recipes_data)
                 })
-            
-            return jsonify({
-                'results': recipes_data,
-                'count': len(recipes_data)
-            })
-        else:
-            return jsonify({
-                'results': [],
-                'count': 0
-            })
+        
+        return jsonify({'results': [], 'count': 0})
     except Exception as e:
         print(f"Search error: {str(e)}")
-        return jsonify({
-            'error': str(e),
-            'results': [],
-            'count': 0
-        }), 500
+        return jsonify({'error': str(e), 'results': [], 'count': 0}), 500
     
 @app.route('/api/recipe/<int:recipe_id>', methods=['PUT'])
 def update_recipe(recipe_id):
