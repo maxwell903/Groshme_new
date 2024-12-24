@@ -2487,6 +2487,104 @@ def add_ingredient_nutrition(recipe_id, ingredient_index):
         db.session.rollback()
         print(f"Error adding nutrition info: {str(e)}")
         return jsonify({'error': str(e)}), 500
+    
+@app.route('/api/recipe/<int:recipe_id>', methods=['GET'])
+def get_recipe(recipe_id):
+    try:
+        # Create the database engine using Supabase credentials
+        db_url = 'postgresql://postgres.bvgnlxznztqggtqswovg:RecipeFinder123!@aws-0-us-east-2.pooler.supabase.com:5432/postgres'
+        engine = create_engine(db_url)
+        
+        with engine.connect() as connection:
+            # Get basic recipe information
+            recipe_result = connection.execute(
+                text("""
+                    SELECT id, name, description, instructions, prep_time, created_date
+                    FROM recipe
+                    WHERE id = :recipe_id
+                """),
+                {"recipe_id": recipe_id}
+            ).first()
+            
+            if not recipe_result:
+                return jsonify({'error': 'Recipe not found'}), 404
+            
+            # Get ingredients with their quantities and units
+            ingredients_result = connection.execute(
+                text("""
+                    SELECT 
+                        i.name,
+                        riq.quantity,
+                        riq.unit,
+                        rin.protein_grams,
+                        rin.fat_grams,
+                        rin.carbs_grams,
+                        rin.serving_size,
+                        rin.serving_unit
+                    FROM recipe_ingredient_quantities riq
+                    JOIN ingredients i ON riq.ingredient_id = i.id
+                    LEFT JOIN recipe_ingredient_nutrition rin 
+                        ON rin.recipe_ingredient_quantities_id = riq.id
+                    WHERE riq.recipe_id = :recipe_id
+                """),
+                {"recipe_id": recipe_id}
+            )
+            
+            # Process ingredients and calculate total nutrition
+            ingredients = []
+            total_nutrition = {
+                'protein_grams': 0,
+                'fat_grams': 0,
+                'carbs_grams': 0
+            }
+            
+            for ing in ingredients_result:
+                # Calculate scaled nutrition values if nutrition data exists
+                nutrition = None
+                if ing.serving_size and ing.serving_size > 0:
+                    ratio = ing.quantity / ing.serving_size
+                    nutrition = {
+                        'protein_grams': float(ing.protein_grams or 0),
+                        'fat_grams': float(ing.fat_grams or 0),
+                        'carbs_grams': float(ing.carbs_grams or 0),
+                        'serving_size': float(ing.serving_size),
+                        'serving_unit': ing.serving_unit
+                    }
+                    # Add to total nutrition
+                    total_nutrition['protein_grams'] += (ing.protein_grams or 0) * ratio
+                    total_nutrition['fat_grams'] += (ing.fat_grams or 0) * ratio
+                    total_nutrition['carbs_grams'] += (ing.carbs_grams or 0) * ratio
+                
+                ingredients.append({
+                    'name': ing.name,
+                    'quantity': float(ing.quantity),
+                    'unit': ing.unit,
+                    'nutrition': nutrition
+                })
+            
+            # Round total nutrition values
+            total_nutrition = {
+                key: round(value, 1)
+                for key, value in total_nutrition.items()
+            }
+            
+            # Construct the response
+            recipe_data = {
+                'id': recipe_result.id,
+                'name': recipe_result.name,
+                'description': recipe_result.description,
+                'instructions': recipe_result.instructions,
+                'prep_time': recipe_result.prep_time,
+                'created_date': recipe_result.created_date.isoformat() if recipe_result.created_date else None,
+                'ingredients': ingredients,
+                'total_nutrition': total_nutrition
+            }
+            
+            return jsonify(recipe_data)
+            
+    except Exception as e:
+        print(f"Error fetching recipe: {str(e)}")
+        return jsonify({'error': str(e)}), 500
 
 @app.route('/api/recipe/<int:recipe_id>/nutrition', methods=['GET'])
 def get_recipe_nutrition(recipe_id):
