@@ -1417,6 +1417,9 @@ def create_menu():
         if not data or 'name' not in data:
             return jsonify({'error': 'Menu name is required'}), 400
 
+        # Default user ID used in your application
+        default_user_id = 'bc6ae242-c238-4a6b-a884-2fd1fc03ed72'
+
         # Create connection to Supabase PostgreSQL
         db_url = 'postgresql://postgres.bvgnlxznztqggtqswovg:RecipeFinder123!@aws-0-us-east-2.pooler.supabase.com:5432/postgres'
         engine = create_engine(db_url, poolclass=NullPool)
@@ -1424,25 +1427,26 @@ def create_menu():
         with engine.connect() as connection:
             # Start a transaction
             with connection.begin():
-                # Insert the menu
+                # Insert the menu with user_id
                 result = connection.execute(
                     text("""
-                        INSERT INTO menu (name, created_date)
-                        VALUES (:name, CURRENT_TIMESTAMP)
-                        RETURNING id, name, created_date
+                        INSERT INTO menu (name, user_id)
+                        VALUES (:name, :user_id)
+                        RETURNING id, name
                     """),
-                    {"name": data['name']}
+                    {
+                        "name": data['name'],
+                        "user_id": default_user_id
+                    }
                 )
                 
                 new_menu = result.fetchone()
                 if not new_menu:
                     raise Exception('Failed to create menu')
 
-            # Commit is handled by the context manager
             return jsonify({
                 'id': new_menu.id,
-                'name': new_menu.name,
-                'created_date': new_menu.created_date.isoformat() if new_menu.created_date else None
+                'name': new_menu.name
             }), 201
 
     except Exception as e:
