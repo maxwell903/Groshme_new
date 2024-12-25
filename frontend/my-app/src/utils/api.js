@@ -1,10 +1,10 @@
 // api.js
-export const API_URL = process.env.REACT_APP_API_URL || '"https://groshmebeta-05487aa160b2.herokuapp.com"';
+// utils/api.js
+export const API_URL = 'https://groshmebeta-05487aa160b2.herokuapp.com';
 
 export const fetchApi = async (endpoint, options = {}) => {
   try {
-   
-      console.log('Fetching:', `${API_URL}${endpoint}`); // Add this line
+    console.log('Fetching:', `${API_URL}${endpoint}`); // Debug log
     const response = await fetch(`${API_URL}${endpoint}`, {
       ...options,
       headers: {
@@ -14,13 +14,17 @@ export const fetchApi = async (endpoint, options = {}) => {
     });
 
     if (!response.ok) {
-      const error = await response.json().catch(() => ({}));
-      throw new Error(error.message || `HTTP error! status: ${response.status}`);
+      console.error('Response:', {
+        status: response.status,
+        statusText: response.statusText
+      });
+      const errorData = await response.json().catch(() => ({}));
+      throw new Error(errorData.message || `HTTP error! status: ${response.status}`);
     }
 
     return response.json();
   } catch (error) {
-    console.error('API Error:', error, 'Endpoint:', endpoint); // Enhance error logging
+    console.error('API Error:', error);
     throw error;
   }
 };

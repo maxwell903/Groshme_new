@@ -26,7 +26,17 @@ function App({ Component, pageProps }) {
       if (!session?.user && router.pathname !== '/auth') {
         router.push('/auth');
       }
-    };
+      const [supabaseClient] = useState(() => createPagesBrowserClient());
+
+  return (
+    <SessionContextProvider
+      supabaseClient={supabaseClient}
+      initialSession={pageProps.initialSession}
+    >
+      <Component {...pageProps} />
+    </SessionContextProvider>
+  );
+};
 
     checkSession();
 
