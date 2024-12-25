@@ -82,7 +82,7 @@ const SearchableRecipeSelector = ({ isOpen, onClose, onSelect, mealType }) => {
                 <div className="font-medium">{recipe.name}</div>
                 <div className="text-sm text-gray-600">{recipe.description}</div>
                 <div className="text-sm text-gray-500 mt-1">
-                  {recipe.prep_time} mins • 
+                  {recipe.name} mins • 
                   Protein: {recipe.total_nutrition?.protein_grams || 0}g • 
                   Fat: {recipe.total_nutrition?.fat_grams || 0}g • 
                   Carbs: {recipe.total_nutrition?.carbs_grams || 0}g
@@ -305,9 +305,9 @@ const MealDisplay = ({ meal, onDelete }) => {
       >
         <X size={16} />
       </button>
-      <h4 className="font-medium pr-6">{meal.recipe_name}</h4>
-      <p className="text-sm text-gray-500">
-        {meal.prep_time} mins
+      
+      <p className="text-lg font-bold text-gray-500 mt-2">
+        {meal.name}
       </p>
       <SafeNutrition meal={meal} />
       <Link 
@@ -676,58 +676,71 @@ const MealDisplay = ({ meal, onDelete }) => {
       
         const handleImport = async () => {
           if (!selectedList) return;
-          
+        
           try {
             setImporting(true);
-            
+        
             // Process each selected week
             for (const weekId of selectedWeeks) {
               const week = weeks.find(w => w.id === weekId);
               if (!week) continue;
-      
+        
               // Add week header
-              await fetch(`${API_URL}/api/grocery-lists/${selectedList}/items`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ 
-                  name: `### ${week.title || `Week of ${week.start_day}`} ###` 
-                }),
-              });
-      
+              try {
+                await fetch(`${API_URL}/api/grocery-lists/${selectedList}/items`, {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({ 
+                    name: `### ${week.title || `Week of ${week.start_day}`} ###` 
+                  }),
+                });
+              } catch (error) {
+                console.error('Error adding week header:', error);
+              }
+        
               // Process each day's meals
               for (const [day, meals] of Object.entries(week.meal_plans)) {
                 // Process each meal type (breakfast, lunch, dinner)
                 for (const [mealType, mealsList] of Object.entries(meals)) {
                   for (const meal of mealsList) {
                     // Add recipe header
-                    await fetch(`${API_URL}/api/grocery-lists/${selectedList}/items`, {
-                      method: 'POST',
-                      headers: { 'Content-Type': 'application/json' },
-                      body: JSON.stringify({ name: `**${meal.recipe_name}**` }),
-                    });
-      
-                    // Get and add recipe ingredients
-                    const recipeResponse = await fetch(`${API_URL}/api/recipe/${meal.recipe_id}/ingredients`);
-                    const recipeData = await recipeResponse.json();
-      
-                    for (const ingredient of recipeData.ingredients) {
+                    try {
                       await fetch(`${API_URL}/api/grocery-lists/${selectedList}/items`, {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({
-                          name: `• ${ingredient.name}`,
-                          quantity: ingredient.quantity,
-                          unit: ingredient.unit,
-                        }),
+                        body: JSON.stringify({ name: `**${meal.recipe_name}**` }),
                       });
+                    } catch (error) {
+                      console.error('Error adding recipe header:', error);
+                    }
+        
+                    // Get and add recipe ingredients
+                    try {
+                      const recipeResponse = await fetch(`${API_URL}/api/recipe/${meal.recipe_id}/ingredients`);
+                      const recipeData = await recipeResponse.json();
+        
+                      for (const ingredient of recipeData.ingredients) {
+                        await fetch(`${API_URL}/api/grocery-lists/${selectedList}/items`, {
+                          method: 'POST',
+                          headers: { 'Content-Type': 'application/json' },
+                          body: JSON.stringify({
+                            name: `• ${ingredient.name}`,
+                            quantity: ingredient.quantity,
+                            unit: ingredient.unit,
+                          }),
+                        });
+                      }
+                    } catch (error) {
+                      console.error('Error fetching recipe ingredients:', error);
                     }
                   }
                 }
               }
             }
-      
+        
             onClose();
           } catch (err) {
+            console.error('Error importing to grocery list:', err);
             setError('Failed to import to grocery list');
           } finally {
             setImporting(false);

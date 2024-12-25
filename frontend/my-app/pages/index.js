@@ -495,12 +495,13 @@ export default function Home() {
       <p className="mb-4 text-gray-600">{recipe.description}</p>
       {/* Add Total Nutrition Information */}
       <p className="text-sm text-gray-500 mb-1">
+        
         Protein: {recipe.total_nutrition?.protein_grams || 0}g • 
         Fat: {recipe.total_nutrition?.fat_grams || 0}g • 
         Carbs: {recipe.total_nutrition?.carbs_grams || 0}g
       </p>
-      <p className="text-sm text-gray-500">
-        Prep time: {recipe.prep_time} mins
+      <p className="text-m text-gray-500">
+        Prep time: {recipe.name} 
       </p>
       <div className="mt-4 text-green-600 hover:text-green-700">
         View Recipe →
