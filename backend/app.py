@@ -3293,22 +3293,69 @@ def add_workout():
         engine = create_engine(db_url, poolclass=NullPool)
         
         with engine.connect() as connection:
-            for exercise in data['exercises']:
+            with connection.begin():  # Start a transaction
+                # First delete any existing exercises for this day
                 connection.execute(
                     text("""
-                        INSERT INTO weekly_workouts (day, exercise_id, week_id)
-                        VALUES (:day, :exercise_id, 1)
-                        ON CONFLICT (day, exercise_id, week_id) 
-                        DO UPDATE SET exercise_id = EXCLUDED.exercise_id
+                        DELETE FROM weekly_workouts 
+                        WHERE day = :day AND week_id = 1
                     """),
-                    {
-                        'day': data['day'],
-                        'exercise_id': exercise['id']
-                    }
+                    {"day": data['day']}
                 )
                 
-            connection.commit()
-            return jsonify({'message': 'Workout added successfully'})
+                # Then insert the new exercises
+                for exercise in data['exercises']:
+                    connection.execute(
+                        text("""
+                            INSERT INTO weekly_workouts (day, exercise_id, week_id)
+                            VALUES (:day, :exercise_id, 1)
+                        """),
+                        {
+                            "day": data['day'],
+                            "exercise_id": exercise['id']
+                        }
+                    )
+            
+            # Fetch the updated workouts for this day
+            result = connection.execute(
+                text("""
+                    SELECT 
+                        ww.day,
+                        e.id,
+                        e.name,
+                        e.workout_type,
+                        e.major_groups,
+                        e.minor_groups,
+                        e.amount_sets,
+                        e.amount_reps,
+                        e.weight,
+                        e.rest_time
+                    FROM weekly_workouts ww
+                    JOIN exercises e ON ww.exercise_id = e.id
+                    WHERE ww.day = :day AND ww.week_id = 1
+                    ORDER BY e.workout_type
+                """),
+                {"day": data['day']}
+            )
+            
+            workouts = []
+            for row in result:
+                workouts.append({
+                    'id': row.id,
+                    'name': row.name,
+                    'workout_type': row.workout_type,
+                    'major_groups': row.major_groups,
+                    'minor_groups': row.minor_groups,
+                    'amount_sets': row.amount_sets,
+                    'amount_reps': row.amount_reps,
+                    'weight': row.weight,
+                    'rest_time': row.rest_time
+                })
+            
+            return jsonify({
+                'message': 'Workouts added successfully',
+                'workouts': workouts
+            })
             
     except Exception as e:
         print(f"Error adding workout: {str(e)}")
