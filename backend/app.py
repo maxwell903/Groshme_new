@@ -3489,7 +3489,7 @@ def get_weekly_workouts():
             for row in result:
                 if row.day not in workouts:
                     workouts[row.day] = []
-                    
+                
                 workouts[row.day].append({
                     'id': row.id,
                     'name': row.name,

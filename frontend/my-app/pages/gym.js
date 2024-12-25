@@ -232,14 +232,24 @@ const GymPage = () => {
       const response = await fetch(`${API_URL}/api/weekly-workouts`);
       if (!response.ok) throw new Error('Failed to fetch workouts');
       const data = await response.json();
+      
+      // Save to local storage
+      localStorage.setItem('weeklyWorkouts', JSON.stringify(data.workouts || {}));
+      
       setWorkouts(data.workouts || {});
     } catch (error) {
+      // Try to retrieve from local storage if fetch fails
+      const savedWorkouts = localStorage.getItem('weeklyWorkouts');
+      if (savedWorkouts) {
+        setWorkouts(JSON.parse(savedWorkouts));
+      }
+      
       console.error('Error fetching workouts:', error);
     } finally {
       setLoading(false);
     }
   };
-
+  
   const handleAddExercises = (day) => {
     setSelectedDay(day);
     setShowModal(true);
