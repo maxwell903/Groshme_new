@@ -102,7 +102,7 @@ const WorkoutEmailFormatter = ({ onFormat, onClose }) => {
 
   const fetchWorkouts = async () => {
     try {
-      const response = await fetch('${API_URL}/api/weekly-workouts');
+      const response = await fetch(`${API_URL}/api/weekly-workouts`);
       const data = await response.json();
       setWorkouts(data.workouts || {});
       setLoading(false);
