@@ -773,65 +773,275 @@ class ReceiptParser:
 @app.route('/api/meal-prep/weeks', methods=['GET'])
 def get_meal_prep_weeks():
     try:
-        weeks = MealPrepWeek.query.order_by(MealPrepWeek.created_date.desc()).all()
-        weeks_data = []
+        engine = create_engine(db_url, poolclass=NullPool)
         
-        for week in weeks:
-            # Get all meals for the week
-            meals = MealPlan.query.filter_by(week_id=week.id).all()
+        with engine.connect() as connection:
+            result = connection.execute(text("""
+                WITH WeekMeals AS (
+                    SELECT 
+                        w.id,
+                        w.title,
+                        w.start_day,
+                        w.start_date,
+                        w.end_date,
+                        w.show_dates,
+                        w.created_date,
+                        m.day,
+                        m.meal_type,
+                        m.recipe_id,
+                        r.name as recipe_name,
+                        r.description,
+                        r.prep_time
+                    FROM meal_prep_week w
+                    LEFT JOIN meal_plan m ON w.id = m.week_id
+                    LEFT JOIN recipe r ON m.recipe_id = r.id
+                )
+                SELECT 
+                    id,
+                    title,
+                    start_day,
+                    start_date,
+                    end_date,
+                    show_dates,
+                    created_date,
+                    json_agg(
+                        CASE WHEN recipe_id IS NOT NULL THEN
+                            json_build_object(
+                                'day', day,
+                                'meal_type', meal_type,
+                                'recipe', json_build_object(
+                                    'id', recipe_id,
+                                    'name', recipe_name,
+                                    'description', description,
+                                    'prep_time', prep_time
+                                )
+                            )
+                        ELSE NULL
+                        END
+                    ) FILTER (WHERE recipe_id IS NOT NULL) as meals
+                FROM WeekMeals
+                GROUP BY id, title, start_day, start_date, end_date, show_dates, created_date
+                ORDER BY created_date DESC
+            """))
             
-            # Organize meals by day and type
-            meal_plans = {}
-            for meal in meals:
-                recipe = Recipe.query.get(meal.recipe_id)
-                if not recipe:
-                    continue
-                    
-                if meal.day not in meal_plans:
-                    meal_plans[meal.day] = {
-                        'breakfast': [],
-                        'lunch': [],
-                        'dinner': []
-                    }
+            weeks_data = []
+            for row in result:
+                meals_by_day = {}
+                if row.meals:
+                    for meal in row.meals:
+                        if meal['day'] not in meals_by_day:
+                            meals_by_day[meal['day']] = {
+                                'breakfast': [],
+                                'lunch': [],
+                                'dinner': []
+                            }
+                        meals_by_day[meal['day']][meal['meal_type']].append(meal['recipe'])
                 
-                # Calculate nutrition totals for the recipe
-                total_nutrition = {
-                    'protein_grams': 0,
-                    'fat_grams': 0,
-                    'carbs_grams': 0
-                }
+                weeks_data.append({
+                    'id': row.id,
+                    'title': row.title,
+                    'start_day': row.start_day,
+                    'start_date': row.start_date.isoformat() if row.start_date else None,
+                    'end_date': row.end_date.isoformat() if row.end_date else None,
+                    'show_dates': row.show_dates,
+                    'created_date': row.created_date.strftime('%Y-%m-%d'),
+                    'meal_plans': meals_by_day
+                })
                 
-                for ing_qty in recipe.ingredient_quantities:
-                    if ing_qty.nutrition and ing_qty.nutrition.serving_size:
-                        ratio = ing_qty.quantity / ing_qty.nutrition.serving_size
-                        total_nutrition['protein_grams'] += (ing_qty.nutrition.protein_grams or 0) * ratio
-                        total_nutrition['fat_grams'] += (ing_qty.nutrition.fat_grams or 0) * ratio
-                        total_nutrition['carbs_grams'] += (ing_qty.nutrition.carbs_grams or 0) * ratio
-
-                meal_data = {
-                    'recipe_id': recipe.id,
-                    'recipe_name': recipe.name,
-                    'description': recipe.description,
-                    'prep_time': recipe.prep_time,
-                    'total_nutrition': total_nutrition
-                }
-                
-                meal_plans[meal.day][meal.meal_type].append(meal_data)
+            return jsonify({'weeks': weeks_data})
             
-            weeks_data.append({
-                'id': week.id,
-                'title': week.title,
-                'start_day': week.start_day,
-                'start_date': week.start_date.isoformat() if week.start_date else None,
-                'end_date': week.end_date.isoformat() if week.end_date else None,
-                'show_dates': week.show_dates,
-                'created_date': week.created_date.strftime('%Y-%m-%d'),
-                'meal_plans': meal_plans
-            })
-            
-        return jsonify({'weeks': weeks_data})
     except Exception as e:
         print(f"Error fetching meal prep weeks: {str(e)}")
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/api/workout-plans', methods=['GET'])
+def get_workout_plans():
+    try:
+        engine = create_engine(db_url, poolclass=NullPool)
+        
+        with engine.connect() as connection:
+            result = connection.execute(text("""
+                SELECT 
+                    wp.id,
+                    wp.week_id,
+                    wp.day,
+                    wp.workout_type,
+                    e.id as exercise_id,
+                    e.name as exercise_name,
+                    e.major_groups,
+                    e.minor_groups,
+                    e.amount_sets,
+                    e.amount_reps,
+                    e.weight,
+                    e.rest_time
+                FROM workout_plan wp
+                JOIN exercise e ON wp.exercise_id = e.id
+                ORDER BY wp.day, e.workout_type
+            """))
+            
+            plans = {}
+            for row in result:
+                if row.day not in plans:
+                    plans[row.day] = []
+                    
+                plans[row.day].append({
+                    'id': row.exercise_id,
+                    'name': row.exercise_name,
+                    'workout_type': row.workout_type,
+                    'major_groups': row.major_groups,
+                    'minor_groups': row.minor_groups,
+                    'amount_sets': row.amount_sets,
+                    'amount_reps': row.amount_reps,
+                    'weight': row.weight,
+                    'rest_time': row.rest_time
+                })
+                
+            return jsonify({'workout_plans': plans})
+            
+    except Exception as e:
+        print(f"Error fetching workout plans: {str(e)}")
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/api/workouts/<int:workout_id>/exercises', methods=['GET'])
+def get_workout_exercises(workout_id):
+    try:
+        engine = create_engine(db_url, poolclass=NullPool)
+        
+        with engine.connect() as connection:
+            result = connection.execute(text("""
+                WITH LatestSets AS (
+                    SELECT DISTINCT ON (exercise_id)
+                        exercise_id,
+                        weight,
+                        reps,
+                        created_at
+                    FROM individual_set
+                    ORDER BY exercise_id, created_at DESC
+                )
+                SELECT 
+                    e.*,
+                    ls.weight as latest_weight,
+                    ls.reps as latest_reps,
+                    ls.created_at as latest_set_date
+                FROM exercise e
+                JOIN workout_exercises we ON e.id = we.exercise_id
+                LEFT JOIN LatestSets ls ON e.id = ls.exercise_id
+                WHERE we.workout_id = :workout_id
+                ORDER BY e.workout_type, e.name
+            """), {"workout_id": workout_id})
+            
+            exercises = []
+            for row in result:
+                exercises.append({
+                    'id': row.id,
+                    'name': row.name,
+                    'workout_type': row.workout_type,
+                    'major_groups': row.major_groups,
+                    'minor_groups': row.minor_groups,
+                    'amount_sets': row.amount_sets,
+                    'amount_reps': row.amount_reps,
+                    'weight': row.weight,
+                    'rest_time': row.rest_time,
+                    'latest_set': {
+                        'weight': row.latest_weight,
+                        'reps': row.latest_reps,
+                        'created_at': row.latest_set_date.isoformat() if row.latest_set_date else None
+                    } if row.latest_weight is not None else None
+                })
+                
+            return jsonify({'exercises': exercises})
+            
+    except Exception as e:
+        print(f"Error fetching workout exercises: {str(e)}")
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/api/workouts/<int:workout_id>/exercise', methods=['POST'])
+def add_workout_exercise():
+    try:
+        data = request.json
+        workout_id = data.get('workout_id')
+        exercise_id = data.get('exercise_id')
+        
+        if not workout_id or not exercise_id:
+            return jsonify({'error': 'Missing required fields'}), 400
+            
+        engine = create_engine(db_url, poolclass=NullPool)
+        
+        with engine.connect() as connection:
+            # Check if exercise already exists in workout
+            result = connection.execute(text("""
+                SELECT 1 FROM workout_exercises
+                WHERE workout_id = :workout_id AND exercise_id = :exercise_id
+            """), {
+                "workout_id": workout_id,
+                "exercise_id": exercise_id
+            })
+            
+            if result.fetchone():
+                return jsonify({'error': 'Exercise already exists in workout'}), 400
+            
+            # Add exercise to workout
+            connection.execute(text("""
+                INSERT INTO workout_exercises (workout_id, exercise_id)
+                VALUES (:workout_id, :exercise_id)
+            """), {
+                "workout_id": workout_id,
+                "exercise_id": exercise_id
+            })
+            
+            connection.commit()
+            return jsonify({'message': 'Exercise added to workout successfully'}), 201
+            
+    except Exception as e:
+        print(f"Error adding exercise to workout: {str(e)}")
+        return jsonify({'error': str(e)}), 500
+    
+@app.route('/api/exercises/<int:exercise_id>/sets', methods=['GET'])
+def get_exercises_sets(exercise_id):
+    try:
+        engine = create_engine(db_url, poolclass=NullPool)
+        
+        with engine.connect() as connection:
+            result = connection.execute(text("""
+                WITH LatestHistory AS (
+                    SELECT id, created_at
+                    FROM set_history
+                    WHERE exercise_id = :exercise_id
+                    ORDER BY created_at DESC
+                    LIMIT 1
+                )
+                SELECT 
+                    s.id,
+                    s.set_number,
+                    s.reps,
+                    s.weight,
+                    h.created_at
+                FROM individual_set s
+                JOIN LatestHistory h ON s.set_history_id = h.id
+                ORDER BY s.set_number
+            """), {"exercise_id": exercise_id})
+            
+            sets = []
+            latest_date = None
+            
+            for row in result:
+                sets.append({
+                    'id': row.id,
+                    'set_number': row.set_number,
+                    'reps': row.reps,
+                    'weight': row.weight
+                })
+                if not latest_date and row.created_at:
+                    latest_date = row.created_at
+                    
+            return jsonify({
+                'sets': sets,
+                'created_at': latest_date.isoformat() if latest_date else None
+            })
+            
+    except Exception as e:
+        print(f"Error fetching exercise sets: {str(e)}")
         return jsonify({'error': str(e)}), 500
 
 @app.route('/api/meal-prep/weeks', methods=['POST'])
