@@ -1,5 +1,5 @@
 # app.py
-import re, uuid
+import re, uuid, json
 from sqlalchemy import create_engine, text # type: ignore
 from sqlalchemy.pool import NullPool
 from flask import Flask, jsonify, request
@@ -228,50 +228,6 @@ def get_grocery_bill():
     
 
 
-@app.route('/api/exercise/<int:exercise_id>/sets', methods=['GET'])
-def get_exercise_sets(exercise_id):
-    try:
-        engine = create_engine(db_url, poolclass=NullPool)
-        
-        with engine.connect() as connection:
-            # Get the most recent set history
-            history_result = connection.execute(
-                text("""
-                    SELECT id, created_at
-                    FROM set_history 
-                    WHERE exercise_id = :exercise_id
-                    ORDER BY created_at DESC
-                    LIMIT 1
-                """),
-                {'exercise_id': exercise_id}
-            ).fetchone()
-            
-            if not history_result:
-                return jsonify({'sets': []})
-                
-            # Get sets for this history
-            sets_result = connection.execute(
-                text("""
-                    SELECT id, set_number, reps, weight
-                    FROM individual_set
-                    WHERE set_history_id = :history_id
-                    ORDER BY set_number
-                """),
-                {'history_id': history_result.id}
-            )
-            
-            sets = [{
-                'id': row.id,
-                'set_number': row.set_number,
-                'reps': row.reps,
-                'weight': row.weight
-            } for row in sets_result]
-            
-            return jsonify({'sets': sets})
-            
-    except Exception as e:
-        print(f"Error fetching sets: {str(e)}")
-        return jsonify({'error': str(e)}), 500
 
 
 @app.route('/api/exercise/set/<int:set_id>', methods=['DELETE'])
@@ -441,37 +397,49 @@ class WorkoutPlan(db.Model):
     workout_prep_week = db.relationship('WorkoutPrepWeek', backref=db.backref('workouts', lazy=True, cascade='all, delete-orphan'))
     exercise = db.relationship('Exercise', backref=db.backref('workout_plan', lazy=True))
 
-@app.route('/api/exercises/<int:exercise_id>', methods=['DELETE'])
-def delete_exercise(exercise_id):
+@app.route('/api/exercise/<int:exercise_id>/sets', methods=['GET'])
+def get_exercise_sets(exercise_id):
     try:
         engine = create_engine(db_url, poolclass=NullPool)
         
         with engine.connect() as connection:
-            # First delete associated sets and history
-            connection.execute(
-                text("DELETE FROM individual_set WHERE exercise_id = :id"),
-                {'id': exercise_id}
-            )
+            # Get the most recent set history
+            history_result = connection.execute(
+                text("""
+                    SELECT id, created_at
+                    FROM set_history 
+                    WHERE exercise_id = :exercise_id
+                    ORDER BY created_at DESC
+                    LIMIT 1
+                """),
+                {'exercise_id': exercise_id}
+            ).fetchone()
             
-            connection.execute(
-                text("DELETE FROM set_history WHERE exercise_id = :id"),
-                {'id': exercise_id}
-            )
-            
-            # Then delete the exercise
-            result = connection.execute(
-                text("DELETE FROM exercises WHERE id = :id"),
-                {'id': exercise_id}
-            )
-            
-            if not result.rowcount:
-                return jsonify({'error': 'Exercise not found'}), 404
+            if not history_result:
+                return jsonify({'sets': []})
                 
-            connection.commit()
-            return jsonify({'message': 'Exercise deleted successfully'})
+            # Get sets for this history
+            sets_result = connection.execute(
+                text("""
+                    SELECT id, set_number, reps, weight
+                    FROM individual_set
+                    WHERE set_history_id = :history_id
+                    ORDER BY set_number
+                """),
+                {'history_id': history_result.id}
+            )
+            
+            sets = [{
+                'id': row.id,
+                'set_number': row.set_number,
+                'reps': row.reps,
+                'weight': row.weight
+            } for row in sets_result]
+            
+            return jsonify({'sets': sets})
             
     except Exception as e:
-        print(f"Error deleting exercise: {str(e)}")
+        print(f"Error fetching sets: {str(e)}")
         return jsonify({'error': str(e)}), 500
 
 @app.route('/api/exercise/<int:exercise_id>/sets/<int:set_id>', methods=['DELETE'])
@@ -1073,6 +1041,8 @@ def create_exercise():
     try:
         data = request.json
         engine = create_engine(db_url, poolclass=NullPool)
+        major_groups = json.dumps(data['major_groups'])
+        minor_groups = json.dumps(data['minor_groups'])
         
         with engine.connect() as connection:
             result = connection.execute(
@@ -1088,8 +1058,8 @@ def create_exercise():
                 {
                     'name': data['name'],
                     'workout_type': data['workout_type'],
-                    'major_groups': data['major_groups'],
-                    'minor_groups': data['minor_groups'],
+                    'major_groups': major_groups,
+                    'minor_groups': minor_groups,
                     'amount_sets': data['amount_sets'],
                     'amount_reps': data['amount_reps'],
                     'weight': data['weight'],
