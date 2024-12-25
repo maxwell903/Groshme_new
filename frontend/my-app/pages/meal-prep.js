@@ -278,6 +278,22 @@ const MenuSelector = ({ isOpen, onClose, weekId, onMealsAdded }) => {
   );
 };
 
+const SafeNutrition = ({ meal }) => {
+  // Safe defaults and null checks for nutrition data
+  const nutrition = meal?.total_nutrition || {};
+  const protein = parseFloat(nutrition?.protein_grams || 0).toFixed(1);
+  const fat = parseFloat(nutrition?.fat_grams || 0).toFixed(1);
+  const carbs = parseFloat(nutrition?.carbs_grams || 0).toFixed(1);
+
+  return (
+    <p className="text-xs text-gray-500 mb-2">
+      Protein: {protein}g •
+      Fat: {fat}g •
+      Carbs: {carbs}g
+    </p>
+  );
+};
+
 const MealDisplay = ({ meal, onDelete }) => {
   if (!meal) return null;
 
@@ -293,23 +309,17 @@ const MealDisplay = ({ meal, onDelete }) => {
       <p className="text-sm text-gray-500">
         {meal.prep_time} mins
       </p>
-      <p className="text-xs text-gray-500 mb-2">
-        Protein: {meal.total_nutrition.protein_grams.toFixed(1)}g •
-        Fat: {meal.total_nutrition.fat_grams.toFixed(1)}g •
-        Carbs: {meal.total_nutrition.carbs_grams.toFixed(1)}g
-      </p>
+      <SafeNutrition meal={meal} />
       <Link 
-  href={`/recipe/${meal.recipe_id}`}
-  className="text-sm text-blue-600 hover:text-blue-800 inline-flex items-center gap-1"
-  onClick={() => {
-    // Store both the current URL and the actual path we want to return to
-    localStorage.setItem('previousPath', window.location.pathname);
-    localStorage.setItem('actualPreviousPath', '/meal-prep');
-  }}
->
-  View Recipe
-  <ChevronRight size={14} />
-</Link>
+        href={`/recipe/${meal.recipe_id}`}
+        className="text-sm text-blue-600 hover:text-blue-800 inline-flex items-center gap-1"
+        onClick={() => {
+          localStorage.setItem('actualPreviousPath', '/meal-prep');
+          localStorage.setItem('lastPath', '/meal-prep');
+        }}
+      >
+        View Recipe →
+      </Link>
     </div>
   );
 };
