@@ -5,7 +5,7 @@ import Link from 'next/link';
 import { useRouter } from 'next/router';
 import { Plus, X, Search, ChevronDown, ChevronUp, Check } from 'lucide-react';
 import { supabase } from '../src/lib/supabaseClient'
-import { API_URL } from '@/utils/api';
+import { fetchApi, API_URL } from '@/utils/api';
 
 import emailjs from '@emailjs/browser';
 
@@ -384,12 +384,9 @@ export default function Home() {
   useEffect(() => {
     const fetchData = async () => {
       try {
-        const response = await fetch(`${API_URL}/api/home-data`); 
-        if (!response.ok) {
-          throw new Error('Failed to fetch data');
-        }
-        const data = await response.json();
-        console.log('Fetched data:', data);
+        setLoading(true);
+        const data = await fetchApi('/api/home-data');
+        console.log('Fetched data:', data); // Debug log
         setHomeData(data);
       } catch (error) {
         console.error('Error:', error);
@@ -398,7 +395,7 @@ export default function Home() {
         setLoading(false);
       }
     };
-
+  
     fetchData();
   }, []);
 
