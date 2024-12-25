@@ -1534,6 +1534,8 @@ def add_recipe_to_menu(menu_id):
         db.session.rollback()
         return jsonify({'error': str(e)}), 500
     
+
+    
 @app.route('/api/menus/<int:menu_id>', methods=['DELETE', 'OPTIONS'])
 def delete_menu(menu_id):
     # Handle preflight request
@@ -1555,45 +1557,6 @@ def delete_menu(menu_id):
     except Exception as e:
         db.session.rollback()
         print(f"Error deleting menu {menu_id}: {str(e)}")  # Debug log
-        return jsonify({'error': str(e)}), 500
-    
-@app.route('/api/menus/<int:menu_id>', methods=['DELETE'])
-def delete_menu(menu_id):
-    try:
-        # Create connection to Supabase PostgreSQL
-        db_url = 'postgresql://postgres.bvgnlxznztqggtqswovg:RecipeFinder123!@aws-0-us-east-2.pooler.supabase.com:5432/postgres'
-        engine = create_engine(db_url)
-
-        with engine.connect() as connection:
-            # Start a transaction
-            with connection.begin():
-                # Delete the menu_recipe associations first
-                connection.execute(
-                    text("""
-                        DELETE FROM menu_recipe
-                        WHERE menu_id = :menu_id
-                    """),
-                    {"menu_id": menu_id}
-                )
-                
-                # Delete the menu
-                result = connection.execute(
-                    text("""
-                        DELETE FROM menu
-                        WHERE id = :menu_id
-                    """),
-                    {"menu_id": menu_id}
-                )
-                
-                if result.rowcount == 0:
-                    return jsonify({'error': 'Menu not found'}), 404
-
-            # Commit the transaction
-            connection.commit()
-            
-            return jsonify({'message': 'Menu deleted successfully'}), 200
-
-    except Exception as e:
         return jsonify({'error': str(e)}), 500
 
 
