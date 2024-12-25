@@ -546,7 +546,7 @@ export default function InventoryView() {
       <button
         onClick={() => setInventoryFilter('needed')}
         className={`px-4 py-2 rounded ${
-          inventoryFilter === 'needed' ? 'bg-red-600 text-white' : 'bg-gray-200'
+          inventoryFilter === 'needed' ? 'bg-green-600 text-white' : 'bg-gray-200'
         }`}
       >
         Need to Get ({fridgeItems.filter(item => item.quantity === 0).length})
@@ -592,22 +592,9 @@ export default function InventoryView() {
       /* Inventory Grid */
       <div className="flex gap-8">
         {/* Main Tables Container */}
-        <div className="flex-grow grid grid-cols-2 gap-1">
+        <div className="flex-grow grid grid-cols-2 gap-2">
           {/* Column Headers */}
-          <div className="col-span-2 grid grid-cols-2 gap-8 mb-4">
-            {/* Left Column Headers */}
-            <div className="grid grid-cols-3 px-4 font-semibold text-gray-700">
-              <div className="w-36">Item</div>
-              <div className="w-24 text-center">Quantity</div>
-              <div className="flex justify-end">Unit</div>
-            </div>
-            {/* Right Column Headers */}
-            <div className="grid grid-cols-3 px-4 font-semibold text-gray-700">
-              <div className="w-36">Item</div>
-              <div className="w-24 text-center">Quantity</div>
-              <div className="flex justify-end">Unit</div>
-            </div>
-          </div>
+          
 
           {/* Left Column Content */}
           <div className="space-y-1">
