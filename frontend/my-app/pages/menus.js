@@ -239,7 +239,7 @@ export default function Menus() {
           <h1 className="text-3xl font-bold text-gray-900">My Menus</h1>
           <button
             onClick={() => setShowCreateForm(true)}
-            className="rounded-lg bg-green-600 px-6 py-3 text-white hover:bg-green-700"
+            className="px-4 py-2 bg-green-600 text-white rounded-md hover:bg-blue-700 transition-colors"
           >
             Create New Menu
           </button>

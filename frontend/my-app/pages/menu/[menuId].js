@@ -3,6 +3,7 @@ import { useState, useEffect } from 'react';
 import { useRouter } from 'next/router';
 import Link from 'next/link';
 import { fetchApi, API_URL } from '@/utils/api';
+import { useCallback } from 'react';
 
 export default function MenuDetail() {
   const router = useRouter();
@@ -169,13 +170,31 @@ export default function MenuDetail() {
     }
   };
 
-  const getIngredientColor = (ingredientName) => {
-    const inFridge = fridgeItems.some(item => 
-      item.name.toLowerCase() === ingredientName.toLowerCase() && 
-      item.quantity > 0
-    );
-    return inFridge ? 'text-green-600' : 'text-red-600';
-  };
+  const getIngredientColor = useCallback((ingredient) => {
+    // Return a default color if ingredient is null or undefined
+    if (!ingredient) return 'text-gray-900';
+  
+    try {
+      // Clean the ingredient name and convert to lowercase
+      const cleanIngredientName = ingredient.name?.toLowerCase() || ingredient.toLowerCase();
+  
+      // Check if the ingredient exists in fridgeItems
+      const matchingFridgeItem = fridgeItems.find(item => 
+        item?.name?.toLowerCase() === cleanIngredientName
+      );
+  
+      // Return appropriate color based on quantity
+      if (matchingFridgeItem) {
+        return matchingFridgeItem.quantity > 0 ? 'text-green-600' : 'text-red-500';
+      }
+  
+      // Default color if no match found
+      return 'text-gray-900';
+    } catch (error) {
+      console.error('Error in getIngredientColor:', error);
+      return 'text-gray-900'; // Default color in case of error
+    }
+  }, [fridgeItems]);
 
   if (loading) {
     return (
@@ -221,15 +240,14 @@ export default function MenuDetail() {
                 }
               }}
               disabled={isDeleting}
-              className={`rounded-lg ${
-                isDeleting ? 'bg-gray-400' : 'bg-red-600 hover:bg-red-700'
-              } px-6 py-3 text-white text-lg font-semibold transition-colors duration-200`}
+              className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors"
+              
             >
               {isDeleting ? 'Deleting...' : 'Delete Menu'}
             </button>
             <button
               onClick={handleShowModal}
-              className="rounded-lg bg-green-600 px-6 py-3 text-white hover:bg-green-700"
+              className="px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 transition-colors"
             >
               Add to Grocery List
             </button>

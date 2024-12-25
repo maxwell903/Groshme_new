@@ -434,13 +434,13 @@ export default function Home() {
             
             <Link 
   href="/all-recipes"
-  className="inline-block rounded-lg bg-green-600 px-6 py-3 text-white hover:bg-green-700 transition-colors duration-200"
+  className="px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 transition-colors"
 >
   My Recipes
 </Link>
               <Link 
   href="/my-fridge"
-  className="inline-block rounded-lg bg-blue-600 px-6 py-3 text-white hover:bg-blue-700 transition-colors duration-200"
+  className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors"
   onClick={() => localStorage.setItem('previousPath', '/')}
 >
   My Food
@@ -448,7 +448,7 @@ export default function Home() {
 
                <Link 
    href="/meal-prep"
-   className="inline-block rounded-lg bg-green-600 px-6 py-3 text-white hover:bg-green-700 transition-colors duration-200"
+   className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors"
    onClick={() => localStorage.setItem('previousPath', '/')}
  >
   My Fitness
@@ -456,7 +456,7 @@ export default function Home() {
 
               <Link 
                 href="/grocery-bill"
-                className="inline-block rounded-lg bg-yellow-600 px-6 py-3 text-white hover:bg-yellow-700 transition-colors duration-200"
+                className="inline-block rounded-lg bg-gray-600 px-6 py-3 text-white hover:bg-yellow-700 transition-colors duration-200"
                 onClick={() => localStorage.setItem('previousPath', '/')}
               >
                 Grocery Bill
