@@ -48,20 +48,36 @@ export default function Menus() {
 
   const handleCreateMenu = async (e) => {
     e.preventDefault();
+    if (!newMenuName.trim()) {
+      setError('Menu name is required');
+      return;
+    }
+  
     try {
+      setError(null);
       const response = await fetch(`${API_URL}/api/menus`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name: newMenuName }),
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'application/json'
+        },
+        body: JSON.stringify({ name: newMenuName.trim() }),
       });
-
-      if (!response.ok) throw new Error('Failed to create menu');
+  
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Failed to create menu');
+      }
+  
+      const data = await response.json();
+      console.log('Menu created successfully:', data);
       
       setNewMenuName('');
       setShowCreateForm(false);
-      fetchMenus();
+      await fetchMenus(); // Refresh the menu list
     } catch (err) {
-      setError(err.message);
+      console.error('Error creating menu:', err);
+      setError(err.message || 'Failed to create menu');
     }
   };
 

@@ -1414,26 +1414,39 @@ def get_menus():
 def create_menu():
     try:
         data = request.json
-        engine = create_engine(DB_URL, poolclass=NullPool)
-        
+        if not data or 'name' not in data:
+            return jsonify({'error': 'Menu name is required'}), 400
+
+        # Create connection to Supabase PostgreSQL
+        db_url = 'postgresql://postgres.bvgnlxznztqggtqswovg:RecipeFinder123!@aws-0-us-east-2.pooler.supabase.com:5432/postgres'
+        engine = create_engine(db_url, poolclass=NullPool)
+
         with engine.connect() as connection:
-            result = connection.execute(
-                text("""
-                    INSERT INTO menu (name, created_date)
-                    VALUES (:name, CURRENT_TIMESTAMP)
-                    RETURNING id, name
-                """),
-                {"name": data['name']}
-            )
-            new_menu = result.fetchone()
-            connection.commit()
-            
+            # Start a transaction
+            with connection.begin():
+                # Insert the menu
+                result = connection.execute(
+                    text("""
+                        INSERT INTO menu (name, created_date)
+                        VALUES (:name, CURRENT_TIMESTAMP)
+                        RETURNING id, name, created_date
+                    """),
+                    {"name": data['name']}
+                )
+                
+                new_menu = result.fetchone()
+                if not new_menu:
+                    raise Exception('Failed to create menu')
+
+            # Commit is handled by the context manager
             return jsonify({
                 'id': new_menu.id,
-                'name': new_menu.name
+                'name': new_menu.name,
+                'created_date': new_menu.created_date.isoformat() if new_menu.created_date else None
             }), 201
+
     except Exception as e:
-        print(f"Error creating menu: {str(e)}")
+        print(f"Error creating menu: {str(e)}")  # Add logging
         return jsonify({'error': str(e)}), 500
 
 @app.route('/api/menus/<int:menu_id>/recipes', methods=['GET'])
