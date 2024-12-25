@@ -1,6 +1,7 @@
 // Updated search.js
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
+import { fetchApi, API_URL } from '@/utils/api';
 
 export default function Search() {
   const [ingredientInput, setIngredientInput] = useState('');
@@ -52,7 +53,7 @@ export default function Search() {
       const queryString = ingredients
         .map(ingredient => `ingredient=${encodeURIComponent(ingredient)}`)
         .join('&');
-      const response = await fetch(`http://localhost:5000/api/search?${queryString}`);
+      const response = await fetch(`${API_URL}/api/search?${queryString}`);
       const data = await response.json();
       setSearchResults(data);
       setError(null);

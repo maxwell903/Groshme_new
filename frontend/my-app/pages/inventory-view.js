@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { debounce } from 'lodash';
+import { fetchApi, API_URL } from '@/utils/api';
 
 export default function InventoryView() {
   const [recipes, setRecipes] = useState([]);
@@ -14,9 +15,9 @@ export default function InventoryView() {
 
   useEffect(() => {
     Promise.all([
-      fetch('http://localhost:5000/api/all-recipes').then(res => res.json()),
-      fetch('http://localhost:5000/api/menus').then(res => res.json()),
-      fetch('http://localhost:5000/api/fridge').then(res => res.json())
+      fetch(`${API_URL}/api/all-recipes`).then(res => res.json()),
+      fetch(`${API_URL}/api/menus`).then(res => res.json()),
+      fetch(`${API_URL}/api/fridge`).then(res => res.json())
     ]).then(([recipesData, menusData, fridgeData]) => {
       setRecipes(recipesData.recipes);
       setMenus(menusData.menus);
@@ -38,7 +39,7 @@ export default function InventoryView() {
   }, [searchTerm, recipes]);
 
   const handleMenuSelect = async (menuId) => {
-    const response = await fetch(`http://localhost:5000/api/menus/${menuId}/recipes`);
+    const response = await fetch(`${API_URL}/api/menus/${menuId}/recipes`);
     const data = await response.json();
     setFilteredRecipes(data.recipes);
     setSelectedMenu(menuId);

@@ -3,6 +3,7 @@ import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/router';
 import { debounce } from 'lodash';
+import { fetchApi, API_URL } from '@/utils/api';
 
 const RecipeNavigation = ({ activePage }) => {
   return (
@@ -61,7 +62,7 @@ export default function AllRecipes() {
     const fetchRecipes = async () => {
       try {
         setLoading(true);
-        const response = await fetch('http://localhost:5000/api/all-recipes');
+        const response = await fetch(`${API_URL}/api/all-recipes`);
         if (!response.ok) {
           throw new Error('Failed to fetch recipes');
         }

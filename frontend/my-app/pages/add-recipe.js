@@ -2,6 +2,7 @@
 import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/router';
+import { fetchApi, API_URL } from '@/utils/api';
 
 const RecipeNavigation = ({ activePage }) => {
   return (
@@ -57,7 +58,7 @@ const AddRecipe = () => {
     setError(null);
 
     try {
-      const response = await fetch('http://localhost:5000/api/recipe', {
+      const response = await fetch(`${API_URL}/api/recipe`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

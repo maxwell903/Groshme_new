@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { ChevronDown, ChevronUp, Plus, Edit, Trash, X, Check, Layers } from 'lucide-react';
 import { useRouter } from 'next/router';
 import Link from 'next/link';
+import { fetchApi, API_URL } from '@/utils/api';
 
 // Modal Components
 const RecipeSelectionModal = ({ listId, onClose, onSelect }) => {
@@ -9,7 +10,7 @@ const RecipeSelectionModal = ({ listId, onClose, onSelect }) => {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    fetch('http://localhost:5000/api/all-recipes')
+    fetch(`${API_URL}/api/all-recipes`)
       .then(res => res.json())
       .then(data => {
         setRecipes(data.recipes || []);
@@ -62,7 +63,7 @@ const MenuSelectionModal = ({ listId, onClose, onSelect }) => {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    fetch('http://localhost:5000/api/menus')
+    fetch(`${API_URL}/api/menus`)
       .then(res => res.json())
       .then(data => {
         setMenus(data.menus || []);
@@ -128,7 +129,7 @@ const GroceryItem = ({ item, listId, onUpdate, onDelete, onToggleMarked }) => {
     // For recipe/menu headers or regular items, perform full deletion
     if (isRecipeHeader || isMenuHeader) {
       try {
-        const response = await fetch(`http://localhost:5000/api/grocery-lists/${listId}/items/${item.id}`, {
+        const response = await fetch(`${API_URL}/api/grocery-lists/${listId}/items/${item.id}`, {
           method: 'DELETE',
           headers: { 
             'Content-Type': 'application/json',
@@ -162,7 +163,7 @@ const GroceryItem = ({ item, listId, onUpdate, onDelete, onToggleMarked }) => {
         '✓ ' + item.name;       // Add the checkmark
 
       try {
-        const response = await fetch(`http://localhost:5000/api/grocery-lists/${listId}/items/${item.id}`, {
+        const response = await fetch(`${API_URL}/api/grocery-lists/${listId}/items/${item.id}`, {
           method: 'PUT',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ ...localData, name: toggledName })
@@ -191,7 +192,7 @@ const GroceryItem = ({ item, listId, onUpdate, onDelete, onToggleMarked }) => {
         updatedData.total = updatedData.quantity * updatedData.price_per;
       }
 
-      const response = await fetch(`http://localhost:5000/api/grocery-lists/${listId}/items/${item.id}`, {
+      const response = await fetch(`${API_URL}/api/grocery-lists/${listId}/items/${item.id}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(updatedData)
@@ -328,7 +329,7 @@ export default function GroceryListsPage() {
 
   const fetchFridgeItems = async () => {
     try {
-      const response = await fetch('http://localhost:5000/api/fridge');
+      const response = await fetch(`${API_URL}/api/fridge`);
       if (!response.ok) {
         const errorData = await response.json();
         throw new Error(errorData.error || 'Failed to fetch fridge items');
@@ -349,7 +350,7 @@ export default function GroceryListsPage() {
   // Fetch all lists and their items
   const fetchData = async () => {
     try {
-      const response = await fetch('http://localhost:5000/api/grocery-lists');
+      const response = await fetch(`${API_URL}/api/grocery-lists`);
       const data = await response.json();
       setLists(data.lists || []);
       setLoading(false);
@@ -395,7 +396,7 @@ export default function GroceryListsPage() {
   const handleCreateList = async (e) => {
     e.preventDefault();
     try {
-      const response = await fetch('http://localhost:5000/api/grocery-lists', {
+      const response = await fetch(`${API_URL}/api/grocery-lists`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -422,7 +423,7 @@ export default function GroceryListsPage() {
   
     if (confirm('Delete this list?')) {
       try {
-        const response = await fetch(`http://localhost:5000/api/grocery-lists/${listId}`, {
+        const response = await fetch(`${API_URL}/api/grocery-lists/${listId}`, {
           method: 'DELETE',
           headers: {
             'Accept': 'application/json',
@@ -454,7 +455,7 @@ export default function GroceryListsPage() {
     if (!newItemName.trim()) return;
     
     try {
-      const response = await fetch(`http://localhost:5000/api/grocery-lists/${expandedList}/items`, {
+      const response = await fetch(`${API_URL}/api/grocery-lists/${expandedList}/items`, {
         method: 'POST',
         headers: { 
           'Content-Type': 'application/json',
@@ -486,7 +487,7 @@ export default function GroceryListsPage() {
     if (!expandedList || !itemId) return;
     
     try {
-      const response = await fetch(`http://localhost:5000/api/grocery-lists/${expandedList}/items/${itemId}`, {
+      const response = await fetch(`${API_URL}/api/grocery-lists/${expandedList}/items/${itemId}`, {
         method: 'DELETE',
         headers: { 
           'Content-Type': 'application/json',
@@ -514,7 +515,7 @@ export default function GroceryListsPage() {
   };
 
   const fetchRecipeIngredientDetails = async (recipeId) => {
-    const response = await fetch(`http://localhost:5000/api/recipe/${recipeId}/ingredients`);
+    const response = await fetch(`${API_URL}/api/recipe/${recipeId}/ingredients`);
     if (!response.ok) {
       throw new Error('Failed to fetch recipe ingredient details');
     }
@@ -525,7 +526,7 @@ export default function GroceryListsPage() {
   const handleAddFromRecipe = async (recipe) => {
     try {
       // First add the recipe name as header
-      await fetch(`http://localhost:5000/api/grocery-lists/${expandedList}/items`, {
+      await fetch(`${API_URL}/api/grocery-lists/${expandedList}/items`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -543,7 +544,7 @@ export default function GroceryListsPage() {
           item.quantity > 0
         );
         
-        await fetch(`http://localhost:5000/api/grocery-lists/${expandedList}/items`, {
+        await fetch(`${API_URL}/api/grocery-lists/${expandedList}/items`, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json', 
@@ -567,7 +568,7 @@ export default function GroceryListsPage() {
   const handleAddFromMenu = async (menuId) => {
     try {
       // Fetch all menu recipes with ingredient details
-      const response = await fetch(`http://localhost:5000/api/menus/${menuId}/recipes`);
+      const response = await fetch(`${API_URL}/api/menus/${menuId}/recipes`);
       if (!response.ok) {
         throw new Error('Failed to fetch menu recipes');
       }
@@ -575,7 +576,7 @@ export default function GroceryListsPage() {
       const menuData = await response.json();
       
       // Add menu name as header
-      await fetch(`http://localhost:5000/api/grocery-lists/${expandedList}/items`, {
+      await fetch(`${API_URL}/api/grocery-lists/${expandedList}/items`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -586,7 +587,7 @@ export default function GroceryListsPage() {
       // Process each recipe
       for (const recipe of menuData.recipes) {
         // Add recipe name
-        await fetch(`http://localhost:5000/api/grocery-lists/${expandedList}/items`, {
+        await fetch(`${API_URL}/api/grocery-lists/${expandedList}/items`, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
@@ -603,7 +604,7 @@ export default function GroceryListsPage() {
             item.quantity > 0
           );
   
-          await fetch(`http://localhost:5000/api/grocery-lists/${expandedList}/items`, {
+          await fetch(`${API_URL}/api/grocery-lists/${expandedList}/items`, {
             method: 'POST',
             headers: {
               'Content-Type': 'application/json',
@@ -701,7 +702,7 @@ export default function GroceryListsPage() {
       onClick={async () => {
         if (expandedList) {
           try {
-            const response = await fetch(`http://localhost:5000/api/grocery-lists/${expandedList}/condense`, {
+            const response = await fetch(`${API_URL}/api/grocery-lists/${expandedList}/condense`, {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' }
             });
@@ -728,7 +729,7 @@ export default function GroceryListsPage() {
       onClick={async () => {
         if (expandedList) {
           try {
-            const response = await fetch(`http://localhost:5000/api/grocery-lists/${expandedList}/import-to-fridge`, {
+            const response = await fetch(`${API_URL}/api/grocery-lists/${expandedList}/import-to-fridge`, {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' }
             });
@@ -877,7 +878,7 @@ export default function GroceryListsPage() {
               
               // Delete each marked item
               for (const item of markedItems) {
-                await fetch(`http://localhost:5000/api/grocery-lists/${list.id}/items/${item.id}`, {
+                await fetch(`${API_URL}/api/grocery-lists/${list.id}/items/${item.id}`, {
                   method: 'DELETE',
                   headers: { 
                     'Content-Type': 'application/json',

@@ -2,6 +2,7 @@ import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { useRouter } from 'next/router';
 import Link from 'next/link';
 import { ChevronDown, ChevronUp, Plus, X } from 'lucide-react';
+import { fetchApi, API_URL } from '@/utils/api';
 
 // Helper component for inventory rows
 const InventoryRow = React.memo(({ item, isEven, onUpdate }) => {
@@ -12,7 +13,7 @@ const InventoryRow = React.memo(({ item, isEven, onUpdate }) => {
   const handleUpdate = async (updateData) => {
     try {
       setIsUpdating(true);
-      const response = await fetch(`http://localhost:5000/api/fridge/${item.id}`, {
+      const response = await fetch(`${API_URL}/api/fridge/${item.id}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ 
@@ -34,7 +35,7 @@ const InventoryRow = React.memo(({ item, isEven, onUpdate }) => {
   const handleDelete = async () => {
     if (window.confirm(`Are you sure you want to delete ${item.name} from your fridge?`)) {
       try {
-        const response = await fetch(`http://localhost:5000/api/fridge/${item.id}`, {
+        const response = await fetch(`${API_URL}/api/fridge/${item.id}`, {
           method: 'DELETE',
           headers: { 'Content-Type': 'application/json' }
         });
@@ -127,7 +128,7 @@ export default function InventoryView() {
 
   const handleGroceryListSelect = useCallback(async (list) => {
     try {
-      const response = await fetch(`http://localhost:5000/api/grocery-lists/${list.id}`);
+      const response = await fetch(`${API_URL}/api/grocery-lists/${list.id}`);
       const data = await response.json();
       setSelectedGroceryListItems({
         name: list.name,
@@ -225,10 +226,10 @@ export default function InventoryView() {
     const fetchInitialData = async () => {
       try {
         const [recipesRes, menusRes, fridgeRes, groceryListsRes] = await Promise.all([
-          fetch('http://localhost:5000/api/all-recipes'),
-          fetch('http://localhost:5000/api/menus'),
-          fetch('http://localhost:5000/api/fridge'),
-          fetch('http://localhost:5000/api/grocery-lists')
+          fetch(`${API_URL}/api/all-recipes`),
+          fetch(`${API_URL}/api/menus`),
+          fetch(`${API_URL}/api/fridge`),
+          fetch(`${API_URL}/api/grocery-lists`)
         ]);
 
         const [recipesData, menusData, fridgeData, groceryListsData] = await Promise.all([
@@ -255,7 +256,7 @@ export default function InventoryView() {
   // Handle inventory updates
   const handleInventoryUpdate = useCallback(async () => {
     try {
-      const response = await fetch('http://localhost:5000/api/fridge');
+      const response = await fetch(`${API_URL}/api/fridge`);
       const data = await response.json();
       setFridgeItems(data.ingredients || []);
     } catch (error) {
@@ -267,7 +268,7 @@ export default function InventoryView() {
   const handleManualAdd = useCallback(async (e) => {
     e.preventDefault();
     try {
-      const response = await fetch('http://localhost:5000/api/fridge/add', {
+      const response = await fetch(`${API_URL}/api/fridge/add`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(newItem)
@@ -285,7 +286,7 @@ export default function InventoryView() {
   // Handle text parsing
   const handleTextParse = useCallback(async (text) => {
     try {
-      const response = await fetch('http://localhost:5000/api/fridge/parse-receipt', {
+      const response = await fetch(`${API_URL}/api/fridge/parse-receipt`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ receipt_text: text })
@@ -383,7 +384,7 @@ export default function InventoryView() {
       onClick={async () => {
         if (confirm('Are you sure you want to clear all quantities? Items will move to "Need to Get"')) {
           try {
-            const response = await fetch('http://localhost:5000/api/fridge/clear', {
+            const response = await fetch(`${API_URL}/api/fridge/clear`, {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' }
             });
