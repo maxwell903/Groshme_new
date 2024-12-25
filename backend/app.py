@@ -1381,30 +1381,68 @@ def get_all_recipes():
 @app.route('/api/menus', methods=['GET'])
 def get_menus():
     try:
-        menus = Menu.query.all()
-        menus_data = [{
-            'id': menu.id,
-            'name': menu.name,
-            'recipe_count': len(menu.menu_recipes)
-        } for menu in menus]
-        return jsonify({'menus': menus_data})
+        # Create connection to Supabase PostgreSQL
+        db_url = 'postgresql://postgres.bvgnlxznztqggtqswovg:RecipeFinder123!@aws-0-us-east-2.pooler.supabase.com:5432/postgres'
+        engine = create_engine(db_url)
+        
+        with engine.connect() as connection:
+            # Query menus using SQLAlchemy text
+            result = connection.execute(text("""
+                SELECT m.id, m.name, COUNT(mr.recipe_id) as recipe_count
+                FROM menu m
+                LEFT JOIN menu_recipe mr ON m.id = mr.menu_id
+                GROUP BY m.id, m.name
+            """))
+
+            menus_data = [{
+                'id': row.id,
+                'name': row.name,
+                'recipe_count': row.recipe_count
+            } for row in result]
+
+            return jsonify({'menus': menus_data})
     except Exception as e:
         return jsonify({'error': str(e)}), 500
+    
 
 @app.route('/api/menus', methods=['POST'])
 def create_menu():
     try:
         data = request.json
-        new_menu = Menu(name=data['name'])
-        db.session.add(new_menu)
-        db.session.commit()
-        return jsonify({
-            'id': new_menu.id,
-            'name': new_menu.name
-        }), 201
+        
+        # Create connection to Supabase PostgreSQL
+        db_url = 'postgresql://postgres.bvgnlxznztqggtqswovg:RecipeFinder123!@aws-0-us-east-2.pooler.supabase.com:5432/postgres'
+        engine = create_engine(db_url)
+
+        with engine.connect() as connection:
+            # Start a transaction
+            with connection.begin():
+                # Insert the new menu
+                result = connection.execute(
+                    text("""
+                        INSERT INTO menu (name)
+                        VALUES (:name)
+                        RETURNING id, name
+                    """),
+                    {"name": data['name']}
+                )
+
+                new_menu = result.fetchone()
+
+            # Commit the transaction
+            connection.commit()
+
+            return jsonify({
+                'id': new_menu.id,
+                'name': new_menu.name
+            }), 201
+
     except Exception as e:
-        db.session.rollback()
         return jsonify({'error': str(e)}), 500
+    
+
+
+
 
 @app.route('/api/menus/<int:menu_id>/recipes', methods=['GET'])
 def get_menu_recipes(menu_id):
@@ -1519,22 +1557,77 @@ def delete_menu(menu_id):
         print(f"Error deleting menu {menu_id}: {str(e)}")  # Debug log
         return jsonify({'error': str(e)}), 500
     
+@app.route('/api/menus/<int:menu_id>', methods=['DELETE'])
+def delete_menu(menu_id):
+    try:
+        # Create connection to Supabase PostgreSQL
+        db_url = 'postgresql://postgres.bvgnlxznztqggtqswovg:RecipeFinder123!@aws-0-us-east-2.pooler.supabase.com:5432/postgres'
+        engine = create_engine(db_url)
 
+        with engine.connect() as connection:
+            # Start a transaction
+            with connection.begin():
+                # Delete the menu_recipe associations first
+                connection.execute(
+                    text("""
+                        DELETE FROM menu_recipe
+                        WHERE menu_id = :menu_id
+                    """),
+                    {"menu_id": menu_id}
+                )
+                
+                # Delete the menu
+                result = connection.execute(
+                    text("""
+                        DELETE FROM menu
+                        WHERE id = :menu_id
+                    """),
+                    {"menu_id": menu_id}
+                )
+                
+                if result.rowcount == 0:
+                    return jsonify({'error': 'Menu not found'}), 404
+
+            # Commit the transaction
+            connection.commit()
+            
+            return jsonify({'message': 'Menu deleted successfully'}), 200
+
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
 
 
 @app.route('/api/menus/<int:menu_id>/recipes/<int:recipe_id>', methods=['DELETE'])
 def remove_recipe_from_menu(menu_id, recipe_id):
     try:
-        menu_recipe = MenuRecipe.query.filter_by(
-            menu_id=menu_id,
-            recipe_id=recipe_id
-        ).first_or_404()
-        
-        db.session.delete(menu_recipe)
-        db.session.commit()
-        return jsonify({'message': 'Recipe removed from menu'}), 200
+        # Create connection to Supabase PostgreSQL
+        db_url = 'postgresql://postgres.bvgnlxznztqggtqswovg:RecipeFinder123!@aws-0-us-east-2.pooler.supabase.com:5432/postgres'
+        engine = create_engine(db_url)
+
+        with engine.connect() as connection:
+            # Start a transaction
+            with connection.begin():
+                # Delete the menu_recipe association
+                result = connection.execute(
+                    text("""
+                        DELETE FROM menu_recipe
+                        WHERE menu_id = :menu_id AND recipe_id = :recipe_id
+                    """),
+                    {
+                        "menu_id": menu_id,
+                        "recipe_id": recipe_id
+                    }
+                )
+                
+                if result.rowcount == 0:
+                    return jsonify({'error': 'Recipe not found in the specified menu'}), 404
+
+            # Commit the transaction
+            connection.commit()
+            
+            return jsonify({'message': 'Recipe removed from menu'}), 200
+            
     except Exception as e:
-        db.session.rollback()
         return jsonify({'error': str(e)}), 500
 
 @app.route('/api/fridge/add', methods=['POST'])
