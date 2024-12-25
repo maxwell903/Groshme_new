@@ -27,7 +27,7 @@ from werkzeug.utils import secure_filename
 app = Flask(__name__)
 CORS(app, resources={
     r"/api/*": {
-        "origins": ["http://localhost:3000", "https://groshmebeta.netlify.app", "https://groshme-beta-c6285c415769.herokuapp.com"],
+        "origins": ["http://localhost:3000", "https://groshmebeta.netlify.app", "https://groshmebeta-05487aa160b2.herokuapp.com"],
         "methods": ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
         "allow_headers": ["Content-Type", "Authorization", "Accept"],
         "supports_credentials": True
@@ -49,7 +49,7 @@ db_name = 'postgres'  # Supabase uses 'postgres' as default database name
 
 
 # Configure SQLAlchemy
-db_url = 'postgresql://postgres.bvgnlxznztqggtqswovg:RecipeFinder123!@aws-0-us-east-2.pooler.supabase.com:5432/postgres'
+db_url = os.environ.get('DATABASE_URL', 'postgresql://postgres.bvgnlxznztqggtqswovg:RecipeFinder123!@aws-0-us-east-2.pooler.supabase.com:5432/postgres')
 app.config['SQLALCHEMY_DATABASE_URI'] = db_url
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 
