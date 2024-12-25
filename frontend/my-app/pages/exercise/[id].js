@@ -23,14 +23,14 @@ export default function ExerciseHistory() {
     try {
       setLoading(true);
 
-      const exerciseResponse = await fetch(`http://localhost:5000/api/exercise/${id}`);
+      const exerciseResponse = await fetch(`${API_URL}/api/exercise/${id}`);
       if (!exerciseResponse.ok) {
         throw new Error('Failed to fetch exercise details');
       }
       const exerciseData = await exerciseResponse.json();
       setExercise(exerciseData);
 
-      const historyResponse = await fetch(`http://localhost:5000/api/exercise/${id}/sets/history`);
+      const historyResponse = await fetch(`${API_URL}/api/exercise/${id}/sets/history`);
       if (!historyResponse.ok) {
         throw new Error('Failed to fetch exercise history');
       }
@@ -56,7 +56,7 @@ export default function ExerciseHistory() {
 
     try {
       setIsDeleting(true);
-      const response = await fetch(`http://localhost:5000/api/exercises/${id}`, {
+      const response = await fetch(`${API_URL}/api/exercises/${id}`, {
         method: 'DELETE',
       });
 
@@ -79,7 +79,7 @@ export default function ExerciseHistory() {
     }
 
     try {
-      const response = await fetch(`http://localhost:5000/api/exercise/${id}/sets/${setId}`, {
+      const response = await fetch(`${API_URL}/api/exercise/${id}/sets/${setId}`, {
         method: 'DELETE',
       });
 
@@ -101,7 +101,7 @@ export default function ExerciseHistory() {
     }
 
     try {
-      const response = await fetch(`http://localhost:5000/api/exercise/${id}/history/${historyId}`, {
+      const response = await fetch(`${API_URL}/api/exercise/${id}/history/${historyId}`, {
         method: 'DELETE',
       });
 
