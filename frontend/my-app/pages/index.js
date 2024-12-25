@@ -25,7 +25,7 @@ const GroceryListFormatter = ({ onFormat, onClose }) => {
 
   const fetchGroceryLists = async () => {
     try {
-      const response = await fetch('http://localhost:5000/api/grocery-lists');
+      const response = await fetch(`${API_URL}/api/grocery-lists`);
       const data = await response.json();
       setGroceryLists(data.lists || []);
       setLoading(false);
@@ -37,7 +37,7 @@ const GroceryListFormatter = ({ onFormat, onClose }) => {
 
   const formatGroceryList = async (listId) => {
     try {
-      const response = await fetch(`http://localhost:5000/api/grocery-lists/${listId}`);
+      const response = await fetch(`${API_URL}/api/grocery-lists/${listId}`);
       const data = await response.json();
       
       let emailText = `Grocery List: ${data.name}\n\n`;
@@ -101,7 +101,7 @@ const WorkoutEmailFormatter = ({ onFormat, onClose }) => {
 
   const fetchWorkouts = async () => {
     try {
-      const response = await fetch('http://localhost:5000/api/weekly-workouts');
+      const response = await fetch('${API_URL}/api/weekly-workouts');
       const data = await response.json();
       setWorkouts(data.workouts || {});
       setLoading(false);
@@ -383,7 +383,7 @@ export default function Home() {
   useEffect(() => {
     const fetchData = async () => {
       try {
-        const response = await fetch('http://localhost:5000/api/home-data');
+        const response = await fetch('${API_URL}/api/home-data');
         if (!response.ok) {
           throw new Error('Failed to fetch data');
         }
