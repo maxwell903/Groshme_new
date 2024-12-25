@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import Link from 'next/link';
+import { fetchApi, API_URL } from '@/utils/api';
 
 const ExerciseForm = () => {
   const [formData, setFormData] = useState({
@@ -29,7 +30,7 @@ const ExerciseForm = () => {
         rest_time: parseInt(formData.rest_time) || 0
       };
 
-      const response = await fetch('http://localhost:5000/api/exercise', {
+      const response = await fetch(`${API_URL}/api/exercise`, {
         method: 'POST',
         headers: { 
           'Content-Type': 'application/json',

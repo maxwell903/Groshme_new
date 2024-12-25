@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { Plus, X, Search, ChevronDown, ChevronUp } from 'lucide-react';
+import { fetchApi, API_URL } from '@/utils/api';
 
 // Exercise search modal component
 const ExerciseSearchModal = ({ isOpen, onClose, onSubmit }) => {
@@ -15,7 +16,7 @@ const ExerciseSearchModal = ({ isOpen, onClose, onSubmit }) => {
   useEffect(() => {
     const fetchExercises = async () => {
       try {
-        const response = await fetch('http://localhost:5000/api/exercises');
+        const response = await fetch(`${API_URL}/api/exercises`);
         const data = await response.json();
         setExercises(data.exercises || []);
         setLoading(false);
@@ -228,7 +229,7 @@ const GymPage = () => {
 
   const fetchWorkouts = async () => {
     try {
-      const response = await fetch('http://localhost:5000/api/weekly-workouts');
+      const response = await fetch(`${API_URL}/api/weekly-workouts`);
       if (!response.ok) throw new Error('Failed to fetch workouts');
       const data = await response.json();
       setWorkouts(data.workouts || {});
@@ -251,14 +252,14 @@ const GymPage = () => {
         selectedExercises.map(async (exercise) => {
           try {
             // First get exercise details
-            const exerciseResponse = await fetch(`http://localhost:5000/api/exercises/${exercise.id}`);
+            const exerciseResponse = await fetch(`${API_URL}/api/exercises/${exercise.id}`);
             if (!exerciseResponse.ok) throw new Error('Failed to fetch exercise details');
             const exerciseData = await exerciseResponse.json();
   
             // Then try to get latest set info
             let latestSet = null;
             try {
-              const setsResponse = await fetch(`http://localhost:5000/api/exercise/${exercise.id}/sets/latest`);
+              const setsResponse = await fetch(`${API_URL}/api/exercise/${exercise.id}/sets/latest`);
               if (setsResponse.ok) {
                 const setsData = await setsResponse.json();
                 latestSet = setsData.latestSet;
@@ -282,7 +283,7 @@ const GymPage = () => {
       );
   
       // Save to database
-      const response = await fetch('http://localhost:5000/api/weekly-workouts', {
+      const response = await fetch(`${API_URL}/api/weekly-workouts`, {
         
         method: 'POST',
         headers: { 
@@ -326,7 +327,7 @@ const GymPage = () => {
 
   const handleRemoveExercise = async (day, exerciseId) => {
     try {
-      const response = await fetch(`http://localhost:5000/api/weekly-workouts/${day}/${exerciseId}`, {
+      const response = await fetch(`${API_URL}/api/weekly-workouts/${day}/${exerciseId}`, {
         method: 'DELETE'
       });
 

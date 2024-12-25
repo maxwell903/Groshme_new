@@ -4,6 +4,7 @@ import { useRouter } from 'next/router';
 import Link from 'next/link';
 import NutritionModal from '@/components/NutritionModal';
 import { ChevronDown, ChevronUp, Plus, Edit, Trash, X, Check } from 'lucide-react';
+import { fetchApi, API_URL } from '@/utils/api';
 
 const NavigationBar = () => {
   const router = useRouter();
@@ -135,7 +136,7 @@ export default function RecipePage() {
   const handleNutritionSubmit = async (nutritionData) => {
     try {
       console.log('Submitting nutrition data:', nutritionData); // Debug log
-      const response = await fetch(`http://localhost:5000/api/recipe/${id}/ingredients/${nutritionData.ingredientIndex}/nutrition`, {
+      const response = await fetch(`${API_URL}/api/recipe/${id}/ingredients/${nutritionData.ingredientIndex}/nutrition`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -164,7 +165,7 @@ export default function RecipePage() {
 
   const fetchRecipe = async () => {
     try {
-      const response = await fetch(`http://localhost:5000/api/recipe/${id}`);
+      const response = await fetch(`${API_URL}/api/recipe/${id}`);
       
       if (!response.ok) 
         throw new Error('Failed to fetch recipe data');
@@ -180,7 +181,7 @@ export default function RecipePage() {
 
   const fetchMenus = async () => {
     try {
-      const response = await fetch('http://localhost:5000/api/menus');
+      const response = await fetch(`${API_URL}/api/menus`);
       if (!response.ok) {
         throw new Error('Failed to fetch menus');
       }
@@ -194,7 +195,7 @@ export default function RecipePage() {
 
   const fetchGroceryLists = async () => {
     try {
-      const response = await fetch('http://localhost:5000/api/grocery-lists');
+      const response = await fetch(`${API_URL}/api/grocery-lists`);
       const data = await response.json();
       setGroceryLists(data.lists);
     } catch (error) {
@@ -204,7 +205,7 @@ export default function RecipePage() {
 
   const fetchFridgeItems = async () => {
     try {
-      const response = await fetch('http://localhost:5000/api/fridge');
+      const response = await fetch(`${API_URL}/api/fridge`);
       const data = await response.json();
       setFridgeItems(data.ingredients || []);
     } catch (error) {
@@ -215,7 +216,7 @@ export default function RecipePage() {
   const handleAddToMenu = async (menuId) => {
     setAddingToMenu(true);
     try {
-      const response = await fetch(`http://localhost:5000/api/menus/${menuId}/recipes`, {
+      const response = await fetch(`${API_URL}/api/menus/${menuId}/recipes`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ recipe_id: id }),
@@ -235,7 +236,7 @@ export default function RecipePage() {
     
     try {
       // Add recipe name as header
-      await fetch(`http://localhost:5000/api/grocery-lists/${listId}/items`, {
+      await fetch(`${API_URL}/api/grocery-lists/${listId}/items`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -251,7 +252,7 @@ export default function RecipePage() {
         );
         
         // Add ingredient with bullet point prefix and quantity/unit details
-        await fetch(`http://localhost:5000/api/grocery-lists/${listId}/items`, {
+        await fetch(`${API_URL}/api/grocery-lists/${listId}/items`, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
@@ -264,7 +265,7 @@ export default function RecipePage() {
         });
 
         // Add to fridge tracking if not already present
-        await fetch('http://localhost:5000/api/fridge/add', {
+        await fetch(`${API_URL}/api/fridge/add`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
@@ -290,7 +291,7 @@ export default function RecipePage() {
 
     try {
       setIsDeleting(true);
-      const response = await fetch(`http://localhost:5000/api/recipe/${id}`, {
+      const response = await fetch(`${API_URL}/api/recipe/${id}`, {
         method: 'DELETE',
       });
 
@@ -361,7 +362,7 @@ export default function RecipePage() {
     const handleSubmit = async (e) => {
       e.preventDefault();
       try {
-        const response = await fetch(`http://localhost:5000/api/recipe/${recipe.id}`, {
+        const response = await fetch(`${API_URL}/api/recipe/${recipe.id}`, {
           method: 'PUT',
           headers: {
             'Content-Type': 'application/json',
@@ -674,7 +675,7 @@ const getBackLabel = (path) => {
                               e.stopPropagation();
                               try {
                                 setAddingToMenu(true);
-                                const response = await fetch(`http://localhost:5000/api/menus/${menu.id}/recipes`, {
+                                const response = await fetch(`${API_URL}/api/menus/${menu.id}/recipes`, {
                                   method: 'POST',
                                   headers: { 'Content-Type': 'application/json' },
                                   body: JSON.stringify({ recipe_id: id }),

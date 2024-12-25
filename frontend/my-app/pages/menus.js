@@ -2,6 +2,7 @@ import React from 'react';
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/router';
+import { fetchApi, API_URL } from '@/utils/api';
 
 export default function Menus() {
   const [menus, setMenus] = useState([]);
@@ -24,7 +25,7 @@ export default function Menus() {
 
   const fetchFridgeItems = async () => {
     try {
-      const response = await fetch('http://localhost:5000/api/fridge');
+      const response = await fetch(`${API_URL}/api/fridge`);
       const data = await response.json();
       setFridgeItems(data.ingredients || []);
     } catch (error) {
@@ -34,7 +35,7 @@ export default function Menus() {
 
   const fetchMenus = async () => {
     try {
-      const response = await fetch('http://localhost:5000/api/menus');
+      const response = await fetch(`${API_URL}/api/menus`);
       if (!response.ok) throw new Error('Failed to fetch menus');
       const data = await response.json();
       setMenus(data.menus);
@@ -48,7 +49,7 @@ export default function Menus() {
   const handleCreateMenu = async (e) => {
     e.preventDefault();
     try {
-      const response = await fetch('http://localhost:5000/api/menus', {
+      const response = await fetch(`${API_URL}/api/menus`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ name: newMenuName }),
@@ -66,7 +67,7 @@ export default function Menus() {
 
   const handleShowModal = async (menuId) => {
     try {
-      const response = await fetch('http://localhost:5000/api/grocery-lists');
+      const response = await fetch(`${API_URL}/api/grocery-lists`);
       const data = await response.json();
       setGroceryLists(data.lists);
       setSelectedMenuId(menuId);
@@ -79,13 +80,13 @@ export default function Menus() {
   const addToGroceryList = async (listId) => {
     try {
       // First fetch all recipes for this menu
-      const menuResponse = await fetch(`http://localhost:5000/api/menus/${selectedMenuId}/recipes`);
+      const menuResponse = await fetch(`${API_URL}/api/menus/${selectedMenuId}/recipes`);
       const menuData = await menuResponse.json();
       
       // Create formatted items for the grocery list
       for (const recipe of menuData.recipes) {
         // Add recipe name
-        await fetch(`http://localhost:5000/api/grocery-lists/${listId}/items`, {
+        await fetch(`${API_URL}/api/grocery-lists/${listId}/items`, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
@@ -100,7 +101,7 @@ export default function Menus() {
           );
           
           const color = inFridge ? 'text-green-600' : 'text-red-600';
-          await fetch(`http://localhost:5000/api/grocery-lists/${listId}/items`, {
+          await fetch(`${API_URL}/api/grocery-lists/${listId}/items`, {
             method: 'POST',
             headers: {
               'Content-Type': 'application/json',
@@ -130,7 +131,7 @@ export default function Menus() {
         setIsDeleting(true);
         console.log('Attempting to delete menu:', menuId); // Debug log
   
-        const response = await fetch(`http://localhost:5000/api/menus/${menuId}`, {
+        const response = await fetch(`${API_URL}/api/menus/${menuId}`, {
           method: 'DELETE',
           headers: {
             'Accept': 'application/json',

@@ -6,6 +6,7 @@ import ExerciseDisplay from '../src/components/ExerciseDisplay';
 import WorkoutDisplay from '../src/components/WorkoutDisplay';
 import { Calendar } from 'lucide-react';
 import NutritionSummary from '@/components/NutritionModal';
+import { fetchApi, API_URL } from '@/utils/api';
 
 
 const SearchableRecipeSelector = ({ isOpen, onClose, onSelect, mealType }) => {
@@ -17,7 +18,7 @@ const SearchableRecipeSelector = ({ isOpen, onClose, onSelect, mealType }) => {
   useEffect(() => {
     const fetchRecipes = async () => {
       try {
-        const response = await fetch('http://localhost:5000/api/all-recipes');
+        const response = await fetch(`${API_URL}/api/all-recipes`);
         const data = await response.json();
         setRecipes(data.recipes || []);
         setFilteredRecipes(data.recipes || []);
@@ -107,7 +108,7 @@ const MenuSelector = ({ isOpen, onClose, weekId, onMealsAdded }) => {
   useEffect(() => {
     const fetchMenus = async () => {
       try {
-        const response = await fetch('http://localhost:5000/api/menus');
+        const response = await fetch(`${API_URL}/api/menus`);
         const data = await response.json();
         setMenus(data.menus || []);
       } catch (error) {
@@ -123,7 +124,7 @@ const MenuSelector = ({ isOpen, onClose, weekId, onMealsAdded }) => {
   const handleMenuSelect = async (menu) => {
     setSelectedMenu(menu);
     try {
-      const response = await fetch(`http://localhost:5000/api/menus/${menu.id}/recipes`);
+      const response = await fetch(`${API_URL}/api/menus/${menu.id}/recipes`);
       const data = await response.json();
       setRecipes(data.recipes || []);
       setStep('recipes');
@@ -168,7 +169,7 @@ const MenuSelector = ({ isOpen, onClose, weekId, onMealsAdded }) => {
       });
 
       for (const meal of meals) {
-        await fetch(`http://localhost:5000/api/meal-prep/weeks/${weekId}/meals`, {
+        await fetch(`${API_URL}/api/meal-prep/weeks/${weekId}/meals`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(meal)
@@ -329,7 +330,7 @@ const MealDisplay = ({ meal, onDelete }) => {
   
     const handleAddMeal = async (recipe, mealType) => {
       try {
-        const response = await fetch(`http://localhost:5000/api/meal-prep/weeks/${weekId}/meals`, {
+        const response = await fetch(`${API_URL}/api/meal-prep/weeks/${weekId}/meals`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
@@ -600,7 +601,7 @@ const MealDisplay = ({ meal, onDelete }) => {
 
     const handleToggleDates = async (weekId) => {
         try {
-          const response = await fetch(`http://localhost:5000/api/meal-prep/weeks/${weekId}/toggle-dates`, {
+          const response = await fetch(`${API_URL}/api/meal-prep/weeks/${weekId}/toggle-dates`, {
             method: 'POST',
             headers: {
               'Content-Type': 'application/json'
@@ -630,8 +631,8 @@ const MealDisplay = ({ meal, onDelete }) => {
             try {
               setLoading(true);
               const [groceryResponse, weeksResponse] = await Promise.all([
-                fetch('http://localhost:5000/api/grocery-lists'),
-                fetch('http://localhost:5000/api/meal-prep/weeks')
+                fetch(`${API_URL}/api/grocery-lists`),
+                fetch(`${API_URL}/api/meal-prep/weeks`)
               ]);
       
               if (!groceryResponse.ok || !weeksResponse.ok) {
@@ -675,7 +676,7 @@ const MealDisplay = ({ meal, onDelete }) => {
               if (!week) continue;
       
               // Add week header
-              await fetch(`http://localhost:5000/api/grocery-lists/${selectedList}/items`, {
+              await fetch(`${API_URL}/api/grocery-lists/${selectedList}/items`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ 
@@ -689,18 +690,18 @@ const MealDisplay = ({ meal, onDelete }) => {
                 for (const [mealType, mealsList] of Object.entries(meals)) {
                   for (const meal of mealsList) {
                     // Add recipe header
-                    await fetch(`http://localhost:5000/api/grocery-lists/${selectedList}/items`, {
+                    await fetch(`${API_URL}/api/grocery-lists/${selectedList}/items`, {
                       method: 'POST',
                       headers: { 'Content-Type': 'application/json' },
                       body: JSON.stringify({ name: `**${meal.recipe_name}**` }),
                     });
       
                     // Get and add recipe ingredients
-                    const recipeResponse = await fetch(`http://localhost:5000/api/recipe/${meal.recipe_id}/ingredients`);
+                    const recipeResponse = await fetch(`${API_URL}/api/recipe/${meal.recipe_id}/ingredients`);
                     const recipeData = await recipeResponse.json();
       
                     for (const ingredient of recipeData.ingredients) {
-                      await fetch(`http://localhost:5000/api/grocery-lists/${selectedList}/items`, {
+                      await fetch(`${API_URL}/api/grocery-lists/${selectedList}/items`, {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify({
@@ -835,7 +836,7 @@ const MealDisplay = ({ meal, onDelete }) => {
       useEffect(() => {
         const fetchGroceryLists = async () => {
           try {
-            const response = await fetch('http://localhost:5000/api/grocery-lists');
+            const response = await fetch(`${API_URL}/api/grocery-lists`);
             const data = await response.json();
             setGroceryLists(data.lists || []);
           } catch (error) {
@@ -849,7 +850,7 @@ const MealDisplay = ({ meal, onDelete }) => {
   
     const fetchWeeks = async () => {
       try {
-        const response = await fetch('http://localhost:5000/api/meal-prep/weeks');
+        const response = await fetch(`${API_URL}/api/meal-prep/weeks`);
         const data = await response.json();
         setWeeks(data.weeks || []);
         setLoading(false);
@@ -867,7 +868,7 @@ const MealDisplay = ({ meal, onDelete }) => {
   
     const handleDaySelect = async (weekData) => {
       try {
-        const response = await fetch('http://localhost:5000/api/meal-prep/weeks', {
+        const response = await fetch(`${API_URL}/api/meal-prep/weeks`, {
           method: 'POST',
           headers: { 
             'Content-Type': 'application/json' 
@@ -897,7 +898,7 @@ const MealDisplay = ({ meal, onDelete }) => {
       if (!confirm('Are you sure you want to delete this week?')) return;
   
       try {
-        const response = await fetch(`http://localhost:5000/api/meal-prep/weeks/${weekId}`, {
+        const response = await fetch(`${API_URL}/api/meal-prep/weeks/${weekId}`, {
           method: 'DELETE'
         });
   
@@ -910,7 +911,7 @@ const MealDisplay = ({ meal, onDelete }) => {
   
     const handleDeleteMeal = async (weekId, day, mealType, recipeId) => {
       try {
-        const response = await fetch(`http://localhost:5000/api/meal-prep/weeks/${weekId}/meals`, {
+        const response = await fetch(`${API_URL}/api/meal-prep/weeks/${weekId}/meals`, {
           method: 'DELETE',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
