@@ -228,33 +228,51 @@ def get_grocery_bill():
     
 
 
-
 @app.route('/api/exercise/<int:exercise_id>/sets', methods=['GET'])
 def get_exercise_sets(exercise_id):
     try:
-        # Get the most recent set history for this exercise
-        latest_history = SetHistory.query\
-            .filter_by(exercise_id=exercise_id)\
-            .order_by(SetHistory.created_at.desc())\
-            .first()
+        engine = create_engine(db_url, poolclass=NullPool)
+        
+        with engine.connect() as connection:
+            # Get the most recent set history
+            history_result = connection.execute(
+                text("""
+                    SELECT id, created_at
+                    FROM set_history 
+                    WHERE exercise_id = :exercise_id
+                    ORDER BY created_at DESC
+                    LIMIT 1
+                """),
+                {'exercise_id': exercise_id}
+            ).fetchone()
             
-        if latest_history:
-            sets = IndividualSet.query\
-                .filter_by(history_id=latest_history.id)\
-                .order_by(IndividualSet.set_number)\
-                .all()
+            if not history_result:
+                return jsonify({'sets': []})
                 
-            return jsonify({
-                'sets': [{
-                    'id': set.id,
-                    'set_number': set.set_number,
-                    'reps': set.reps,
-                    'weight': set.weight
-                } for set in sets]
-            })
-        return jsonify({'sets': []})
+            # Get sets for this history
+            sets_result = connection.execute(
+                text("""
+                    SELECT id, set_number, reps, weight
+                    FROM individual_set
+                    WHERE set_history_id = :history_id
+                    ORDER BY set_number
+                """),
+                {'history_id': history_result.id}
+            )
+            
+            sets = [{
+                'id': row.id,
+                'set_number': row.set_number,
+                'reps': row.reps,
+                'weight': row.weight
+            } for row in sets_result]
+            
+            return jsonify({'sets': sets})
+            
     except Exception as e:
+        print(f"Error fetching sets: {str(e)}")
         return jsonify({'error': str(e)}), 500
+
 
 @app.route('/api/exercise/set/<int:set_id>', methods=['DELETE'])
 def delete_individual_set(set_id):
@@ -271,22 +289,44 @@ def delete_individual_set(set_id):
 @app.route('/api/exercises/<int:exercise_id>', methods=['PUT'])
 def update_exercise(exercise_id):
     try:
-        exercise = Exercise.query.get_or_404(exercise_id)
         data = request.json
+        engine = create_engine(db_url, poolclass=NullPool)
         
-        exercise.name = data['name']
-        exercise.workout_type = data['workout_type']
-        exercise.major_groups = data['major_groups']
-        exercise.minor_groups = data['minor_groups']
-        exercise.amount_sets = data['amount_sets']
-        exercise.amount_reps = data['amount_reps']
-        exercise.weight = data['weight']
-        exercise.rest_time = data['rest_time']
-        
-        db.session.commit()
-        return jsonify({'message': 'Exercise updated successfully'}), 200
+        with engine.connect() as connection:
+            result = connection.execute(
+                text("""
+                    UPDATE exercises
+                    SET name = :name,
+                        workout_type = :workout_type,
+                        major_groups = :major_groups,
+                        minor_groups = :minor_groups,
+                        amount_sets = :amount_sets,
+                        amount_reps = :amount_reps,
+                        weight = :weight,
+                        rest_time = :rest_time
+                    WHERE id = :id
+                    RETURNING id
+                """),
+                {
+                    'id': exercise_id,
+                    'name': data['name'],
+                    'workout_type': data['workout_type'],
+                    'major_groups': data['major_groups'],
+                    'minor_groups': data['minor_groups'],
+                    'amount_sets': data['amount_sets'],
+                    'amount_reps': data['amount_reps'],
+                    'weight': data['weight'],
+                    'rest_time': data['rest_time']
+                }
+            )
+            
+            if not result.rowcount:
+                return jsonify({'error': 'Exercise not found'}), 404
+                
+            connection.commit()
+            return jsonify({'message': 'Exercise updated successfully'})
+            
     except Exception as e:
-        db.session.rollback()
         print(f"Error updating exercise: {str(e)}")
         return jsonify({'error': str(e)}), 500
 
@@ -294,30 +334,46 @@ def update_exercise(exercise_id):
 def add_exercise_sets(exercise_id):
     try:
         data = request.json
-        sets_data = data.get('sets', [])
+        engine = create_engine(db_url, poolclass=NullPool)
         
-        # Create new history entry
-        history = SetHistory(exercise_id=exercise_id)
-        db.session.add(history)
-        db.session.flush()  # Get the history ID
-        
-        # Add sets
-        for set_data in sets_data:
-            new_set = IndividualSet(
-                exercise_id=exercise_id,
-                set_history_id=history.id,  # Add this line
-                set_number=set_data['set_number'],
-                reps=set_data['reps'],
-                weight=set_data['weight']
+        with engine.connect() as connection:
+            # Create new history entry
+            history_result = connection.execute(
+                text("""
+                    INSERT INTO set_history (exercise_id, created_at)
+                    VALUES (:exercise_id, CURRENT_TIMESTAMP)
+                    RETURNING id
+                """),
+                {'exercise_id': exercise_id}
             )
-            db.session.add(new_set)
+            history_id = history_result.fetchone()[0]
             
-        db.session.commit()
-        return jsonify({'message': 'Sets added successfully'})
+            # Add sets
+            for set_data in data['sets']:
+                connection.execute(
+                    text("""
+                        INSERT INTO individual_set (
+                            exercise_id, set_history_id, set_number, reps, weight
+                        ) VALUES (
+                            :exercise_id, :history_id, :set_number, :reps, :weight
+                        )
+                    """),
+                    {
+                        'exercise_id': exercise_id,
+                        'history_id': history_id,
+                        'set_number': set_data['set_number'],
+                        'reps': set_data['reps'],
+                        'weight': set_data['weight']
+                    }
+                )
+                
+            connection.commit()
+            return jsonify({'message': 'Sets added successfully'})
+            
     except Exception as e:
-        db.session.rollback()
         print(f"Error saving sets: {str(e)}")
         return jsonify({'error': str(e)}), 500
+
 
 @app.route('/api/exercise/<int:exercise_id>/sets/history', methods=['GET'])
 def get_exercise_history(exercise_id):
@@ -388,13 +444,33 @@ class WorkoutPlan(db.Model):
 @app.route('/api/exercises/<int:exercise_id>', methods=['DELETE'])
 def delete_exercise(exercise_id):
     try:
-        # This will cascade delete all associated history and sets
-        exercise = Exercise.query.get_or_404(exercise_id)
-        db.session.delete(exercise)
-        db.session.commit()
-        return jsonify({'message': 'Exercise deleted successfully'}), 200
+        engine = create_engine(db_url, poolclass=NullPool)
+        
+        with engine.connect() as connection:
+            # First delete associated sets and history
+            connection.execute(
+                text("DELETE FROM individual_set WHERE exercise_id = :id"),
+                {'id': exercise_id}
+            )
+            
+            connection.execute(
+                text("DELETE FROM set_history WHERE exercise_id = :id"),
+                {'id': exercise_id}
+            )
+            
+            # Then delete the exercise
+            result = connection.execute(
+                text("DELETE FROM exercises WHERE id = :id"),
+                {'id': exercise_id}
+            )
+            
+            if not result.rowcount:
+                return jsonify({'error': 'Exercise not found'}), 404
+                
+            connection.commit()
+            return jsonify({'message': 'Exercise deleted successfully'})
+            
     except Exception as e:
-        db.session.rollback()
         print(f"Error deleting exercise: {str(e)}")
         return jsonify({'error': str(e)}), 500
 
@@ -432,30 +508,7 @@ def delete_exercise_history(exercise_id, history_id):
         print(f"Error deleting history: {str(e)}")
         return jsonify({'error': str(e)}), 500
 
-@app.route('/api/exercise', methods=['POST', 'OPTIONS'])
-def create_exercise():
-    # Handle CORS preflight request
-    if request.method == 'OPTIONS':
-        return jsonify({}), 200
-        
-    try:
-        data = request.json
-        exercise = Exercise(
-            name=data['name'],
-            workout_type=data['workout_type'],
-            major_groups=data['major_groups'],
-            minor_groups=data['minor_groups'],
-            amount_sets=data['amount_sets'],
-            amount_reps=data['amount_reps'],
-            weight=data['weight'],
-            rest_time=data['rest_time']
-        )
-        db.session.add(exercise)
-        db.session.commit()
-        return jsonify({'message': 'Exercise created successfully'}), 201
-    except Exception as e:
-        db.session.rollback()
-        return jsonify({'error': str(e)}), 500
+
     
 
 class MealPlan(db.Model):
@@ -989,21 +1042,71 @@ def parse_receipt_bill():
 @app.route('/api/exercises', methods=['GET'])
 def get_exercises():
     try:
-        exercises = Exercise.query.all()
-        return jsonify({
-            'exercises': [{
-                'id': ex.id,
-                'name': ex.name,
-                'workout_type': ex.workout_type,
-                'major_groups': ex.major_groups,
-                'minor_groups': ex.minor_groups,
-                'amount_sets': ex.amount_sets,
-                'amount_reps': ex.amount_reps,
-                'weight': ex.weight,
-                'rest_time': ex.rest_time
-            } for ex in exercises]
-        })
+        engine = create_engine(db_url, poolclass=NullPool)
+        with engine.connect() as connection:
+            result = connection.execute(text("""
+                SELECT id, name, workout_type, major_groups, minor_groups, 
+                       amount_sets, amount_reps, weight, rest_time
+                FROM exercises
+                ORDER BY name
+            """))
+            
+            exercises = [{
+                'id': row.id,
+                'name': row.name,
+                'workout_type': row.workout_type,
+                'major_groups': row.major_groups,
+                'minor_groups': row.minor_groups,
+                'amount_sets': row.amount_sets,
+                'amount_reps': row.amount_reps,
+                'weight': row.weight,
+                'rest_time': row.rest_time
+            } for row in result]
+            
+            return jsonify({'exercises': exercises})
     except Exception as e:
+        print(f"Error fetching exercises: {str(e)}")
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/api/exercise', methods=['POST'])
+def create_exercise():
+    try:
+        data = request.json
+        engine = create_engine(db_url, poolclass=NullPool)
+        
+        with engine.connect() as connection:
+            result = connection.execute(
+                text("""
+                    INSERT INTO exercises (
+                        name, workout_type, major_groups, minor_groups,
+                        amount_sets, amount_reps, weight, rest_time
+                    ) VALUES (
+                        :name, :workout_type, :major_groups, :minor_groups,
+                        :amount_sets, :amount_reps, :weight, :rest_time
+                    ) RETURNING id
+                """),
+                {
+                    'name': data['name'],
+                    'workout_type': data['workout_type'],
+                    'major_groups': data['major_groups'],
+                    'minor_groups': data['minor_groups'],
+                    'amount_sets': data['amount_sets'],
+                    'amount_reps': data['amount_reps'],
+                    'weight': data['weight'],
+                    'rest_time': data['rest_time']
+                }
+            )
+            
+            exercise_id = result.fetchone()[0]
+            connection.commit()
+            
+            return jsonify({
+                'message': 'Exercise created successfully',
+                'id': exercise_id
+            }), 201
+            
+    except Exception as e:
+        print(f"Error creating exercise: {str(e)}")
         return jsonify({'error': str(e)}), 500
     
 # Add these new routes above the existing grocery list routes
@@ -2895,43 +2998,37 @@ def get_workouts():
 from flask import jsonify, request
 from datetime import datetime
 
+
 @app.route('/api/weekly-workouts', methods=['POST'])
 def add_workout():
-   try:
-       connection = get_db_connection()
-       if not connection:
-           return jsonify({'error': 'Database connection failed'}), 500
-           
-       data = request.json
-       if not data or 'day' not in data or 'exercises' not in data:
-           return jsonify({'error': 'Invalid request data - requires day and exercises'}), 400
-           
-       day = data['day']
-       exercises = data['exercises']
-       
-       cursor = connection.cursor()
-       
-       # Insert exercises with default week_id of 1
-       for exercise in exercises:
-           cursor.execute("""
-               INSERT INTO weekly_workouts (day, exercise_id, week_id) 
-               VALUES (%s, %s, 1)
-               ON DUPLICATE KEY UPDATE exercise_id = VALUES(exercise_id)
-           """, (day, exercise['id']))
-       
-       connection.commit()
-       cursor.close()
-       connection.close()
-       
-       return jsonify({'message': 'Workout added successfully'}), 200
-       
-   except Exception as e:
-       if connection:
-           connection.rollback()
-           connection.close()
-       print(f"Error adding workout: {str(e)}")
-       return jsonify({'error': str(e)}), 500
-   
+    try:
+        data = request.json
+        if not data or 'day' not in data or 'exercises' not in data:
+            return jsonify({'error': 'Invalid request data'}), 400
+            
+        engine = create_engine(db_url, poolclass=NullPool)
+        
+        with engine.connect() as connection:
+            for exercise in data['exercises']:
+                connection.execute(
+                    text("""
+                        INSERT INTO weekly_workouts (day, exercise_id, week_id)
+                        VALUES (:day, :exercise_id, 1)
+                        ON CONFLICT (day, exercise_id, week_id) 
+                        DO UPDATE SET exercise_id = EXCLUDED.exercise_id
+                    """),
+                    {
+                        'day': data['day'],
+                        'exercise_id': exercise['id']
+                    }
+                )
+                
+            connection.commit()
+            return jsonify({'message': 'Workout added successfully'})
+            
+    except Exception as e:
+        print(f"Error adding workout: {str(e)}")
+        return jsonify({'error': str(e)}), 500
 
 
 @app.route('/api/send-email', methods=['OPTIONS'])
@@ -3005,126 +3102,86 @@ def logout():
 @app.route('/api/weekly-workouts/<day>/<int:exercise_id>', methods=['DELETE'])
 def remove_workout_exercise(day, exercise_id):
     try:
-        connection = get_db_connection()
-        if not connection:
-            return jsonify({'error': 'Database connection failed'}), 500
+        engine = create_engine(db_url, poolclass=NullPool)
+        
+        with engine.connect() as connection:
+            result = connection.execute(
+                text("""
+                    DELETE FROM weekly_workouts 
+                    WHERE day = :day 
+                    AND exercise_id = :exercise_id 
+                    AND week_id = 1
+                """),
+                {'day': day, 'exercise_id': exercise_id}
+            )
             
-        cursor = connection.cursor()
-        
-        # Delete the record for the specific day and exercise
-        cursor.execute("""
-            DELETE FROM weekly_workouts 
-            WHERE day = %s AND exercise_id = %s AND week_id = 1
-        """, (day, exercise_id))
-        
-        connection.commit()
-        cursor.close()
-        connection.close()
-        
-        return jsonify({'message': 'Exercise removed successfully'}), 200
-        
+            if not result.rowcount:
+                return jsonify({'error': 'Workout exercise not found'}), 404
+                
+            connection.commit()
+            return jsonify({'message': 'Exercise removed successfully'})
+            
     except Exception as e:
-        if connection:
-            connection.rollback()
-            connection.close()
         print(f"Error removing exercise: {str(e)}")
         return jsonify({'error': str(e)}), 500
-
 
 
 @app.route('/api/weekly-workouts', methods=['GET'])
 def get_weekly_workouts():
     try:
-        connection = get_db_connection()
-        if not connection:
-            return jsonify({'error': 'Database connection failed'}), 500
-            
-        cursor = connection.cursor(dictionary=True)
+        engine = create_engine(db_url, poolclass=NullPool)
         
-        # First get all weekly workouts with exercise details
-        cursor.execute("""
-            SELECT DISTINCT
-                w.day,
-                w.exercise_id,
-                e.name,
-                e.workout_type,
-                e.major_groups,
-                e.minor_groups,
-                e.amount_sets,
-                e.amount_reps,
-                e.weight,
-                e.rest_time,
-                w.created_at
-            FROM weekly_workouts w
-            JOIN exercises e ON w.exercise_id = e.id
-            ORDER BY w.day, w.created_at DESC
-        """)
-        
-        workout_rows = cursor.fetchall()
-        workouts = {}
-        
-        # Process each workout row
-        for row in workout_rows:
-            day = row['day']
-            if day not in workouts:
-                workouts[day] = []
-            
-            # Get the latest set for this exercise, ensuring we get from the most recent session
-            cursor.execute("""
-                WITH LatestSession AS (
-                    SELECT DATE(created_at) as session_date
+        with engine.connect() as connection:
+            result = connection.execute(text("""
+                WITH LatestSets AS (
+                    SELECT DISTINCT ON (exercise_id) 
+                        exercise_id,
+                        weight,
+                        reps,
+                        created_at
                     FROM individual_set
-                    WHERE exercise_id = %s
-                    ORDER BY created_at DESC
-                    LIMIT 1
-                ),
-                TopSet AS (
-                    SELECT 
-                        s.weight,
-                        s.reps,
-                        s.created_at
-                    FROM individual_set s
-                    JOIN LatestSession ls ON DATE(s.created_at) = ls.session_date
-                    WHERE s.exercise_id = %s
-                    ORDER BY s.weight DESC
-                    LIMIT 1
+                    ORDER BY exercise_id, created_at DESC
                 )
-                SELECT * FROM TopSet
-            """, (row['exercise_id'], row['exercise_id']))
+                SELECT 
+                    w.day,
+                    e.*,
+                    ls.weight as latest_weight,
+                    ls.reps as latest_reps,
+                    ls.created_at as latest_set_date
+                FROM weekly_workouts w 
+                JOIN exercises e ON w.exercise_id = e.id
+                LEFT JOIN LatestSets ls ON e.id = ls.exercise_id
+                ORDER BY w.day
+            """))
             
-            latest_set = cursor.fetchone()
+            workouts = {}
+            for row in result:
+                if row.day not in workouts:
+                    workouts[row.day] = []
+                    
+                workouts[row.day].append({
+                    'id': row.id,
+                    'name': row.name,
+                    'workout_type': row.workout_type,
+                    'major_groups': row.major_groups,
+                    'minor_groups': row.minor_groups,
+                    'amount_sets': row.amount_sets,
+                    'amount_reps': row.amount_reps,
+                    'weight': row.weight,
+                    'rest_time': row.rest_time,
+                    'latestSet': {
+                        'weight': row.latest_weight,
+                        'reps': row.latest_reps,
+                        'created_at': row.latest_set_date.isoformat() if row.latest_set_date else None
+                    } if row.latest_weight is not None else None
+                })
             
-            exercise = {
-                'id': row['exercise_id'],
-                'name': row['name'],
-                'workout_type': row['workout_type'],
-                'major_groups': row['major_groups'].split(','),
-                'minor_groups': row['minor_groups'].split(','),
-                'amount_sets': row['amount_sets'],
-                'amount_reps': row['amount_reps'],
-                'weight': row['weight'],
-                'rest_time': row['rest_time'],
-                'latestSet': {
-                    'weight': latest_set['weight'],
-                    'reps': latest_set['reps'],
-                    'created_at': latest_set['created_at'].isoformat() if latest_set else None
-                } if latest_set else None
-            }
+            return jsonify({'workouts': workouts})
             
-            # Only add if we haven't already added this exercise for this day
-            if not any(e['id'] == exercise['id'] for e in workouts[day]):
-                workouts[day].append(exercise)
-        
-        cursor.close()
-        connection.close()
-        
-        return jsonify({'workouts': workouts})
-        
     except Exception as e:
-        if connection:
-            connection.close()
         print(f"Error fetching weekly workouts: {str(e)}")
         return jsonify({'error': str(e)}), 500
+
 
 @app.route('/api/exercise/<int:exercise_id>/sets/latest', methods=['GET'])
 def get_latest_set(exercise_id):

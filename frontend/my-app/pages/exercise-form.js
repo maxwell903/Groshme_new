@@ -45,8 +45,7 @@ const handleSubmit = async (e) => {
         const errorData = await response.json();
         throw new Error(errorData.error || 'Failed to save exercise');
       }
-      // ...rest of the function
-      
+ 
       const data = await response.json();
       
       setFormData({
