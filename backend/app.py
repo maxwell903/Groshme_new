@@ -1378,20 +1378,25 @@ def get_all_recipes():
 
 
 
+from sqlalchemy import create_engine, text
+from sqlalchemy.pool import NullPool
+from flask import jsonify, request
+
+# Supabase connection string
+DB_URL = 'postgresql://postgres.bvgnlxznztqggtqswovg:RecipeFinder123!@aws-0-us-east-2.pooler.supabase.com:5432/postgres'
+
 @app.route('/api/menus', methods=['GET'])
 def get_menus():
     try:
-        # Create connection to Supabase PostgreSQL
-        db_url = 'postgresql://postgres.bvgnlxznztqggtqswovg:RecipeFinder123!@aws-0-us-east-2.pooler.supabase.com:5432/postgres'
-        engine = create_engine(db_url)
+        engine = create_engine(DB_URL, poolclass=NullPool)
         
         with engine.connect() as connection:
-            # Query menus using SQLAlchemy text
             result = connection.execute(text("""
                 SELECT m.id, m.name, COUNT(mr.recipe_id) as recipe_count
                 FROM menu m
                 LEFT JOIN menu_recipe mr ON m.id = mr.menu_id
                 GROUP BY m.id, m.name
+                ORDER BY m.name
             """))
 
             menus_data = [{
@@ -1402,195 +1407,212 @@ def get_menus():
 
             return jsonify({'menus': menus_data})
     except Exception as e:
+        print(f"Error fetching menus: {str(e)}")
         return jsonify({'error': str(e)}), 500
-    
 
 @app.route('/api/menus', methods=['POST'])
 def create_menu():
     try:
         data = request.json
+        engine = create_engine(DB_URL, poolclass=NullPool)
         
-        # Create connection to Supabase PostgreSQL
-        db_url = 'postgresql://postgres.bvgnlxznztqggtqswovg:RecipeFinder123!@aws-0-us-east-2.pooler.supabase.com:5432/postgres'
-        engine = create_engine(db_url)
-
         with engine.connect() as connection:
-            # Start a transaction
-            with connection.begin():
-                # Insert the new menu
-                result = connection.execute(
-                    text("""
-                        INSERT INTO menu (name)
-                        VALUES (:name)
-                        RETURNING id, name
-                    """),
-                    {"name": data['name']}
-                )
-
-                new_menu = result.fetchone()
-
-            # Commit the transaction
+            result = connection.execute(
+                text("""
+                    INSERT INTO menu (name, created_date)
+                    VALUES (:name, CURRENT_TIMESTAMP)
+                    RETURNING id, name
+                """),
+                {"name": data['name']}
+            )
+            new_menu = result.fetchone()
             connection.commit()
-
+            
             return jsonify({
                 'id': new_menu.id,
                 'name': new_menu.name
             }), 201
-
     except Exception as e:
+        print(f"Error creating menu: {str(e)}")
         return jsonify({'error': str(e)}), 500
-    
-
-
-
 
 @app.route('/api/menus/<int:menu_id>/recipes', methods=['GET'])
 def get_menu_recipes(menu_id):
     try:
-        # Get menu with recipes
-        menu = Menu.query.get_or_404(menu_id)
-        recipes = []
+        engine = create_engine(DB_URL, poolclass=NullPool)
         
-        # Get all recipes in menu with nutrition data
-        for menu_recipe in menu.menu_recipes:
-            recipe = Recipe.query\
-                .options(
-                    db.joinedload(Recipe.ingredients),
-                    db.joinedload(Recipe.ingredient_quantities)\
-                      .joinedload(RecipeIngredientQuantity.nutrition)
-                )\
-                .get(menu_recipe.recipe_id)
+        with engine.connect() as connection:
+            # First get menu name
+            menu_result = connection.execute(
+                text("SELECT name FROM menu WHERE id = :menu_id"),
+                {"menu_id": menu_id}
+            ).fetchone()
             
-            if recipe:
-                recipes.append(recipe)
-        
-        recipes_data = []
-        for recipe in recipes:
-            # Get ingredient details from recipe_ingredient_details table
-            ingredient_details = RecipeIngredientDetails.query\
-                .filter_by(recipe_id=recipe.id)\
-                .all()
-            
-            recipes_data.append({
-                'id': recipe.id,
-                'name': recipe.name,
-                'description': recipe.description,
-                'prep_time': recipe.prep_time,
-                'ingredients': [
-                    {
-                        'name': detail.ingredient_name,
-                        'quantity': detail.quantity,
-                        'unit': detail.unit
-                    }
-                    for detail in ingredient_details
-                ],
+            if not menu_result:
+                return jsonify({'error': 'Menu not found'}), 404
+                
+            # Get recipes with nutrition data
+            result = connection.execute(text("""
+                WITH RecipeIngredients AS (
+                    SELECT 
+                        r.id as recipe_id,
+                        r.name as recipe_name,
+                        r.description,
+                        r.prep_time,
+                        json_agg(
+                            json_build_object(
+                                'name', rid.ingredient_name,
+                                'quantity', rid.quantity,
+                                'unit', rid.unit
+                            )
+                        ) as ingredients
+                    FROM recipe r
+                    JOIN menu_recipe mr ON r.id = mr.recipe_id
+                    LEFT JOIN recipe_ingredient_details rid ON r.id = rid.recipe_id
+                    WHERE mr.menu_id = :menu_id
+                    GROUP BY r.id, r.name, r.description, r.prep_time
+                ),
+                RecipeNutrition AS (
+                    SELECT 
+                        ri.recipe_id,
+                        COALESCE(
+                            SUM(CASE WHEN rin.serving_size > 0 
+                                THEN (rin.protein_grams * riq.quantity / rin.serving_size)
+                                ELSE 0 
+                            END), 0
+                        ) as total_protein,
+                        COALESCE(
+                            SUM(CASE WHEN rin.serving_size > 0 
+                                THEN (rin.fat_grams * riq.quantity / rin.serving_size)
+                                ELSE 0 
+                            END), 0
+                        ) as total_fat,
+                        COALESCE(
+                            SUM(CASE WHEN rin.serving_size > 0 
+                                THEN (rin.carbs_grams * riq.quantity / rin.serving_size)
+                                ELSE 0 
+                            END), 0
+                        ) as total_carbs
+                    FROM RecipeIngredients ri
+                    LEFT JOIN recipe_ingredient_quantities riq ON ri.recipe_id = riq.recipe_id
+                    LEFT JOIN recipe_ingredient_nutrition rin 
+                        ON rin.recipe_ingredient_quantities_id = riq.id
+                    GROUP BY ri.recipe_id
+                )
+                SELECT 
+                    ri.*,
+                    rn.total_protein,
+                    rn.total_fat,
+                    rn.total_carbs
+                FROM RecipeIngredients ri
+                LEFT JOIN RecipeNutrition rn ON ri.recipe_id = rn.recipe_id
+                ORDER BY ri.recipe_name
+            """), {"menu_id": menu_id})
+
+            recipes_data = [{
+                'id': row.recipe_id,
+                'name': row.recipe_name,
+                'description': row.description,
+                'prep_time': row.prep_time,
+                'ingredients': row.ingredients,
                 'total_nutrition': {
-                    'protein_grams': sum(
-                        (ing.nutrition.protein_grams or 0) * (ing.quantity / ing.nutrition.serving_size)
-                        for ing in recipe.ingredient_quantities 
-                        if ing.nutrition and ing.nutrition.serving_size
-                    ),
-                    'fat_grams': sum(
-                        (ing.nutrition.fat_grams or 0) * (ing.quantity / ing.nutrition.serving_size)
-                        for ing in recipe.ingredient_quantities 
-                        if ing.nutrition and ing.nutrition.serving_size
-                    ),
-                    'carbs_grams': sum(
-                        (ing.nutrition.carbs_grams or 0) * (ing.quantity / ing.nutrition.serving_size)
-                        for ing in recipe.ingredient_quantities 
-                        if ing.nutrition and ing.nutrition.serving_size
-                    )
+                    'protein_grams': round(float(row.total_protein), 1),
+                    'fat_grams': round(float(row.total_fat), 1),
+                    'carbs_grams': round(float(row.total_carbs), 1)
                 }
+            } for row in result]
+
+            return jsonify({
+                'menu_name': menu_result.name,
+                'recipes': recipes_data
             })
-        
-        return jsonify({
-            'menu_name': menu.name,
-            'recipes': recipes_data
-        })
     except Exception as e:
         print(f"Error fetching menu recipes: {str(e)}")
         return jsonify({'error': str(e)}), 500
-
 
 @app.route('/api/menus/<int:menu_id>/recipes', methods=['POST'])
 def add_recipe_to_menu(menu_id):
     try:
         data = request.json
         recipe_id = data['recipe_id']
+        engine = create_engine(DB_URL, poolclass=NullPool)
         
-        existing = MenuRecipe.query.filter_by(
-            menu_id=menu_id, 
-            recipe_id=recipe_id
-        ).first()
-        
-        if existing:
-            return jsonify({'message': 'Recipe already in menu'}), 400
+        with engine.connect() as connection:
+            # Check if recipe already exists in menu
+            existing = connection.execute(
+                text("""
+                    SELECT id FROM menu_recipe 
+                    WHERE menu_id = :menu_id AND recipe_id = :recipe_id
+                """),
+                {"menu_id": menu_id, "recipe_id": recipe_id}
+            ).fetchone()
             
-        menu_recipe = MenuRecipe(menu_id=menu_id, recipe_id=recipe_id)
-        db.session.add(menu_recipe)
-        db.session.commit()
-        return jsonify({'message': 'Recipe added to menu'}), 201
+            if existing:
+                return jsonify({'message': 'Recipe already in menu'}), 400
+                
+            # Add recipe to menu
+            connection.execute(
+                text("""
+                    INSERT INTO menu_recipe (menu_id, recipe_id)
+                    VALUES (:menu_id, :recipe_id)
+                """),
+                {"menu_id": menu_id, "recipe_id": recipe_id}
+            )
+            
+            connection.commit()
+            return jsonify({'message': 'Recipe added to menu'}), 201
     except Exception as e:
-        db.session.rollback()
+        print(f"Error adding recipe to menu: {str(e)}")
         return jsonify({'error': str(e)}), 500
-    
 
-    
-@app.route('/api/menus/<int:menu_id>', methods=['DELETE', 'OPTIONS'])
+@app.route('/api/menus/<int:menu_id>', methods=['DELETE'])
 def delete_menu(menu_id):
-    # Handle preflight request
-    if request.method == 'OPTIONS':
-        return jsonify({}), 200
-        
-    print(f"Attempting to delete menu {menu_id}")  # Debug log
     try:
-        # First delete all menu-recipe associations
-        MenuRecipe.query.filter_by(menu_id=menu_id).delete()
+        engine = create_engine(DB_URL, poolclass=NullPool)
         
-        # Then delete the menu itself
-        menu = Menu.query.get_or_404(menu_id)
-        db.session.delete(menu)
-        db.session.commit()
-        
-        print(f"Successfully deleted menu {menu_id}")  # Debug log
-        return jsonify({'message': 'Menu deleted successfully'}), 200
+        with engine.connect() as connection:
+            # Delete menu recipes first
+            connection.execute(
+                text("DELETE FROM menu_recipe WHERE menu_id = :menu_id"),
+                {"menu_id": menu_id}
+            )
+            
+            # Delete menu
+            result = connection.execute(
+                text("DELETE FROM menu WHERE id = :menu_id"),
+                {"menu_id": menu_id}
+            )
+            
+            if not result.rowcount:
+                return jsonify({'error': 'Menu not found'}), 404
+                
+            connection.commit()
+            return jsonify({'message': 'Menu deleted successfully'}), 200
     except Exception as e:
-        db.session.rollback()
-        print(f"Error deleting menu {menu_id}: {str(e)}")  # Debug log
+        print(f"Error deleting menu: {str(e)}")
         return jsonify({'error': str(e)}), 500
-
 
 @app.route('/api/menus/<int:menu_id>/recipes/<int:recipe_id>', methods=['DELETE'])
 def remove_recipe_from_menu(menu_id, recipe_id):
     try:
-        # Create connection to Supabase PostgreSQL
-        db_url = 'postgresql://postgres.bvgnlxznztqggtqswovg:RecipeFinder123!@aws-0-us-east-2.pooler.supabase.com:5432/postgres'
-        engine = create_engine(db_url)
-
+        engine = create_engine(DB_URL, poolclass=NullPool)
+        
         with engine.connect() as connection:
-            # Start a transaction
-            with connection.begin():
-                # Delete the menu_recipe association
-                result = connection.execute(
-                    text("""
-                        DELETE FROM menu_recipe
-                        WHERE menu_id = :menu_id AND recipe_id = :recipe_id
-                    """),
-                    {
-                        "menu_id": menu_id,
-                        "recipe_id": recipe_id
-                    }
-                )
+            result = connection.execute(
+                text("""
+                    DELETE FROM menu_recipe
+                    WHERE menu_id = :menu_id AND recipe_id = :recipe_id
+                """),
+                {"menu_id": menu_id, "recipe_id": recipe_id}
+            )
+            
+            if not result.rowcount:
+                return jsonify({'error': 'Recipe not found in menu'}), 404
                 
-                if result.rowcount == 0:
-                    return jsonify({'error': 'Recipe not found in the specified menu'}), 404
-
-            # Commit the transaction
             connection.commit()
-            
             return jsonify({'message': 'Recipe removed from menu'}), 200
-            
     except Exception as e:
+        print(f"Error removing recipe from menu: {str(e)}")
         return jsonify({'error': str(e)}), 500
 
 @app.route('/api/fridge/add', methods=['POST'])
