@@ -1456,7 +1456,7 @@ def create_menu():
 @app.route('/api/menus/<int:menu_id>/recipes', methods=['GET'])
 def get_menu_recipes(menu_id):
     try:
-        engine = create_engine(DB_URL, poolclass=NullPool)
+        engine = create_engine(db_url, poolclass=NullPool)
         
         with engine.connect() as connection:
             # First get menu name
@@ -1551,8 +1551,12 @@ def get_menu_recipes(menu_id):
 def add_recipe_to_menu(menu_id):
     try:
         data = request.json
-        recipe_id = data['recipe_id']
-        engine = create_engine(DB_URL, poolclass=NullPool)
+        recipe_id = data.get('recipe_id')
+        
+        if not recipe_id:
+            return jsonify({'error': 'Recipe ID is required'}), 400
+
+        engine = create_engine(db_url, poolclass=NullPool)
         
         with engine.connect() as connection:
             # Check if recipe already exists in menu
@@ -1565,7 +1569,7 @@ def add_recipe_to_menu(menu_id):
             ).fetchone()
             
             if existing:
-                return jsonify({'message': 'Recipe already in menu'}), 400
+                return jsonify({'error': 'Recipe already exists in menu'}), 400
                 
             # Add recipe to menu
             connection.execute(
@@ -1577,7 +1581,8 @@ def add_recipe_to_menu(menu_id):
             )
             
             connection.commit()
-            return jsonify({'message': 'Recipe added to menu'}), 201
+            return jsonify({'message': 'Recipe added to menu successfully'}), 201
+            
     except Exception as e:
         print(f"Error adding recipe to menu: {str(e)}")
         return jsonify({'error': str(e)}), 500
@@ -1585,40 +1590,43 @@ def add_recipe_to_menu(menu_id):
 @app.route('/api/menus/<int:menu_id>', methods=['DELETE'])
 def delete_menu(menu_id):
     try:
-        engine = create_engine(DB_URL, poolclass=NullPool)
+        engine = create_engine(db_url, poolclass=NullPool)
         
         with engine.connect() as connection:
-            # Delete menu recipes first
-            connection.execute(
-                text("DELETE FROM menu_recipe WHERE menu_id = :menu_id"),
-                {"menu_id": menu_id}
-            )
-            
-            # Delete menu
-            result = connection.execute(
-                text("DELETE FROM menu WHERE id = :menu_id"),
-                {"menu_id": menu_id}
-            )
-            
-            if not result.rowcount:
-                return jsonify({'error': 'Menu not found'}), 404
+            with connection.begin():
+                # First delete all menu_recipe associations
+                connection.execute(
+                    text("DELETE FROM menu_recipe WHERE menu_id = :menu_id"),
+                    {"menu_id": menu_id}
+                )
                 
-            connection.commit()
+                # Then delete the menu itself
+                result = connection.execute(
+                    text("DELETE FROM menu WHERE id = :menu_id RETURNING id"),
+                    {"menu_id": menu_id}
+                )
+                
+                if not result.rowcount:
+                    return jsonify({'error': 'Menu not found'}), 404
+                
             return jsonify({'message': 'Menu deleted successfully'}), 200
+            
     except Exception as e:
         print(f"Error deleting menu: {str(e)}")
         return jsonify({'error': str(e)}), 500
 
+
 @app.route('/api/menus/<int:menu_id>/recipes/<int:recipe_id>', methods=['DELETE'])
 def remove_recipe_from_menu(menu_id, recipe_id):
     try:
-        engine = create_engine(DB_URL, poolclass=NullPool)
+        engine = create_engine(db_url, poolclass=NullPool)
         
         with engine.connect() as connection:
             result = connection.execute(
                 text("""
                     DELETE FROM menu_recipe
                     WHERE menu_id = :menu_id AND recipe_id = :recipe_id
+                    RETURNING id
                 """),
                 {"menu_id": menu_id, "recipe_id": recipe_id}
             )
@@ -1627,7 +1635,8 @@ def remove_recipe_from_menu(menu_id, recipe_id):
                 return jsonify({'error': 'Recipe not found in menu'}), 404
                 
             connection.commit()
-            return jsonify({'message': 'Recipe removed from menu'}), 200
+            return jsonify({'message': 'Recipe removed from menu successfully'}), 200
+            
     except Exception as e:
         print(f"Error removing recipe from menu: {str(e)}")
         return jsonify({'error': str(e)}), 500
