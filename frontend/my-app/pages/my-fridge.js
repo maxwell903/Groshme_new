@@ -62,9 +62,9 @@ const InventoryRow = React.memo(({ item, isEven, onUpdate }) => {
         >
           <X size={20} />
         </button>
-        <span className="text-sm break-words">{item.name}</span>
+        <div className="text-sm break-words">{item.name}</div>
       </div>
-      <div className="flex items-start gap-2 w-24">
+      <div className="flex items-center justify-center w-24">
         <input
           type="number"
           value={localQuantity}
@@ -77,12 +77,13 @@ const InventoryRow = React.memo(({ item, isEven, onUpdate }) => {
             }
           }}
           className={`w-16 rounded border px-2 py-1 ${isUpdating ? 'bg-gray-100' : ''}`}
-          disabled={isUpdating}
+          
           min="0"
           step="0.1"
+          disabled={isUpdating}
         />
       </div>
-      <div className="flex justify-end">
+      <div className="flex items-center justify-end">
         <input
           type="text"
           value={localUnit}
@@ -596,19 +597,19 @@ export default function InventoryView() {
             {/* Left Column Headers */}
             <div className="grid grid-cols-3 px-4 font-semibold text-gray-700">
               <div className="w-36">Item</div>
-              <div className="w-24">Quantity</div>
+              <div className="w-24 text-center">Quantity</div>
               <div className="flex justify-end">Unit</div>
             </div>
             {/* Right Column Headers */}
             <div className="grid grid-cols-3 px-4 font-semibold text-gray-700">
               <div className="w-36">Item</div>
-              <div className="w-24">Quantity</div>
+              <div className="w-24 text-center">Quantity</div>
               <div className="flex justify-end">Unit</div>
             </div>
           </div>
 
           {/* Left Column Content */}
-          <div className="space-y-1 pr-4">
+          <div className="space-y-1">
             {getFilteredInventory
               .slice(0, Math.ceil(getFilteredInventory.length / 2))
               .map((item, index) => (
@@ -622,7 +623,7 @@ export default function InventoryView() {
           </div>
 
           {/* Right Column Content */}
-          <div className="space-y-1 pl-4">
+          <div className="space-y-1">
             {getFilteredInventory
               .slice(Math.ceil(getFilteredInventory.length / 2))
               .map((item, index) => (
@@ -637,7 +638,7 @@ export default function InventoryView() {
         </div>
 
         {/* Grocery Lists Column */}
-        <div className="space-y-2">
+        <div className="space-y-2 relative">
           {/* Main Grocery Lists Button */}
           <button
             onClick={() => {

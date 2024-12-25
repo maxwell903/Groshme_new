@@ -1,5 +1,5 @@
 // api.js
-export const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000';
+export const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:5000';
 
 export const fetchApi = async (endpoint, options = {}) => {
   try {

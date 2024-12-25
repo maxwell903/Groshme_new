@@ -5,6 +5,6 @@ flask_migrate
 flask_cors
 mysql-connector-python
 fuzzywuzzy
-
+gunicorn
 psycopg2-binary>=2.9.3
 python-dotenv
