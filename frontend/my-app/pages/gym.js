@@ -251,6 +251,32 @@ const GymPage = () => {
       const exercisesWithDetails = await Promise.all(
         selectedExercises.map(async (exercise) => {
           try {
+            const response = await fetch(`${API_URL}/api/weekly-workouts`, {
+              method: 'POST',
+              headers: { 
+                'Content-Type': 'application/json',
+                'Accept': 'application/json'
+              },
+              body: JSON.stringify({
+                day: selectedDay,
+                exercises: selectedExercises.map(exercise => ({
+                  id: exercise.id,
+                  name: exercise.name
+                }))
+              })
+            });
+        
+            console.log('Server response status:', response.status);
+            
+            if (!response.ok) {
+              const errorText = await response.text();
+              console.error('Server response:', errorText);
+              throw new Error('Failed to save workouts');
+            }
+        
+            const responseData = await response.json();
+            console.log('Response data:', responseData);
+
             // First get exercise details
             const exerciseResponse = await fetch(`${API_URL}/api/exercises/${exercise.id}`);
             if (!exerciseResponse.ok) throw new Error('Failed to fetch exercise details');

@@ -3428,7 +3428,7 @@ def logout():
         os.remove(token_path)
     return jsonify({'message': 'Logged out successfully'}), 200
 
- 
+
 
 @app.route('/api/weekly-workouts/<day>/<int:exercise_id>', methods=['DELETE'])
 def remove_workout_exercise(day, exercise_id):
