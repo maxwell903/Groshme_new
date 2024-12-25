@@ -3,6 +3,7 @@ import { useRouter } from 'next/router';
 import Link from 'next/link';
 import { Trash, X, Edit } from 'lucide-react';
 import EditExerciseModal from '@/components/EditExerciseModal';
+import { fetchApi, API_URL } from '@/utils/api';
 
 export default function ExerciseHistory() {
   const router = useRouter();

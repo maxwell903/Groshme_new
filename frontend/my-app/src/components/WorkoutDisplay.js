@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { ChevronDown, ChevronUp, Plus, Edit, Trash, X } from 'lucide-react';
+import { fetchApi, API_URL } from '@/utils/api';
 
 const ExerciseSearch = ({ onSelect, onClose }) => {
   const [searchTerm, setSearchTerm] = useState('');
@@ -9,7 +10,7 @@ const ExerciseSearch = ({ onSelect, onClose }) => {
   useEffect(() => {
     const fetchExercises = async () => {
       try {
-        const response = await fetch('http://localhost:5000/api/exercises');
+        const response = await fetch(`${API_URL}/api/exercises`);
         const data = await response.json();
         setExercises(data.exercises || []);
         setLoading(false);
@@ -68,7 +69,7 @@ const WorkoutCard = ({ workout, onDelete, onEdit }) => {
   useEffect(() => {
     const fetchWorkoutExercises = async () => {
       try {
-        const response = await fetch(`http://localhost:5000/api/workouts/${workout.id}/exercises`);
+        const response = await fetch(`${API_URL}/api/workouts/${workout.id}/exercises`);
         const data = await response.json();
         setExercises(data.exercises || []);
       } catch (error) {
@@ -152,7 +153,7 @@ const WorkoutDisplay = () => {
 
   const fetchWorkouts = async () => {
     try {
-      const response = await fetch('http://localhost:5000/api/workouts');
+      const response = await fetch(`${API_URL}/api/workouts`);
       const data = await response.json();
       setWorkouts(data.workouts || []);
     } catch (error) {
@@ -164,7 +165,7 @@ const WorkoutDisplay = () => {
     if (!newWorkoutName.trim()) return;
 
     try {
-      const response = await fetch('http://localhost:5000/api/workouts', {
+      const response = await fetch(`${API_URL}/api/workouts`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ name: newWorkoutName })
@@ -184,7 +185,7 @@ const WorkoutDisplay = () => {
     if (!selectedWorkout) return;
 
     try {
-      await fetch(`http://localhost:5000/api/workouts/${selectedWorkout}/exercise`, {
+      await fetch(`${API_URL}/api/workouts/${selectedWorkout}/exercise`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ exercise_id: exercise.id })
@@ -219,7 +220,7 @@ const WorkoutDisplay = () => {
             onDelete={async (id) => {
               if (window.confirm('Delete this workout?')) {
                 try {
-                  await fetch(`http://localhost:5000/api/workouts/${id}`, {
+                  await fetch(`${API_URL}/api/workouts/${id}`, {
                     method: 'DELETE'
                   });
                   fetchWorkouts();

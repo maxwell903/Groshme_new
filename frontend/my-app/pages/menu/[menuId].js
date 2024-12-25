@@ -2,6 +2,7 @@
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/router';
 import Link from 'next/link';
+import { fetchApi, API_URL } from '@/utils/api';
 
 export default function MenuDetail() {
   const router = useRouter();

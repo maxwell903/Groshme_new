@@ -1,5 +1,6 @@
 import React from 'react';
 import { X } from 'lucide-react';
+import { fetchApi, API_URL } from '@/utils/api';
 
 export const ReceiptUploadModal = ({ isOpen, onClose, onUpload }) => {
   const [receiptText, setReceiptText] = React.useState('');

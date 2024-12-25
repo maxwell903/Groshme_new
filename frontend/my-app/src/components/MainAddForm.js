@@ -5,6 +5,7 @@ import { ChevronDown, ChevronUp, Plus, X } from 'lucide-react';
 import InventoryRow from './InventoryRow';  // Import from separate file
 import { ReceiptUploadModal, GroceryListModal } from './InventoryModals';
 import { useFilteredInventory, useGroceryListItems, renderFilterButtons } from './InventoryUtils';
+import { fetchApi, API_URL } from '@/utils/api';
 
 const MainAddForm = ({ newItem, setNewItem, handleManualAdd }) => (
   <form onSubmit={handleManualAdd} className="grid grid-cols-3 gap-4">
@@ -81,10 +82,10 @@ export default function InventoryView() {
     try {
       setLoading(true);
       const [recipesRes, menusRes, fridgeRes, groceryListsRes] = await Promise.all([
-        fetch('http://localhost:5000/api/all-recipes'),
-        fetch('http://localhost:5000/api/menus'),
-        fetch('http://localhost:5000/api/fridge'),
-        fetch('http://localhost:5000/api/grocery-lists')
+        fetch(`${API_URL}/api/all-recipes`),
+        fetch(`${API_URL}/api/menus`),
+        fetch(`${API_URL}/api/fridge`),
+        fetch(`${API_URL}/api/grocery-lists`)
       ]);
 
       const [recipesData, menusData, fridgeData, groceryListsData] = await Promise.all([
@@ -122,7 +123,7 @@ export default function InventoryView() {
   // Handlers
   const handleInventoryUpdate = useCallback(async () => {
     try {
-      const response = await fetch('http://localhost:5000/api/fridge');
+      const response = await fetch(`${API_URL}/api/fridge`);
       const data = await response.json();
       setFridgeItems(data.ingredients || []);
       setError(null);
@@ -137,7 +138,7 @@ export default function InventoryView() {
     if (!newItem.name.trim()) return;
 
     try {
-      const response = await fetch('http://localhost:5000/api/fridge/add', {
+      const response = await fetch(`${API_URL}/api/fridge/add`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(newItem)
@@ -156,7 +157,7 @@ export default function InventoryView() {
 
   const handleReceiptUpload = useCallback(async (receiptText) => {
     try {
-      const response = await fetch('http://localhost:5000/api/fridge/parse-receipt', {
+      const response = await fetch(`${API_URL}/api/fridge/parse-receipt`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ receipt_text: receiptText }),
@@ -186,7 +187,7 @@ export default function InventoryView() {
       const endpoint = inventoryFilter === 'inStock' ? 'clear' : 'delete-all';
       const method = inventoryFilter === 'inStock' ? 'POST' : 'DELETE';
       
-      const response = await fetch(`http://localhost:5000/api/fridge/${endpoint}`, {
+      const response = await fetch(`${API_URL}/api/fridge/${endpoint}`, {
         method,
         headers: { 'Content-Type': 'application/json' }
       });
@@ -203,7 +204,7 @@ export default function InventoryView() {
 
   const handleGroceryListSelect = useCallback(async (list) => {
     try {
-      const response = await fetch(`http://localhost:5000/api/grocery-lists/${list.id}`);
+      const response = await fetch(`${API_URL}/api/grocery-lists/${list.id}`);
       if (!response.ok) throw new Error('Failed to fetch grocery list items');
       
       const data = await response.json();

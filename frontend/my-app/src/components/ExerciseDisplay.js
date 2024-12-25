@@ -3,6 +3,7 @@ import { useRouter } from 'next/router';
 import { ChevronLeft, ChevronRight, Plus, X } from 'lucide-react';
 import SetsModal from './SetsModal';
 import DaySelectionModal from './DaySelectionModal'; // Add this import
+import { fetchApi, API_URL } from '@/utils/api';
 
 const ExerciseCard = ({ exercise }) => {
   
@@ -13,7 +14,7 @@ const ExerciseCard = ({ exercise }) => {
   
     const handleDaySelect = async (day) => {
       try {
-        const response = await fetch('http://localhost:5000/api/weekly-workouts', {
+        const response = await fetch(`${API_URL}/api/weekly-workouts`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
@@ -150,7 +151,7 @@ const ExerciseDisplay = () => {
   useEffect(() => {
     const fetchExercises = async () => {
       try {
-        const response = await fetch('http://localhost:5000/api/exercises');
+        const response = await fetch(`${API_URL}/api/exercises`);
         if (!response.ok) throw new Error('Failed to fetch exercises');
         const data = await response.json();
         setExercises(data.exercises || []);

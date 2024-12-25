@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { ChevronDown, ChevronUp, Plus, Edit, Trash, Search } from 'lucide-react';
+import { fetchApi, API_URL } from '@/utils/api';
 
 const WorkoutCard = ({ workout, onDelete, onAddExercise }) => {
   const [isExpanded, setIsExpanded] = useState(false);
@@ -106,7 +107,7 @@ export default function WorkoutCards() {
 
   const handleAddWorkout = async () => {
     try {
-      const response = await fetch('http://localhost:5000/api/workouts', {
+      const response = await fetch(`${API_URL}/api/workouts`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ name: newWorkoutName })

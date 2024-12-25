@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { X } from 'lucide-react';
+import { fetchApi, API_URL } from '@/utils/api';
 
 // Helper component for inventory rows - optimized for performance
 const InventoryRow = React.memo(({ 
@@ -25,7 +26,7 @@ const InventoryRow = React.memo(({
   const handleUpdate = useCallback(async (updateData) => {
     try {
       setIsUpdating(true);
-      const response = await fetch(`http://localhost:5000/api/fridge/${item.id}`, {
+      const response = await fetch(`${API_URL}/api/fridge/${item.id}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ 
@@ -51,7 +52,7 @@ const InventoryRow = React.memo(({
     }
 
     try {
-      const response = await fetch(`http://localhost:5000/api/fridge/${item.id}`, {
+      const response = await fetch(`${API_URL}/api/fridge/${item.id}`, {
         method: 'DELETE',
         headers: { 'Content-Type': 'application/json' }
       });

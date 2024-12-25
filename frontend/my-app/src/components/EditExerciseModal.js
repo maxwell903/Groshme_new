@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { X } from 'lucide-react';
+import { fetchApi, API_URL } from '@/utils/api';
 
 const EditExerciseModal = ({ isOpen, onClose, exercise, onUpdate }) => {
   const [formData, setFormData] = useState({
@@ -31,7 +32,7 @@ const EditExerciseModal = ({ isOpen, onClose, exercise, onUpdate }) => {
   const handleSubmit = async (e) => {
     e.preventDefault();
     try {
-      const response = await fetch(`http://localhost:5000/api/exercises/${exercise.id}`, {
+      const response = await fetch(`${API_URL}/api/exercises/${exercise.id}`, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',

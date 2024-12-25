@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { Check } from 'lucide-react';
+import { fetchApi, API_URL } from '@/utils/api';
 
 const GroceryListFormatter = ({ onFormat, onClose }) => {
   const [groceryLists, setGroceryLists] = useState([]);
@@ -12,7 +13,7 @@ const GroceryListFormatter = ({ onFormat, onClose }) => {
 
   const fetchGroceryLists = async () => {
     try {
-      const response = await fetch('http://localhost:5000/api/grocery-lists');
+      const response = await fetch(`${API_URL}/api/grocery-lists`);
       const data = await response.json();
       setGroceryLists(data.lists || []);
       setLoading(false);
@@ -24,7 +25,7 @@ const GroceryListFormatter = ({ onFormat, onClose }) => {
 
   const formatGroceryList = async (listId) => {
     try {
-      const response = await fetch(`http://localhost:5000/api/grocery-lists/${listId}`);
+      const response = await fetch(`${API_URL}/api/grocery-lists/${listId}`);
       const data = await response.json();
       
       let emailText = `Grocery List: ${data.name}\n\n`;

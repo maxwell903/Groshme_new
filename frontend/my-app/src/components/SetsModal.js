@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { X } from 'lucide-react';
+import { fetchApi, API_URL } from '@/utils/api';
 
 const SetsModal = ({ exercise, isOpen, onClose }) => {
   const [sets, setSets] = useState([]);
@@ -21,7 +22,7 @@ const SetsModal = ({ exercise, isOpen, onClose }) => {
   useEffect(() => {
     const fetchExistingSets = async () => {
       try {
-        const response = await fetch(`http://localhost:5000/api/exercise/${exercise.id}/sets`);
+        const response = await fetch(`${API_URL}/api/exercise/${exercise.id}/sets`);
         if (response.ok) {
           const data = await response.json();
           if (data.sets && data.sets.length > 0) {
@@ -52,7 +53,7 @@ const SetsModal = ({ exercise, isOpen, onClose }) => {
     setSubmitting(true);
 
     try {
-      const response = await fetch(`http://localhost:5000/api/exercise/${exercise.id}/sets`, {
+      const response = await fetch(`${API_URL}/api/exercise/${exercise.id}/sets`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json'

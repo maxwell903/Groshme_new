@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { X, Upload, Clipboard, FileText } from 'lucide-react';
+import { fetchApi, API_URL } from '@/utils/api';
 
 const DebugReceiptUploadModal = ({ isOpen, onClose, onUpload }) => {
   const [receiptText, setReceiptText] = useState('');
@@ -20,7 +21,7 @@ const DebugReceiptUploadModal = ({ isOpen, onClose, onUpload }) => {
       const formData = new FormData();
       formData.append('receipt', file);
       
-      const response = await fetch('http://localhost:5000/api/parse-receipt-image', {
+      const response = await fetch(`${API_URL}/api/parse-receipt-image`, {
         method: 'POST',
         body: formData
       });
@@ -51,7 +52,7 @@ const DebugReceiptUploadModal = ({ isOpen, onClose, onUpload }) => {
       setError(null);
       setDebugInfo(null);
       
-      const response = await fetch('http://localhost:5000/api/parse-receipt-image', {
+      const response = await fetch(`${API_URL}/api/parse-receipt-image`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

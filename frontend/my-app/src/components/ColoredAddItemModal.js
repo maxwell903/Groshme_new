@@ -16,8 +16,8 @@ const ColoredAddItemModal = ({
     // Fetch fridge items and recipes when modal opens
     if (isOpen) {
       Promise.all([
-        fetch('http://localhost:5000/api/fridge').then(res => res.json()),
-        fetch('http://localhost:5000/api/all-recipes').then(res => res.json())
+        fetch(`${API_URL}/api/fridge`).then(res => res.json()),
+        fetch(`${API_URL}/api/all-recipes`).then(res => res.json())
       ]).then(([fridgeData, recipesData]) => {
         setFridgeItems(fridgeData.ingredients || []);
         
