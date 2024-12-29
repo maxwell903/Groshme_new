@@ -158,13 +158,13 @@ class Exercise(db.Model):
     amount_reps = db.Column(db.Integer, nullable=False)
     weight = db.Column(db.Integer, nullable=False)
     rest_time = db.Column(db.Integer, nullable=False)
-    sets = db.relationship('IndividualSet', backref='exercise', lazy=True, cascade='all, delete-orphan')
-    set_histories = db.relationship('SetHistory', backref='exercise', lazy=True, cascade='all, delete-orphan')
+    sets = db.relationship('IndividualSet', backref='exercises', lazy=True, cascade='all, delete-orphan')
+    set_histories = db.relationship('SetHistory', backref='exercises', lazy=True, cascade='all, delete-orphan')
 
 class SetHistory(db.Model):
     __tablename__ = 'set_history'
     id = db.Column(db.Integer, primary_key=True)
-    exercise_id = db.Column(db.Integer, db.ForeignKey('exercise.id'), nullable=False)
+    exercise_id = db.Column(db.Integer, db.ForeignKey('exercises.id'), nullable=False)
     created_at = db.Column(db.DateTime, default=db.func.current_timestamp())
     sets = db.relationship('IndividualSet', backref='history', lazy=True, cascade='all, delete-orphan')
 
@@ -473,7 +473,7 @@ class Workout(db.Model):
 class WorkoutExercise(db.Model):
     __tablename__ = 'workout_exercises'
     workout_id = db.Column(db.Integer, db.ForeignKey('workouts.id', ondelete='CASCADE'), primary_key=True)
-    exercise_id = db.Column(db.Integer, db.ForeignKey('exercise.id', ondelete='CASCADE'), primary_key=True)
+    exercise_id = db.Column(db.Integer, db.ForeignKey('exercises.id', ondelete='CASCADE'), primary_key=True)
     
 
 class WorkoutPlan(db.Model):
@@ -481,7 +481,7 @@ class WorkoutPlan(db.Model):
     week_id = db.Column(db.Integer, db.ForeignKey('workout_prep_week.id'), nullable=False)
     day = db.Column(db.String(20), nullable=False)
     workout_type = db.Column(db.String(20), nullable=False)
-    exercise_id = db.Column(db.Integer, db.ForeignKey('exercise.id'), nullable=False)
+    exercise_id = db.Column(db.Integer, db.ForeignKey('exercises.id'), nullable=False)
     workout_prep_week = db.relationship('WorkoutPrepWeek', backref=db.backref('workouts', lazy=True, cascade='all, delete-orphan'))
     exercise = db.relationship('Exercise', backref=db.backref('workout_plan', lazy=True))
 
