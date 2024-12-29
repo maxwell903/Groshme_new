@@ -230,7 +230,7 @@ def get_grocery_bill():
 
 
 
-@app.route('/api/exercise/set/<int:set_id>', methods=['DELETE'])
+@app.route('/api/exercises/set/<int:set_id>', methods=['DELETE'])
 def delete_individual_set(set_id):
     try:
         set_to_delete = IndividualSet.query.get_or_404(set_id)
@@ -286,7 +286,7 @@ def update_exercise(exercise_id):
         print(f"Error updating exercise: {str(e)}")
         return jsonify({'error': str(e)}), 500
 
-@app.route('/api/exercise/<int:exercise_id>/sets', methods=['POST'])
+@app.route('/api/exercises/<int:exercise_id>/sets', methods=['POST'])
 def add_exercise_sets(exercise_id):
     try:
         data = request.json
@@ -331,7 +331,7 @@ def add_exercise_sets(exercise_id):
         return jsonify({'error': str(e)}), 500
 
 
-@app.route('/api/exercise/<int:exercise_id>/sets/history', methods=['GET'])
+@app.route('/api/exercises/<int:exercise_id>/sets/history', methods=['GET'])
 def get_exercise_history(exercise_id):
     try:
         print(f"Fetching history for exercise ID: {exercise_id}")
@@ -403,7 +403,7 @@ class WorkoutPlan(db.Model):
     workout_prep_week = db.relationship('WorkoutPrepWeek', backref=db.backref('workouts', lazy=True, cascade='all, delete-orphan'))
     exercise = db.relationship('Exercise', backref=db.backref('workout_plan', lazy=True))
 
-@app.route('/api/exercise/<int:exercise_id>/sets', methods=['GET'])
+@app.route('/api/exercises/<int:exercise_id>/sets', methods=['GET'])
 def get_exercise_sets(exercise_id):
     try:
         engine = create_engine(db_url, poolclass=NullPool)
@@ -448,7 +448,7 @@ def get_exercise_sets(exercise_id):
         print(f"Error fetching sets: {str(e)}")
         return jsonify({'error': str(e)}), 500
 
-@app.route('/api/exercise/<int:exercise_id>/sets/<int:set_id>', methods=['DELETE'])
+@app.route('/api/exercises/<int:exercise_id>/sets/<int:set_id>', methods=['DELETE'])
 def delete_set(exercise_id, set_id):
     try:
         set = IndividualSet.query.get_or_404(set_id)
@@ -466,7 +466,7 @@ def delete_set(exercise_id, set_id):
         return jsonify({'error': str(e)}), 500
 
 
-app.route('/api/exercise/<int:exercise_id>/history/<int:history_id>', methods=['DELETE'])
+app.route('/api/exercises/<int:exercise_id>/history/<int:history_id>', methods=['DELETE'])
 def delete_workout_history(exercise_id, history_id):
     try:
         history = SetHistory.query\
@@ -3002,7 +3002,7 @@ def add_recipe_ingredient_details():
         return jsonify({'error': str(e)}), 500
 
 
-@app.route('/api/exercise/<int:exercise_id>', methods=['GET'])
+@app.route('/api/exercises/<int:exercise_id>', methods=['GET'])
 def get_single_exercise(exercise_id):
     try:
         # Debug logging
@@ -3068,7 +3068,7 @@ def get_single_exercise(exercise_id):
         return jsonify({'error': str(e)}), 500
     
 
-@app.route('/api/exercise/<int:exercise_id>', methods=['DELETE'])
+@app.route('/api/exercises/<int:exercise_id>', methods=['DELETE'])
 def delete_exercise_by_id(exercise_id):
     try:
         exercise = Exercise.query.get_or_404(exercise_id)
@@ -3611,7 +3611,7 @@ def get_weekly_workouts():
         return jsonify({'error': str(e)}), 500
 
 
-@app.route('/api/exercise/<int:exercise_id>/sets/latest', methods=['GET'])
+@app.route('/api/exercises/<int:exercise_id>/sets/latest', methods=['GET'])
 def get_latest_set(exercise_id):
     try:
         connection = get_db_connection()
