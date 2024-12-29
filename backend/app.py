@@ -149,7 +149,6 @@ class GroceryBill(db.Model):
     
 class Exercise(db.Model):
     __tablename__ = 'exercises'
-    __tablename__ = 'exercise'
     id = db.Column(db.Integer, primary_key=True)
     name = db.Column(db.String(100), nullable=False)
     workout_type = db.Column(db.Enum('Push', 'Pull', 'Legs', 'Cardio'), nullable=False)
@@ -163,10 +162,11 @@ class Exercise(db.Model):
     set_histories = db.relationship('SetHistory', backref='exercise', lazy=True, cascade='all, delete-orphan')
 
 class SetHistory(db.Model):
+    __tablename__ = 'set_history'
     id = db.Column(db.Integer, primary_key=True)
-    exercise_id = db.Column(db.Integer, db.ForeignKey('exercise.id'), nullable=False)
+    exercise_id = db.Column(db.Integer, db.ForeignKey('exercises.id'), nullable=False)
     created_at = db.Column(db.DateTime, default=db.func.current_timestamp())
-    sets = db.relationship('IndividualSet', backref='history', lazy=True, cascade='all, delete-orphan')
+    
 
 
 @app.route('/debug/routes', methods=['GET'])
@@ -454,8 +454,9 @@ def get_exercise_set_history(exercise_id):
 
 
 class IndividualSet(db.Model):
+    __tablename__ = 'individual_set'
     id = db.Column(db.Integer, primary_key=True)
-    exercise_id = db.Column(db.Integer, db.ForeignKey('exercise.id'), nullable=False)
+    exercise_id = db.Column(db.Integer, db.ForeignKey('exercises.id'), nullable=False)
     set_history_id = db.Column(db.Integer, db.ForeignKey('set_history.id'), nullable=False)
     set_number = db.Column(db.Integer, nullable=False)
     reps = db.Column(db.Integer, nullable=False)
@@ -3479,6 +3480,39 @@ def test_exercise_exists(exercise_id):
         return jsonify({
             'error': str(e),
             'queried_id': exercise_id
+        }), 500
+
+@app.route('/api/exercises/diagnostic', methods=['GET'])
+def diagnose_exercises():
+    try:
+        with db.engine.connect() as connection:
+            # Get total count
+            count_result = connection.execute(
+                text("SELECT COUNT(*) as count FROM exercises")
+            ).scalar()
+            
+            # Get all exercise IDs for debugging
+            ids_result = connection.execute(
+                text("SELECT id FROM exercises ORDER BY id")
+            ).fetchall()
+            
+            # Get specific exercise 3 if it exists
+            exercise_3 = connection.execute(
+                text("SELECT * FROM exercises WHERE id = 3")
+            ).fetchone()
+            
+            return jsonify({
+                'total_exercises': count_result,
+                'all_exercise_ids': [row[0] for row in ids_result],
+                'exercise_3_exists': exercise_3 is not None,
+                'exercise_3_data': dict(exercise_3) if exercise_3 else None
+            })
+            
+    except Exception as e:
+        print(f"Diagnostic error: {str(e)}")
+        return jsonify({
+            'error': str(e),
+            'error_type': type(e).__name__
         }), 500
 
 @app.route('/api/workouts', methods=['POST'])
