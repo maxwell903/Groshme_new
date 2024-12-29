@@ -288,17 +288,17 @@ export default function RecipePage() {
     if (!confirm('Are you sure you want to delete this recipe?')) {
       return;
     }
-
+  
     try {
       setIsDeleting(true);
       const response = await fetch(`${API_URL}/api/recipe/${id}`, {
         method: 'DELETE',
       });
-
+  
       if (!response.ok) {
         throw new Error('Failed to delete recipe');
       }
-
+  
       router.push('/');
     } catch (error) {
       setError(error.message);
@@ -753,12 +753,12 @@ const getBackLabel = (path) => {
               </button>
 
               <button
-                onClick={handleDeleteRecipe}
-                disabled={isDeleting}
-                className="rounded-lg bg-red-600 px-4 py-2 text-white hover:bg-red-700 disabled:bg-red-300"
-              >
-                {isDeleting ? 'Deleting...' : 'Delete Recipe'}
-              </button>
+  onClick={handleDeleteRecipe}
+  disabled={isDeleting}
+  className="rounded-lg bg-blue-600 px-4 py-2 text-white hover:bg-blue-700 disabled:bg-blue-300"
+>
+  {isDeleting ? 'Deleting...' : 'Delete Recipe'}
+</button>
             </div>
           </div>
           <div className="mb-6">
