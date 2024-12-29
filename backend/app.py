@@ -149,6 +149,7 @@ class GroceryBill(db.Model):
     
 class Exercise(db.Model):
     __tablename__ = 'exercises'
+    __tablename__ = 'exercise'
     id = db.Column(db.Integer, primary_key=True)
     name = db.Column(db.String(100), nullable=False)
     workout_type = db.Column(db.Enum('Push', 'Pull', 'Legs', 'Cardio'), nullable=False)
@@ -163,7 +164,7 @@ class Exercise(db.Model):
 
 class SetHistory(db.Model):
     id = db.Column(db.Integer, primary_key=True)
-    exercise_id = db.Column(db.Integer, db.ForeignKey('exercises.id'), nullable=False)
+    exercise_id = db.Column(db.Integer, db.ForeignKey('exercise.id'), nullable=False)
     created_at = db.Column(db.DateTime, default=db.func.current_timestamp())
     sets = db.relationship('IndividualSet', backref='history', lazy=True, cascade='all, delete-orphan')
 
@@ -454,7 +455,7 @@ def get_exercise_set_history(exercise_id):
 
 class IndividualSet(db.Model):
     id = db.Column(db.Integer, primary_key=True)
-    exercise_id = db.Column(db.Integer, db.ForeignKey('exercises.id'), nullable=False)
+    exercise_id = db.Column(db.Integer, db.ForeignKey('exercise.id'), nullable=False)
     set_history_id = db.Column(db.Integer, db.ForeignKey('set_history.id'), nullable=False)
     set_number = db.Column(db.Integer, nullable=False)
     reps = db.Column(db.Integer, nullable=False)
@@ -546,7 +547,7 @@ def delete_set(exercise_id, set_id):
         return jsonify({'error': str(e)}), 500
 
 
-app.route('/api/exercises/<int:exercise_id>/history/<int:history_id>', methods=['DELETE'])
+app.route('/api/exercise/<int:exercise_id>/history/<int:history_id>', methods=['DELETE'])
 def delete_workout_history(exercise_id, history_id):
     try:
         history = SetHistory.query\
@@ -3099,7 +3100,7 @@ def add_recipe_ingredient_details():
 
     
 
-@app.route('/api/exercises/<int:exercise_id>', methods=['DELETE'])
+@app.route('/api/exercise/<int:exercise_id>', methods=['DELETE'])
 def delete_exercise_by_id(exercise_id):
     try:
         exercise = Exercise.query.get_or_404(exercise_id)
@@ -3326,7 +3327,7 @@ def get_recipe_nutrition(recipe_id):
         print(f"Error getting nutrition info: {str(e)}")
         return jsonify({'error': str(e)}), 500
     
-@app.route('/api/exercises/<int:exercise_id>', methods=['GET'])
+@app.route('/api/exercise/<int:exercise_id>', methods=['GET'])
 def get_exercise_details(exercise_id):
     try:
         # Connect to database explicitly
