@@ -2431,40 +2431,45 @@ def update_recipe(recipe_id):
 @app.route('/api/recipe/<int:recipe_id>', methods=['DELETE'])
 def delete_recipe(recipe_id):
     try:
-        recipe = Recipe.query.get_or_404(recipe_id)
-        
-        # Delete associated ingredients in RecipeIngredient3 table
-        RecipeIngredient3.query.filter(
-            text('JSON_CONTAINS(recipe_ids, CAST(:recipe_id AS JSON))')
-        ).params(recipe_id=recipe_id).update(
-            {"recipe_ids": text("JSON_REMOVE(recipe_ids, JSON_UNQUOTE(JSON_SEARCH(recipe_ids, 'one', :recipe_id)))")},
-            synchronize_session=False
-        )
-        
-        # Delete associated records in RecipeIngredientDetails table
-        RecipeIngredientDetails.query.filter_by(recipe_id=recipe_id).delete()
-        
-        # Delete associated records in RecipeIngredientQuantity table
-        RecipeIngredientQuantity.query.filter_by(recipe_id=recipe_id).delete()
-        
-        # Delete associated records in RecipeIngredientNutrition table
-        nutrition_subquery = db.session.query(RecipeIngredientNutrition.id).join(RecipeIngredientQuantity).filter(
-            RecipeIngredientQuantity.recipe_id == recipe_id
-        ).subquery()
+        # Create connection to Supabase PostgreSQL
+        db_url = 'postgresql://postgres.bvgnlxznztqggtqswovg:RecipeFinder123!@aws-0-us-east-2.pooler.supabase.com:5432/postgres'
+        engine = create_engine(db_url, poolclass=NullPool)
 
-        RecipeIngredientNutrition.query.filter(RecipeIngredientNutrition.id.in_(nutrition_subquery)).delete(synchronize_session=False)
-        
-        # Delete the recipe from menus
-        MenuRecipe.query.filter_by(recipe_id=recipe_id).delete()
-        
-        # Delete the recipe itself
-        db.session.delete(recipe)
-        db.session.commit()
-        
-        return jsonify({'message': 'Recipe deleted successfully'}), 200
+        with engine.connect() as connection:
+            # Start a transaction
+            with connection.begin():
+                # Delete recipe ingredient details first
+                connection.execute(
+                    text("DELETE FROM recipe_ingredient_details WHERE recipe_id = :recipe_id"),
+                    {"recipe_id": recipe_id}
+                )
+
+                # Delete recipe ingredient quantities and associated nutrition data
+                # PostgreSQL will handle cascade deletes for nutrition data
+                connection.execute(
+                    text("DELETE FROM recipe_ingredient_quantities WHERE recipe_id = :recipe_id"),
+                    {"recipe_id": recipe_id}
+                )
+
+                # Delete recipe from menus
+                connection.execute(
+                    text("DELETE FROM menu_recipe WHERE recipe_id = :recipe_id"),
+                    {"recipe_id": recipe_id}
+                )
+
+                # Delete the recipe itself
+                result = connection.execute(
+                    text("DELETE FROM recipe WHERE id = :recipe_id RETURNING id"),
+                    {"recipe_id": recipe_id}
+                )
+
+                if not result.rowcount:
+                    return jsonify({'error': 'Recipe not found'}), 404
+
+            return jsonify({'message': 'Recipe deleted successfully'}), 200
+
     except Exception as e:
-        db.session.rollback()
-        print(f"Error deleting recipe: {str(e)}")  # Add this line for logging
+        print(f"Error deleting recipe: {str(e)}")  # Debug logging
         return jsonify({'error': str(e)}), 500
     
 
