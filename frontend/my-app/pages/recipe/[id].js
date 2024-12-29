@@ -330,199 +330,230 @@ export default function RecipePage() {
 
   
   
-  
-  const EditRecipeModal = ({ recipe, onClose, onSave }) => {
-    const [formData, setFormData] = useState({
-      name: recipe.name || '',
-      description: recipe.description || '',
-      instructions: recipe.instructions || '',
-      prep_time: recipe.prep_time || 0,
-      ingredients: recipe.ingredients.map(ing => ({
-        name: ing.name,
-        quantity: ing.quantity,
-        unit: ing.unit || '',
-        nutritionData: ing.nutrition || null
-      }))
-    });
-  
-    const addIngredient = () => {
-      setFormData(prev => ({
-        ...prev,
-        ingredients: [...prev.ingredients, { name: '', quantity: 0, unit: '', nutritionData: null }]
-      }));
-    };
-  
-    const removeIngredient = (indexToRemove) => {
-      setFormData(prev => ({
-        ...prev,
-        ingredients: prev.ingredients.filter((_, index) => index !== indexToRemove)
-      }));
-    };
-  
-    const handleSubmit = async (e) => {
-      e.preventDefault();
-      try {
-        const response = await fetch(`${API_URL}/api/recipe/${recipe.id}`, {
-          method: 'PUT',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify(formData)
-        });
-  
-        if (!response.ok) throw new Error('Failed to update recipe');
-        
-        onSave();
-        onClose();
-      } catch (error) {
-        console.error('Error updating recipe:', error);
+
+const EditRecipeModal = ({ recipe, onClose, onSave }) => {
+  const [formData, setFormData] = useState({
+    name: recipe.name || '',
+    description: recipe.description || '',
+    instructions: recipe.instructions || '',
+    prep_time: recipe.prep_time || 0,
+    ingredients: recipe.ingredients.map(ing => ({
+      name: ing.name,
+      quantity: ing.quantity,
+      unit: ing.unit || '',
+      nutrition: ing.nutrition || null
+    }))
+  });
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [error, setError] = useState(null);
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    setIsSubmitting(true);
+    setError(null);
+
+    try {
+      const response = await fetch(`${API_URL}/api/recipe/${recipe.id}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          name: formData.name,
+          description: formData.description,
+          instructions: formData.instructions,
+          prep_time: parseInt(formData.prep_time),
+          ingredients: formData.ingredients.map(ing => ({
+            name: ing.name,
+            quantity: parseFloat(ing.quantity),
+            unit: ing.unit,
+            nutrition: ing.nutrition
+          }))
+        })
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to update recipe');
       }
-    };
-  
-    return (
-      <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-        <div className="bg-white p-6 rounded-lg shadow-xl w-full max-w-4xl max-h-[90vh] overflow-y-auto">
-          <div className="flex justify-between items-center mb-4">
-            <h2 className="text-xl font-semibold">Edit Recipe</h2>
-            <button onClick={onClose} className="text-gray-500 hover:text-gray-700">
-              <X size={24} />
-            </button>
+
+      const updatedData = await response.json();
+      
+      // Call onSave with the updated data
+      onSave(updatedData);
+      onClose();
+    } catch (error) {
+      console.error('Error updating recipe:', error);
+      setError('Failed to update recipe. Please try again.');
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const addIngredient = () => {
+    setFormData(prev => ({
+      ...prev,
+      ingredients: [...prev.ingredients, { name: '', quantity: 0, unit: '', nutrition: null }]
+    }));
+  };
+
+  const removeIngredient = (indexToRemove) => {
+    setFormData(prev => ({
+      ...prev,
+      ingredients: prev.ingredients.filter((_, index) => index !== indexToRemove)
+    }));
+  };
+
+  return (
+    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+      <div className="bg-white p-6 rounded-lg shadow-xl w-full max-w-4xl max-h-[90vh] overflow-y-auto">
+        {error && (
+          <div className="mb-4 p-3 bg-red-100 text-red-700 rounded">
+            {error}
           </div>
-  
-          <form onSubmit={handleSubmit} className="space-y-4">
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                Recipe Name
+        )}
+        
+        <form onSubmit={handleSubmit} className="space-y-4">
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Recipe Name
+            </label>
+            <input
+              type="text"
+              value={formData.name}
+              onChange={(e) => setFormData(prev => ({ ...prev, name: e.target.value }))}
+              className="w-full border rounded-md p-2"
+              required
+            />
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Description
+            </label>
+            <textarea
+              value={formData.description}
+              onChange={(e) => setFormData(prev => ({ ...prev, description: e.target.value }))}
+              className="w-full border rounded-md p-2"
+              rows={3}
+            />
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Instructions
+            </label>
+            <textarea
+              value={formData.instructions}
+              onChange={(e) => setFormData(prev => ({ ...prev, instructions: e.target.value }))}
+              className="w-full border rounded-md p-2"
+              rows={6}
+              required
+            />
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Prep Time (minutes)
+            </label>
+            <input
+              type="number"
+              value={formData.prep_time}
+              onChange={(e) => setFormData(prev => ({ ...prev, prep_time: e.target.value }))}
+              className="w-full border rounded-md p-2"
+              required
+              min="0"
+            />
+          </div>
+
+          <div>
+            <div className="flex justify-between items-center mb-2">
+              <label className="block text-sm font-medium text-gray-700">
+                Ingredients
               </label>
-              <input
-                type="text"
-                value={formData.name}
-                onChange={(e) => setFormData(prev => ({ ...prev, name: e.target.value }))}
-                className="w-full border rounded-md p-2"
-                required
-              />
-            </div>
-  
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                Description
-              </label>
-              <textarea
-                value={formData.description}
-                onChange={(e) => setFormData(prev => ({ ...prev, description: e.target.value }))}
-                className="w-full border rounded-md p-2"
-                rows={3}
-              />
-            </div>
-  
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                Instructions
-              </label>
-              <textarea
-                value={formData.instructions}
-                onChange={(e) => setFormData(prev => ({ ...prev, instructions: e.target.value }))}
-                className="w-full border rounded-md p-2"
-                rows={6}
-                required
-              />
-            </div>
-  
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                Prep Time (minutes)
-              </label>
-              <input
-                type="number"
-                value={formData.prep_time}
-                onChange={(e) => setFormData(prev => ({ ...prev, prep_time: parseInt(e.target.value) }))}
-                className="w-full border rounded-md p-2"
-                required
-                min="0"
-              />
-            </div>
-  
-            <div>
-              <div className="flex justify-between items-center mb-2">
-                <label className="block text-sm font-medium text-gray-700">
-                  Ingredients
-                </label>
-                <button
-                  type="button"
-                  onClick={addIngredient}
-                  className="flex items-center gap-1 text-sm text-blue-600 hover:text-blue-700"
-                >
-                  <Plus size={16} />
-                  Add Ingredient
-                </button>
-              </div>
-              {formData.ingredients.map((ingredient, index) => (
-                <div key={index} className="flex gap-2 mb-2 items-center">
-                  <input
-                    type="text"
-                    value={ingredient.name}
-                    onChange={(e) => {
-                      const newIngredients = [...formData.ingredients];
-                      newIngredients[index].name = e.target.value;
-                      setFormData(prev => ({ ...prev, ingredients: newIngredients }));
-                    }}
-                    className="flex-1 border rounded-md p-2"
-                    placeholder="Ingredient name"
-                  />
-                  <input
-                    type="number"
-                    value={ingredient.quantity}
-                    onChange={(e) => {
-                      const newIngredients = [...formData.ingredients];
-                      newIngredients[index].quantity = parseFloat(e.target.value);
-                      setFormData(prev => ({ ...prev, ingredients: newIngredients }));
-                    }}
-                    className="w-24 border rounded-md p-2"
-                    placeholder="Quantity"
-                  />
-                  <input
-                    type="text"
-                    value={ingredient.unit}
-                    onChange={(e) => {
-                      const newIngredients = [...formData.ingredients];
-                      newIngredients[index].unit = e.target.value;
-                      setFormData(prev => ({ ...prev, ingredients: newIngredients }));
-                    }}
-                    className="w-24 border rounded-md p-2"
-                    placeholder="Unit"
-                  />
-                  <button
-                    type="button"
-                    onClick={() => removeIngredient(index)}
-                    className="p-2 text-red-600 hover:text-red-700"
-                    title="Remove ingredient"
-                  >
-                    <Trash size={16} />
-                  </button>
-                </div>
-              ))}
-            </div>
-  
-            <div className="flex justify-end gap-2 pt-4">
               <button
                 type="button"
-                onClick={onClose}
-                className="px-4 py-2 text-gray-600 hover:text-gray-800"
+                onClick={addIngredient}
+                className="flex items-center gap-1 text-sm text-blue-600 hover:text-blue-700"
               >
-                Cancel
-              </button>
-              <button
-                type="submit"
-                className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700"
-              >
-                Save Changes
+                + Add Ingredient
               </button>
             </div>
-          </form>
-        </div>
+            {formData.ingredients.map((ingredient, index) => (
+              <div key={index} className="flex gap-2 mb-2 items-center">
+                <input
+                  type="text"
+                  value={ingredient.name}
+                  onChange={(e) => {
+                    const newIngredients = [...formData.ingredients];
+                    newIngredients[index].name = e.target.value;
+                    setFormData(prev => ({ ...prev, ingredients: newIngredients }));
+                  }}
+                  className="flex-1 border rounded-md p-2"
+                  placeholder="Ingredient name"
+                  required
+                />
+                <input
+                  type="number"
+                  value={ingredient.quantity}
+                  onChange={(e) => {
+                    const newIngredients = [...formData.ingredients];
+                    newIngredients[index].quantity = e.target.value;
+                    setFormData(prev => ({ ...prev, ingredients: newIngredients }));
+                  }}
+                  className="w-24 border rounded-md p-2"
+                  placeholder="Quantity"
+                  required
+                  min="0"
+                  step="0.01"
+                />
+                <input
+                  type="text"
+                  value={ingredient.unit}
+                  onChange={(e) => {
+                    const newIngredients = [...formData.ingredients];
+                    newIngredients[index].unit = e.target.value;
+                    setFormData(prev => ({ ...prev, ingredients: newIngredients }));
+                  }}
+                  className="w-24 border rounded-md p-2"
+                  placeholder="Unit"
+                />
+                <button
+                  type="button"
+                  onClick={() => removeIngredient(index)}
+                  className="p-2 text-red-600 hover:text-red-700"
+                >
+                  <Trash size={16} />
+                </button>
+              </div>
+            ))}
+          </div>
+
+          <div className="flex justify-end gap-2 pt-4">
+            <button
+              type="button"
+              onClick={onClose}
+              className="px-4 py-2 text-gray-600 hover:text-gray-800"
+              disabled={isSubmitting}
+            >
+              Cancel
+            </button>
+            <button
+              type="submit"
+              className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:bg-blue-300"
+              disabled={isSubmitting}
+            >
+              {isSubmitting ? 'Saving...' : 'Save Changes'}
+            </button>
+          </div>
+        </form>
       </div>
-    );
-  };
+    </div>
+  );
+};
+
+
+  
+  
   
   
   

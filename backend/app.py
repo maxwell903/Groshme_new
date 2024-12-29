@@ -2331,85 +2331,100 @@ def search():
 def update_recipe(recipe_id):
     try:
         data = request.json
-        recipe = Recipe.query.get_or_404(recipe_id)
+        engine = create_engine(db_url, poolclass=NullPool)
         
-        # Update basic recipe info
-        recipe.name = data['name']
-        recipe.description = data['description']
-        recipe.instructions = data['instructions']
-        recipe.prep_time = data['prep_time']
-        
-        # Get current ingredient names in the updated recipe
-        updated_ingredient_names = {ing['name'].lower() for ing in data['ingredients']}
-        
-        # Find ingredients to remove (ones in DB but not in updated data)
-        current_quantities = recipe.ingredient_quantities
-        for quantity in current_quantities:
-            if quantity.ingredient.name.lower() not in updated_ingredient_names:
-                # Delete nutrition data if it exists
-                if quantity.nutrition:
-                    db.session.delete(quantity.nutrition)
-                db.session.delete(quantity)
-        
-        # Update or add ingredients
-        for ingredient_data in data['ingredients']:
-            ingredient_name = ingredient_data['name']
-            
-            # Skip empty ingredient names
-            if not ingredient_name:
-                continue
-                
-            # Get or create ingredient
-            ingredient = Ingredient.query.filter(
-                func.lower(Ingredient.name) == func.lower(ingredient_name)
-            ).first()
-            
-            if not ingredient:
-                ingredient = Ingredient(name=ingredient_name)
-                db.session.add(ingredient)
-                db.session.flush()
-            
-            # Update or create quantity association
-            quantity = RecipeIngredientQuantity.query.filter_by(
-                recipe_id=recipe.id,
-                ingredient_id=ingredient.id
-            ).first()
-            
-            if quantity:
-                # Update existing quantity
-                quantity.quantity = float(ingredient_data['quantity'])
-                quantity.unit = ingredient_data['unit']
-            else:
-                # Create new quantity association
-                quantity = RecipeIngredientQuantity(
-                    recipe_id=recipe.id,
-                    ingredient_id=ingredient.id,
-                    quantity=float(ingredient_data['quantity']),
-                    unit=ingredient_data['unit']
+        with engine.connect() as connection:
+            # Start a transaction
+            with connection.begin():
+                # Update recipe basic info
+                connection.execute(
+                    text("""
+                        UPDATE recipe 
+                        SET name = :name,
+                            description = :description,
+                            instructions = :instructions,
+                            prep_time = :prep_time
+                        WHERE id = :recipe_id
+                    """),
+                    {
+                        "recipe_id": recipe_id,
+                        "name": data['name'],
+                        "description": data['description'],
+                        "instructions": data['instructions'],
+                        "prep_time": data['prep_time']
+                    }
                 )
-                db.session.add(quantity)
-            
-            # Update nutrition if provided
-            if ingredient_data.get('nutritionData'):
-                nutrition = quantity.nutrition
-                if not nutrition:
-                    nutrition = RecipeIngredientNutrition(
-                        recipe_ingredient_quantities_id=quantity.id
-                    )
-                    db.session.add(nutrition)
                 
-                nutrition_data = ingredient_data['nutritionData']
-                nutrition.protein_grams = nutrition_data.get('protein_grams')
-                nutrition.fat_grams = nutrition_data.get('fat_grams')
-                nutrition.carbs_grams = nutrition_data.get('carbs_grams')
-                nutrition.serving_size = nutrition_data.get('serving_size')
-                nutrition.serving_unit = nutrition_data.get('serving_unit')
-        
-        db.session.commit()
-        return jsonify({'message': 'Recipe updated successfully'}), 200
+                # First, delete existing ingredient quantities
+                connection.execute(
+                    text("DELETE FROM recipe_ingredient_quantities WHERE recipe_id = :recipe_id"),
+                    {"recipe_id": recipe_id}
+                )
+                
+                # Add updated ingredients
+                for ingredient in data['ingredients']:
+                    # Get or create ingredient
+                    result = connection.execute(
+                        text("""
+                            WITH e AS (
+                                INSERT INTO ingredients (name)
+                                VALUES (:name)
+                                ON CONFLICT (name) DO UPDATE SET name = EXCLUDED.name
+                                RETURNING id
+                            )
+                            SELECT id FROM e
+                            UNION ALL
+                            SELECT id FROM ingredients WHERE name = :name
+                            LIMIT 1
+                        """),
+                        {"name": ingredient['name']}
+                    )
+                    ingredient_id = result.fetchone()[0]
+                    
+                    # Add quantity association
+                    result = connection.execute(
+                        text("""
+                            INSERT INTO recipe_ingredient_quantities 
+                                (recipe_id, ingredient_id, quantity, unit)
+                            VALUES 
+                                (:recipe_id, :ingredient_id, :quantity, :unit)
+                            RETURNING id
+                        """),
+                        {
+                            "recipe_id": recipe_id,
+                            "ingredient_id": ingredient_id,
+                            "quantity": ingredient['quantity'],
+                            "unit": ingredient['unit']
+                        }
+                    )
+                    quantity_id = result.fetchone()[0]
+                    
+                    # Add nutrition if provided
+                    if ingredient.get('nutrition'):
+                        nutrition = ingredient['nutrition']
+                        connection.execute(
+                            text("""
+                                INSERT INTO recipe_ingredient_nutrition
+                                    (recipe_ingredient_quantities_id, protein_grams,
+                                     fat_grams, carbs_grams, serving_size, serving_unit)
+                                VALUES
+                                    (:quantity_id, :protein_grams, :fat_grams, 
+                                     :carbs_grams, :serving_size, :serving_unit)
+                            """),
+                            {
+                                "quantity_id": quantity_id,
+                                "protein_grams": nutrition.get('protein_grams', 0),
+                                "fat_grams": nutrition.get('fat_grams', 0),
+                                "carbs_grams": nutrition.get('carbs_grams', 0),
+                                "serving_size": nutrition.get('serving_size', 0),
+                                "serving_unit": nutrition.get('serving_unit', '')
+                            }
+                        )
+
+        # After successful update, fetch and return the updated recipe
+        return get_recipe(recipe_id)
         
     except Exception as e:
-        db.session.rollback()
         print(f"Error updating recipe: {str(e)}")
         return jsonify({'error': str(e)}), 500
     
