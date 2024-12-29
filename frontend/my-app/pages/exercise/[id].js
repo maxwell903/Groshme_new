@@ -1,9 +1,9 @@
-// pages/exercise/[id].js
 import { useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/router';
 import Link from 'next/link';
 import { Trash, X, Edit, ArrowLeft } from 'lucide-react';
 import { API_URL } from '@/utils/api';
+import EditExerciseModal from '@/components/EditExerciseModal';
 
 const ExerciseDetailsPage = () => {
   const router = useRouter();
@@ -13,6 +13,7 @@ const ExerciseDetailsPage = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [isDeleting, setIsDeleting] = useState(false);
+  const [isEditModalOpen, setIsEditModalOpen] = useState(false);
 
   const fetchExerciseAndHistory = useCallback(async () => {
     if (!id) return;
@@ -21,7 +22,6 @@ const ExerciseDetailsPage = () => {
       setLoading(true);
       setError(null);
 
-      // First fetch the exercise details from exercises endpoint
       const exerciseRes = await fetch(`${API_URL}/api/exercises/${id}`);
       if (!exerciseRes.ok) {
         const errorText = await exerciseRes.text();
@@ -30,7 +30,6 @@ const ExerciseDetailsPage = () => {
       }
       const exerciseData = await exerciseRes.json();
 
-      // Then fetch the exercise history
       const historyRes = await fetch(`${API_URL}/api/exercises/${id}/sets/history`);
       if (!historyRes.ok) {
         const errorText = await historyRes.text();
@@ -107,6 +106,10 @@ const ExerciseDetailsPage = () => {
     }
   };
 
+  const handleUpdateExercise = (updatedExercise) => {
+    setExercise(updatedExercise);
+  };
+
   if (loading) {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
@@ -179,7 +182,7 @@ const ExerciseDetailsPage = () => {
             </div>
             <div className="flex gap-2">
               <button
-                onClick={() => router.push(`/exercise-form?id=${id}`)}
+                onClick={() => setIsEditModalOpen(true)}
                 className="text-blue-600 hover:text-blue-800"
                 title="Edit Exercise"
               >
@@ -246,6 +249,16 @@ const ExerciseDetailsPage = () => {
               ))}
             </div>
           )}
+
+          <EditExerciseModal
+            isOpen={isEditModalOpen}
+            onClose={() => setIsEditModalOpen(false)}
+            exercise={exercise}
+            onUpdate={(updatedExercise) => {
+              handleUpdateExercise(updatedExercise);
+              setIsEditModalOpen(false);
+            }}
+          />
         </div>
       </div>
     </div>
