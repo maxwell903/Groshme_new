@@ -324,50 +324,117 @@ def delete_individual_set(set_id):
         db.session.rollback()
         print(f"Error deleting set: {str(e)}")
         return jsonify({'error': str(e)}), 500
+    
+@app.route('/api/exercises/<int:exercise_id>', methods=['DELETE', 'PUT', 'OPTIONS'])
+def manage_exercise(exercise_id):
+    # Handle OPTIONS request for CORS
+    if request.method == 'OPTIONS':
+        response = jsonify({'status': 'ok'})
+        response.headers.add('Access-Control-Allow-Origin', '*')
+        response.headers.add('Access-Control-Allow-Methods', 'DELETE, PUT, OPTIONS')
+        response.headers.add('Access-Control-Allow-Headers', 'Content-Type')
+        return response
 
-@app.route('/api/exercises/<int:exercise_id>', methods=['PUT'])
-def update_exercise(exercise_id):
     try:
-        data = request.json
         engine = create_engine(db_url, poolclass=NullPool)
         
         with engine.connect() as connection:
-            result = connection.execute(
-                text("""
-                    UPDATE exercises
-                    SET name = :name,
-                        workout_type = :workout_type,
-                        major_groups = :major_groups,
-                        minor_groups = :minor_groups,
-                        amount_sets = :amount_sets,
-                        amount_reps = :amount_reps,
-                        weight = :weight,
-                        rest_time = :rest_time
-                    WHERE id = :id
-                    RETURNING id
-                """),
-                {
-                    'id': exercise_id,
-                    'name': data['name'],
-                    'workout_type': data['workout_type'],
-                    'major_groups': data['major_groups'],
-                    'minor_groups': data['minor_groups'],
-                    'amount_sets': data['amount_sets'],
-                    'amount_reps': data['amount_reps'],
-                    'weight': data['weight'],
-                    'rest_time': data['rest_time']
-                }
-            )
-            
-            if not result.rowcount:
-                return jsonify({'error': 'Exercise not found'}), 404
-                
-            connection.commit()
-            return jsonify({'message': 'Exercise updated successfully'})
-            
+            if request.method == 'DELETE':
+                with connection.begin():
+                    # First delete all associated set histories and individual sets
+                    # Delete individual sets first
+                    connection.execute(
+                        text("""
+                            DELETE FROM individual_set 
+                            WHERE exercise_id = :exercise_id
+                        """),
+                        {"exercise_id": exercise_id}
+                    )
+                    
+                    # Delete set histories
+                    connection.execute(
+                        text("""
+                            DELETE FROM set_history 
+                            WHERE exercise_id = :exercise_id
+                        """),
+                        {"exercise_id": exercise_id}
+                    )
+                    
+                    # Delete the exercise
+                    result = connection.execute(
+                        text("""
+                            DELETE FROM exercises 
+                            WHERE id = :exercise_id 
+                            RETURNING id
+                        """),
+                        {"exercise_id": exercise_id}
+                    )
+                    
+                    if not result.rowcount:
+                        return jsonify({'error': 'Exercise not found'}), 404
+                    
+                return jsonify({'message': 'Exercise and all related data deleted successfully'}), 200
+
+            elif request.method == 'PUT':
+                data = request.json
+                with connection.begin():
+                    # Update the exercise
+                    result = connection.execute(
+                        text("""
+                            UPDATE exercises 
+                            SET name = :name,
+                                workout_type = :workout_type,
+                                major_groups = :major_groups::json,
+                                minor_groups = :minor_groups::json,
+                                amount_sets = :amount_sets,
+                                amount_reps = :amount_reps,
+                                weight = :weight,
+                                rest_time = :rest_time
+                            WHERE id = :exercise_id
+                            RETURNING id, name, workout_type, major_groups, minor_groups, 
+                                     amount_sets, amount_reps, weight, rest_time
+                        """),
+                        {
+                            "exercise_id": exercise_id,
+                            "name": data['name'],
+                            "workout_type": data['workout_type'],
+                            "major_groups": json.dumps(data['major_groups']),
+                            "minor_groups": json.dumps(data['minor_groups']),
+                            "amount_sets": data['amount_sets'],
+                            "amount_reps": data['amount_reps'],
+                            "weight": data['weight'],
+                            "rest_time": data['rest_time']
+                        }
+                    )
+                    
+                    if not result.rowcount:
+                        return jsonify({'error': 'Exercise not found'}), 404
+                        
+                    updated = result.fetchone()
+                    
+                    return jsonify({
+                        'message': 'Exercise updated successfully',
+                        'exercise': {
+                            'id': updated.id,
+                            'name': updated.name,
+                            'workout_type': updated.workout_type,
+                            'major_groups': updated.major_groups,
+                            'minor_groups': updated.minor_groups,
+                            'amount_sets': updated.amount_sets,
+                            'amount_reps': updated.amount_reps,
+                            'weight': updated.weight,
+                            'rest_time': updated.rest_time
+                        }
+                    }), 200
+                    
     except Exception as e:
-        print(f"Error updating exercise: {str(e)}")
-        return jsonify({'error': str(e)}), 500
+        print(f"Error managing exercise: {str(e)}")
+        return jsonify({
+            'error': 'Failed to manage exercise',
+            'details': str(e)
+        }), 500
+
+
 
 @app.route('/api/exercise/<int:exercise_id>/sets', methods=['POST'])
 def add_exercise_sets(exercise_id):
