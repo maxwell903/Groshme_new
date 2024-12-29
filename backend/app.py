@@ -148,6 +148,8 @@ class GroceryBill(db.Model):
         }
     
 class Exercise(db.Model):
+    __tablename__ = 'exercises'
+    __tablename__ = 'exercise'
     id = db.Column(db.Integer, primary_key=True)
     name = db.Column(db.String(100), nullable=False)
     workout_type = db.Column(db.Enum('Push', 'Pull', 'Legs', 'Cardio'), nullable=False)
@@ -367,7 +369,7 @@ def update_exercise(exercise_id):
         print(f"Error updating exercise: {str(e)}")
         return jsonify({'error': str(e)}), 500
 
-@app.route('/api/exercises/<int:exercise_id>/sets', methods=['POST'])
+@app.route('/api/exercise/<int:exercise_id>/sets', methods=['POST'])
 def add_exercise_sets(exercise_id):
     try:
         data = request.json
@@ -3376,7 +3378,7 @@ def get_exercise_details(exercise_id):
 
 # Replace or update your sets endpoint in app.py
 
-@app.route('/api/exercise/<int:exercise_id>/sets', methods=['POST'])
+@app.route('/api/exercises/<int:exercise_id>/sets', methods=['POST'])
 def save_exercise_sets(exercise_id):
     try:
         # First verify the exercise exists

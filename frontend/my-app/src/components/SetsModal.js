@@ -25,7 +25,7 @@ const SetsModal = ({ exercise, isOpen, onClose }) => {
       if (!exercise?.id) return;
       
       try {
-        const response = await fetch(`${API_URL}/api/exercise/${exercise.id}/sets`);
+        const response = await fetch(`${API_URL}/api/exercises/${exercise.id}/sets`);
         const text = await response.text();
         
         try {
@@ -70,7 +70,7 @@ const SetsModal = ({ exercise, isOpen, onClose }) => {
         reps: parseInt(set.reps, 10) || 0
       }));
 
-      const response = await fetch(`${API_URL}/api/exercise/${exercise.id}/sets`, {
+      const response = await fetch(`${API_URL}/api/exercises/${exercise.id}/sets`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json'
