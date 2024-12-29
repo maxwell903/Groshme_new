@@ -3381,13 +3381,23 @@ def get_exercise_details(exercise_id):
 @app.route('/api/exercises/<int:exercise_id>/sets', methods=['POST'])
 def save_exercise_sets(exercise_id):
     try:
-        # First verify the exercise exists
-        exercise = Exercise.query.get(exercise_id)
-        if not exercise:
-            return jsonify({'error': 'Exercise not found'}), 404
+        print(f"Attempting to save sets for exercise_id: {exercise_id}")  # Debug log
+        
+        # First verify the exercise exists using raw SQL for debugging
+        with db.engine.connect() as connection:
+            result = connection.execute(
+                text("SELECT id, name FROM exercises WHERE id = :exercise_id"),
+                {"exercise_id": exercise_id}
+            ).fetchone()
+            
+            print(f"Database query result: {result}")  # Debug log
+            
+            if not result:
+                print(f"Exercise with ID {exercise_id} not found in database")  # Debug log
+                return jsonify({'error': 'Exercise not found'}), 404
 
         data = request.json
-        print(f"Received sets data for exercise {exercise_id}:", data)  # Debug log
+        print(f"Received sets data:", data)  # Debug log
 
         with db.session.begin_nested():  # Create a savepoint
             # Create new history entry
@@ -3437,8 +3447,38 @@ def save_exercise_sets(exercise_id):
     except Exception as e:
         db.session.rollback()
         print(f"Error saving sets: {str(e)}")
+        print("Full error details:", e.__class__.__name__)  # Print error class name
+        import traceback
+        traceback.print_exc()  # Print full stack trace
         return jsonify({
             'error': f"Failed to save sets: {str(e)}"
+        }), 500
+
+# Add a test route to verify exercise existence
+@app.route('/api/exercises/<int:exercise_id>/test', methods=['GET'])
+def test_exercise_exists(exercise_id):
+    try:
+        with db.engine.connect() as connection:
+            result = connection.execute(
+                text("SELECT id, name FROM exercises WHERE id = :exercise_id"),
+                {"exercise_id": exercise_id}
+            ).fetchone()
+            
+            if result:
+                return jsonify({
+                    'exists': True,
+                    'id': result.id,
+                    'name': result.name
+                })
+            else:
+                return jsonify({
+                    'exists': False,
+                    'queried_id': exercise_id
+                })
+    except Exception as e:
+        return jsonify({
+            'error': str(e),
+            'queried_id': exercise_id
         }), 500
 
 @app.route('/api/workouts', methods=['POST'])
