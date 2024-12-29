@@ -363,11 +363,30 @@ def manage_exercise(exercise_id):
                     # Delete the exercise
                     result = connection.execute(
                         text("""
-                            DELETE FROM exercises 
-                            WHERE id = :exercise_id 
-                            RETURNING id
+                        UPDATE exercises 
+                        SET name = %(name)s,
+                        workout_type = %(workout_type)s,
+                        major_groups = %(major_groups)s::json,
+                        minor_groups = %(minor_groups)s::json,
+                        amount_sets = %(amount_sets)s,
+                        amount_reps = %(amount_reps)s,
+                        weight = %(weight)s,
+                        rest_time = %(rest_time)s
+                        WHERE id = %(exercise_id)s
+                        RETURNING id, name, workout_type, major_groups, minor_groups, 
+                        amount_sets, amount_reps, weight, rest_time
                         """),
-                        {"exercise_id": exercise_id}
+                        {
+                        "exercise_id": exercise_id,
+                        "name": data['name'],
+                        "workout_type": data['workout_type'],
+                        "major_groups": json.dumps(data['major_groups']),
+                        "minor_groups": json.dumps(data['minor_groups']),
+                        "amount_sets": data['amount_sets'],
+                        "amount_reps": data['amount_reps'],
+                        "weight": data['weight'],
+                        "rest_time": data['rest_time']
+                        }
                     )
                     
                     if not result.rowcount:
