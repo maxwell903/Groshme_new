@@ -2260,7 +2260,8 @@ def search():
     try:
         if ingredients:
             with engine.connect() as connection:
-                ingredient_list = ','.join([f"'{ing}'" for ing in ingredients])
+                # Convert ingredients to lowercase
+                ingredient_list = ','.join([f"'{ing.lower()}'" for ing in ingredients])
                 query = text(f"""
                     WITH matching_recipes AS (
                         SELECT DISTINCT r.id, r.name, r.description, r.prep_time
@@ -2269,7 +2270,7 @@ def search():
                         JOIN ingredients i ON riq.ingredient_id = i.id
                         WHERE LOWER(i.name) = ANY(ARRAY[{ingredient_list}]::text[])
                         GROUP BY r.id, r.name, r.description, r.prep_time
-                        HAVING COUNT(DISTINCT i.name) >= :ingredient_count
+                        HAVING COUNT(DISTINCT LOWER(i.name)) >= :ingredient_count
                     )
                     SELECT 
                         r.*,
@@ -2326,6 +2327,7 @@ def search():
     except Exception as e:
         print(f"Search error: {str(e)}")
         return jsonify({'error': str(e), 'results': [], 'count': 0}), 500
+
     
 @app.route('/api/recipe/<int:recipe_id>', methods=['PUT'])
 def update_recipe(recipe_id):
