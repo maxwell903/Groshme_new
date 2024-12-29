@@ -157,8 +157,8 @@ class Exercise(db.Model):
     amount_reps = db.Column(db.Integer, nullable=False)
     weight = db.Column(db.Integer, nullable=False)
     rest_time = db.Column(db.Integer, nullable=False)
-    sets = db.relationship('IndividualSet', backref='exercise', lazy=True, cascade='all, delete-orphan')
-    set_histories = db.relationship('SetHistory', backref='exercise', lazy=True, cascade='all, delete-orphan')
+    sets = db.relationship('IndividualSet', backref='exercises', lazy=True, cascade='all, delete-orphan')
+    set_histories = db.relationship('SetHistory', backref='exercises', lazy=True, cascade='all, delete-orphan')
 
 class SetHistory(db.Model):
     id = db.Column(db.Integer, primary_key=True)

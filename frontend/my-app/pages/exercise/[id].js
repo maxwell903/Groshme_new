@@ -22,7 +22,7 @@ const ExerciseDetailsPage = () => {
       setError(null);
 
       // First fetch the exercise details from exercises endpoint
-      const exerciseRes = await fetch(`${API_URL}/api/exercise/${id}`);
+      const exerciseRes = await fetch(`${API_URL}/api/exercises/${id}`);
       if (!exerciseRes.ok) {
         const errorText = await exerciseRes.text();
         console.error('Exercise fetch error:', errorText);
@@ -31,7 +31,7 @@ const ExerciseDetailsPage = () => {
       const exerciseData = await exerciseRes.json();
 
       // Then fetch the exercise history
-      const historyRes = await fetch(`${API_URL}/api/exercise/${id}/sets/history`);
+      const historyRes = await fetch(`${API_URL}/api/exercises/${id}/sets/history`);
       if (!historyRes.ok) {
         const errorText = await historyRes.text();
         console.error('History fetch error:', errorText);
@@ -90,7 +90,7 @@ const ExerciseDetailsPage = () => {
     }
 
     try {
-      const response = await fetch(`${API_URL}/api/exercise/${id}/history/${historyId}`, {
+      const response = await fetch(`${API_URL}/api/exercises/${id}/history/${historyId}`, {
         method: 'DELETE',
       });
 
