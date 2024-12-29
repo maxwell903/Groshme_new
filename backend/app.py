@@ -164,9 +164,9 @@ class Exercise(db.Model):
 class SetHistory(db.Model):
     __tablename__ = 'set_history'
     id = db.Column(db.Integer, primary_key=True)
-    exercise_id = db.Column(db.Integer, db.ForeignKey('exercises.id'), nullable=False)
+    exercise_id = db.Column(db.Integer, db.ForeignKey('exercise.id'), nullable=False)
     created_at = db.Column(db.DateTime, default=db.func.current_timestamp())
-    
+    sets = db.relationship('IndividualSet', backref='history', lazy=True, cascade='all, delete-orphan')
 
 
 @app.route('/debug/routes', methods=['GET'])
