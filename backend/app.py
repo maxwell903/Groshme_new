@@ -332,28 +332,25 @@ def add_exercise_sets(exercise_id):
 
 
 @app.route('/api/exercises/<int:exercise_id>/sets/history', methods=['GET'])
-def get_exercise_history(exercise_id):
+def get_exercise_set_history(exercise_id):
     try:
-        print(f"Fetching history for exercise ID: {exercise_id}")
+        print(f"Fetching history for exercise ID: {exercise_id}")  # Debug log
         
-        # First verify exercise exists
-        exercise = db.session.query(Exercise).get(exercise_id)
-        if not exercise:
-            return jsonify({'error': 'Exercise not found'}), 404
-            
-        # Get all history records
-        histories = db.session.query(SetHistory)\
+        # Get all history records for this exercise
+        histories = SetHistory.query\
             .filter_by(exercise_id=exercise_id)\
             .order_by(SetHistory.created_at.desc())\
             .all()
-            
+        
+        # Prepare the response data
         history_data = []
         for history in histories:
-            sets = db.session.query(IndividualSet)\
+            # Get all sets for this history record
+            sets = IndividualSet.query\
                 .filter_by(set_history_id=history.id)\
                 .order_by(IndividualSet.set_number)\
                 .all()
-                
+            
             history_data.append({
                 'id': history.id,
                 'created_at': history.created_at.isoformat(),
@@ -363,11 +360,12 @@ def get_exercise_history(exercise_id):
                     'weight': set.weight
                 } for set in sets]
             })
-            
+        
+        print(f"Found {len(history_data)} history records")  # Debug log
         return jsonify({'history': history_data})
         
     except Exception as e:
-        print(f"Error in get_exercise_history: {str(e)}")
+        print(f"Error fetching exercise history: {str(e)}")  # Debug log
         db.session.rollback()
         return jsonify({'error': str(e)}), 500
 
@@ -3002,70 +3000,7 @@ def add_recipe_ingredient_details():
         return jsonify({'error': str(e)}), 500
 
 
-@app.route('/api/exercises/<int:exercise_id>', methods=['GET'])
-def get_single_exercise(exercise_id):
-    try:
-        # Debug logging
-        print(f"Fetching exercise with ID: {exercise_id}")
-        
-        # Query the exercise
-        exercise = db.session.query(Exercise).get(exercise_id)
-        
-        if not exercise:
-            print(f"Exercise {exercise_id} not found")
-            return jsonify({'error': 'Exercise not found'}), 404
-            
-        print(f"Found exercise: {exercise.name}")
-            
-        # Convert major and minor groups to lists if they're stored as JSON strings
-        major_groups = exercise.major_groups
-        minor_groups = exercise.minor_groups
-        
-        if isinstance(major_groups, str):
-            import json
-            major_groups = json.loads(major_groups)
-        if isinstance(minor_groups, str):
-            import json
-            minor_groups = json.loads(minor_groups)
-            
-        # Get latest sets
-        latest_history = db.session.query(SetHistory)\
-            .filter_by(exercise_id=exercise_id)\
-            .order_by(SetHistory.created_at.desc())\
-            .first()
-            
-        latest_sets = []
-        if latest_history:
-            latest_sets = db.session.query(IndividualSet)\
-                .filter_by(set_history_id=latest_history.id)\
-                .order_by(IndividualSet.set_number)\
-                .all()
-                
-        response_data = {
-            'id': exercise.id,
-            'name': exercise.name,
-            'workout_type': exercise.workout_type,
-            'major_groups': major_groups,
-            'minor_groups': minor_groups,
-            'amount_sets': exercise.amount_sets,
-            'amount_reps': exercise.amount_reps,
-            'weight': exercise.weight,
-            'rest_time': exercise.rest_time,
-            'latest_sets': [{
-                'set_number': set.set_number,
-                'reps': set.reps,
-                'weight': set.weight
-            } for set in latest_sets] if latest_sets else [],
-            'latest_workout': latest_history.created_at.isoformat() if latest_history else None
-        }
-        
-        print(f"Returning exercise data: {response_data}")
-        return jsonify(response_data)
-        
-    except Exception as e:
-        print(f"Error in get_single_exercise: {str(e)}")
-        db.session.rollback()
-        return jsonify({'error': str(e)}), 500
+
     
 
 @app.route('/api/exercises/<int:exercise_id>', methods=['DELETE'])
@@ -3298,22 +3233,15 @@ def get_recipe_nutrition(recipe_id):
 @app.route('/api/exercises/<int:exercise_id>', methods=['GET'])
 def get_exercise_details(exercise_id):
     try:
-        exercise = Exercise.query.get_or_404(exercise_id)
+        print(f"Attempting to fetch exercise ID: {exercise_id}")  # Debug log
         
-        # Get the latest history
-        latest_history = SetHistory.query\
-            .filter_by(exercise_id=exercise_id)\
-            .order_by(SetHistory.created_at.desc())\
-            .first()
-            
-        latest_sets = []
-        if latest_history:
-            latest_sets = IndividualSet.query\
-                .filter_by(set_history_id=latest_history.id)\
-                .order_by(IndividualSet.set_number)\
-                .all()
-
-        return jsonify({
+        # Use SQLAlchemy to query the exercise
+        exercise = db.session.query(Exercise).get_or_404(exercise_id)
+        
+        print(f"Found exercise: {exercise.name}")  # Debug log
+        
+        # Prepare response data
+        response_data = {
             'id': exercise.id,
             'name': exercise.name,
             'workout_type': exercise.workout_type,
@@ -3322,19 +3250,16 @@ def get_exercise_details(exercise_id):
             'amount_sets': exercise.amount_sets,
             'amount_reps': exercise.amount_reps,
             'weight': exercise.weight,
-            'rest_time': exercise.rest_time,
-            'latest_sets': [{
-                'set_number': set.set_number,
-                'reps': set.reps,
-                'weight': set.weight
-            } for set in latest_sets],
-            'latest_workout': latest_history.created_at.isoformat() if latest_history else None
-        })
-
+            'rest_time': exercise.rest_time
+        }
+        
+        print(f"Sending response: {response_data}")  # Debug log
+        return jsonify(response_data)
+        
     except Exception as e:
-        print(f"Error fetching exercise details: {str(e)}")
+        print(f"Error fetching exercise: {str(e)}")  # Debug log
+        db.session.rollback()
         return jsonify({'error': str(e)}), 500
-
 
     
 @app.route('/api/workouts', methods=['POST'])
