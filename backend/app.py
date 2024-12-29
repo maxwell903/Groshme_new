@@ -3327,7 +3327,7 @@ def get_recipe_nutrition(recipe_id):
         print(f"Error getting nutrition info: {str(e)}")
         return jsonify({'error': str(e)}), 500
     
-@app.route('/api/exercise/<int:exercise_id>', methods=['GET'])
+@app.route('/api/exercises/<int:exercise_id>', methods=['GET'])
 def get_exercise_details(exercise_id):
     try:
         # Connect to database explicitly
