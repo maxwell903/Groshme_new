@@ -1,11 +1,11 @@
-import { useState, useEffect } from 'react';
+// pages/exercise/[id].js
+import { useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/router';
 import Link from 'next/link';
-import { Trash, X, Edit } from 'lucide-react';
-import EditExerciseModal from '@/components/EditExerciseModal';
-import { fetchApi, API_URL } from '@/utils/api';
+import { Trash, X, Edit, ArrowLeft } from 'lucide-react';
+import { API_URL } from '@/utils/api';
 
-export default function ExerciseHistory() {
+const ExerciseDetailsPage = () => {
   const router = useRouter();
   const { id } = router.query;
   const [exercise, setExercise] = useState(null);
@@ -13,44 +13,54 @@ export default function ExerciseHistory() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [isDeleting, setIsDeleting] = useState(false);
-  const [showEditModal, setShowEditModal] = useState(false);
 
-  useEffect(() => {
-    fetchExerciseAndHistory();
-  }, [fetchExerciseAndHistory]);
+  const fetchExerciseAndHistory = useCallback(async () => {
+    if (!id) return;
 
-  const fetchExerciseAndHistory = async () => {
     try {
       setLoading(true);
+      setError(null);
 
-      const exerciseResponse = await fetch(`${API_URL}/api/exercise/${id}`);
-      if (!exerciseResponse.ok) {
+      // First fetch the exercise details from exercises endpoint
+      const exerciseRes = await fetch(`${API_URL}/api/exercise/${id}`);
+      if (!exerciseRes.ok) {
+        const errorText = await exerciseRes.text();
+        console.error('Exercise fetch error:', errorText);
         throw new Error('Failed to fetch exercise details');
       }
-      const exerciseData = await exerciseResponse.json();
-      setExercise(exerciseData);
+      const exerciseData = await exerciseRes.json();
 
-      const historyResponse = await fetch(`${API_URL}/api/exercise/${id}/sets/history`);
-      if (!historyResponse.ok) {
+      // Then fetch the exercise history
+      const historyRes = await fetch(`${API_URL}/api/exercise/${id}/sets/history`);
+      if (!historyRes.ok) {
+        const errorText = await historyRes.text();
+        console.error('History fetch error:', errorText);
         throw new Error('Failed to fetch exercise history');
       }
-      const historyData = await historyResponse.json();
-      
-      const sortedHistory = historyData.history.sort((a, b) => 
+      const historyData = await historyRes.json();
+
+      setExercise(exerciseData);
+      setHistory(historyData.history?.sort((a, b) => 
         new Date(b.created_at) - new Date(a.created_at)
-      );
-      
-      setHistory(sortedHistory);
+      ) || []);
+
+      setError(null);
     } catch (err) {
-      console.error('Error fetching data:', err);
-      setError(err.message);
+      console.error('Error fetching exercise data:', err);
+      setError(err.message || 'Failed to load exercise data');
     } finally {
       setLoading(false);
     }
-  };
+  }, [id]);
+
+  useEffect(() => {
+    if (id) {
+      fetchExerciseAndHistory();
+    }
+  }, [id, fetchExerciseAndHistory]);
 
   const handleDeleteExercise = async () => {
-    if (!confirm('Are you sure you want to delete this exercise? This will delete all history and cannot be undone.')) {
+    if (!confirm('Are you sure you want to delete this exercise? This action cannot be undone.')) {
       return;
     }
 
@@ -61,42 +71,21 @@ export default function ExerciseHistory() {
       });
 
       if (!response.ok) {
+        const errorText = await response.text();
+        console.error('Delete error:', errorText);
         throw new Error('Failed to delete exercise');
       }
 
       router.push('/meal-prep');
     } catch (err) {
       console.error('Error deleting exercise:', err);
-      setError(err.message);
-    } finally {
+      setError(err.message || 'Failed to delete exercise');
       setIsDeleting(false);
     }
   };
 
-  const handleDeleteSet = async (historyId, setId) => {
-    if (!confirm('Are you sure you want to delete this set?')) {
-      return;
-    }
-
-    try {
-      const response = await fetch(`${API_URL}/api/exercise/${id}/sets/${setId}`, {
-        method: 'DELETE',
-      });
-
-      if (!response.ok) {
-        throw new Error('Failed to delete set');
-      }
-
-      // Refresh the history data
-      fetchExerciseAndHistory();
-    } catch (err) {
-      console.error('Error deleting set:', err);
-      setError(err.message);
-    }
-  };
-
   const handleDeleteSession = async (historyId) => {
-    if (!confirm('Are you sure you want to delete this entire session?')) {
+    if (!confirm('Are you sure you want to delete this session?')) {
       return;
     }
 
@@ -106,14 +95,15 @@ export default function ExerciseHistory() {
       });
 
       if (!response.ok) {
+        const errorText = await response.text();
+        console.error('Delete session error:', errorText);
         throw new Error('Failed to delete session');
       }
 
-      // Refresh the history data
-      fetchExerciseAndHistory();
+      await fetchExerciseAndHistory();
     } catch (err) {
       console.error('Error deleting session:', err);
-      setError(err.message);
+      setError(err.message || 'Failed to delete session');
     }
   };
 
@@ -121,7 +111,7 @@ export default function ExerciseHistory() {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
         <div className="bg-white p-8 rounded-lg shadow-md">
-          <p className="text-gray-600">Loading exercise history...</p>
+          <p className="text-gray-600">Loading exercise details...</p>
         </div>
       </div>
     );
@@ -130,13 +120,14 @@ export default function ExerciseHistory() {
   if (error) {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-        <div className="bg-red-100 text-red-700 p-8 rounded-lg shadow-md">
-          <p className="mb-4">{error}</p>
-          <Link
-            href="/meal-prep"
-            className="text-blue-600 hover:text-blue-800 inline-flex items-center"
+        <div className="bg-red-100 text-red-700 p-8 rounded-lg shadow-md max-w-md w-full">
+          <p className="mb-4">Error: {error}</p>
+          <Link 
+            href="/meal-prep" 
+            className="text-blue-600 hover:text-blue-800 inline-flex items-center gap-2"
           >
-            ← Back to Workout
+            <ArrowLeft size={16} />
+            Back to Meal Prep
           </Link>
         </div>
       </div>
@@ -148,11 +139,12 @@ export default function ExerciseHistory() {
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
         <div className="bg-white p-8 rounded-lg shadow-md">
           <p className="text-gray-600 mb-4">Exercise not found</p>
-          <Link
-            href="/meal-prep"
-            className="text-blue-600 hover:text-blue-800 inline-flex items-center"
+          <Link 
+            href="/meal-prep" 
+            className="text-blue-600 hover:text-blue-800 inline-flex items-center gap-2"
           >
-            ← Back to Workout
+            <ArrowLeft size={16} />
+            Back to Meal Prep
           </Link>
         </div>
       </div>
@@ -163,51 +155,49 @@ export default function ExerciseHistory() {
     <div className="min-h-screen bg-gray-50">
       <nav className="bg-white shadow-sm">
         <div className="max-w-6xl mx-auto px-4 py-4">
-          <Link
-            href="/meal-prep"
-            className="text-blue-600 hover:text-blue-800 inline-flex items-center"
+          <Link 
+            href="/meal-prep" 
+            className="text-blue-600 hover:text-blue-800 inline-flex items-center gap-2"
           >
-            ← Back to Workout
+            <ArrowLeft size={16} />
+            Back to Meal Prep
           </Link>
         </div>
       </nav>
 
       <div className="max-w-4xl mx-auto px-4 py-8">
         <div className="bg-white rounded-lg shadow-lg p-6">
-          <div className="mb-6 flex justify-between items-start">
+          <div className="flex justify-between items-start mb-6">
             <div>
-              <h1 className="text-2xl font-bold text-gray-900">{exercise.name} History</h1>
-              <div className="mt-2 text-sm text-gray-600">
-                <p>Workout Type: {exercise.workout_type}</p>
-                <p>Target Set: {exercise.amount_sets} x {exercise.amount_reps} reps</p>
-                <p>Target Weight {exercise.weight} lbs </p>
-                <p>Rest Period: {exercise.rest_time} seconds</p>
+              <h1 className="text-2xl font-bold text-gray-900">{exercise.name}</h1>
+              <div className="mt-2 text-sm text-gray-600 space-y-1">
+                <p>Type: {exercise.workout_type}</p>
+                <p>Target: {exercise.amount_sets} sets × {exercise.amount_reps} reps</p>
+                <p>Weight: {exercise.weight} lbs</p>
+                <p>Rest: {exercise.rest_time} seconds</p>
               </div>
             </div>
-            <button
-              onClick={handleDeleteExercise}
-              disabled={isDeleting}
-              className="text-red-600 hover:text-red-800 disabled:text-red-300"
-              title="Delete Exercise"
-            >
-              <Trash size={20} />
-            </button>
-            
+            <div className="flex gap-2">
+              <button
+                onClick={() => router.push(`/exercise-form?id=${id}`)}
+                className="text-blue-600 hover:text-blue-800"
+                title="Edit Exercise"
+              >
+                <Edit size={20} />
+              </button>
+              <button
+                onClick={handleDeleteExercise}
+                disabled={isDeleting}
+                className="text-red-600 hover:text-red-800 disabled:text-red-300"
+                title="Delete Exercise"
+              >
+                <Trash size={20} />
+              </button>
+            </div>
           </div>
-          <button
-    onClick={() => setShowEditModal(true)}
-    className="text-blue-600 hover:text-blue-800"
-    title="Edit Exercise"
-  >
-    <Edit size={20} />
-  </button>
-          <div className="flex gap-1">
-  
- 
-</div>
 
           {history.length === 0 ? (
-            <p className="text-gray-600">No workout history yet</p>
+            <p className="text-gray-600">No workout history available</p>
           ) : (
             <div className="space-y-6">
               {history.map((session) => (
@@ -231,25 +221,22 @@ export default function ExerciseHistory() {
                       <X size={20} />
                     </button>
                   </div>
+                  
                   <div className="overflow-x-auto">
-                    <table className="w-full">
+                    <table className="min-w-full divide-y divide-gray-200">
                       <thead>
-                        <tr className="text-left">
-                          <th className="pb-2 pr-4">Set</th>
-                          <th className="pb-2 pr-4">Weight (lbs)</th>
-                          <th className="pb-2 pr-4">Reps</th>
-                          <th className="pb-2"></th>
+                        <tr>
+                          <th className="px-4 py-2 text-left text-sm font-medium text-gray-500">Set</th>
+                          <th className="px-4 py-2 text-left text-sm font-medium text-gray-500">Weight (lbs)</th>
+                          <th className="px-4 py-2 text-left text-sm font-medium text-gray-500">Reps</th>
                         </tr>
                       </thead>
-                      <tbody>
-                        {session.sets.map((set, index) => (
-                          <tr key={index} className={index % 2 === 0 ? 'bg-gray-50' : ''}>
-                            <td className="py-2 pr-4">{set.set_number}</td>
-                            <td className="py-2 pr-4">{set.weight}</td>
-                            <td className="py-2 pr-4">{set.reps}</td>
-                            <td className="py-2">
-                              
-                            </td>
+                      <tbody className="divide-y divide-gray-200">
+                        {session.sets.map((set) => (
+                          <tr key={set.set_number} className="hover:bg-gray-50">
+                            <td className="px-4 py-2 text-sm text-gray-900">{set.set_number}</td>
+                            <td className="px-4 py-2 text-sm text-gray-900">{set.weight}</td>
+                            <td className="px-4 py-2 text-sm text-gray-900">{set.reps}</td>
                           </tr>
                         ))}
                       </tbody>
@@ -261,15 +248,8 @@ export default function ExerciseHistory() {
           )}
         </div>
       </div>
-      <EditExerciseModal
-  isOpen={showEditModal}
-  onClose={() => setShowEditModal(false)}
-  exercise={exercise}
-  onUpdate={(updatedExercise) => {
-    setExercise(updatedExercise);
-    fetchExerciseAndHistory();
-  }}
-/>
     </div>
   );
-}
+};
+
+export default ExerciseDetailsPage;

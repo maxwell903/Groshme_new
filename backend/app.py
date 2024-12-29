@@ -332,7 +332,7 @@ def add_exercise_sets(exercise_id):
 
 
 @app.route('/api/exercise/<int:exercise_id>/sets/history', methods=['GET'])
-def get_exercise_history(exercise_id):
+def get_exercise_set_history(exercise_id):
     try:
         # Get all history records for this exercise
         histories = SetHistory.query\
@@ -340,10 +340,9 @@ def get_exercise_history(exercise_id):
             .order_by(SetHistory.created_at.desc())\
             .all()
         
-        # Prepare the response data
         history_data = []
         for history in histories:
-            # Get all sets for this history record
+            # Get sets for this history
             sets = IndividualSet.query\
                 .filter_by(set_history_id=history.id)\
                 .order_by(IndividualSet.set_number)\
@@ -360,8 +359,9 @@ def get_exercise_history(exercise_id):
             })
         
         return jsonify({'history': history_data})
+        
     except Exception as e:
-        print(f"Error fetching exercise history: {str(e)}")  # Add debug logging
+        print(f"Error fetching exercise history: {str(e)}")
         return jsonify({'error': str(e)}), 500
 
 
@@ -459,23 +459,27 @@ def delete_set(exercise_id, set_id):
         print(f"Error deleting set: {str(e)}")
         return jsonify({'error': str(e)}), 500
 
-@app.route('/api/exercise/<int:exercise_id>/history/<int:history_id>', methods=['DELETE'])
-def delete_exercise_history(exercise_id, history_id):
+
+app.route('/api/exercise/<int:exercise_id>/history/<int:history_id>', methods=['DELETE'])
+def delete_workout_history(exercise_id, history_id):
     try:
-        history = SetHistory.query.get_or_404(history_id)
-        
-        # Verify the history belongs to the correct exercise
-        if history.exercise_id != exercise_id:
-            return jsonify({'error': 'History does not belong to this exercise'}), 404
+        history = SetHistory.query\
+            .filter_by(id=history_id, exercise_id=exercise_id)\
+            .first_or_404()
             
+        # Delete associated sets first
+        IndividualSet.query.filter_by(set_history_id=history_id).delete()
+        
+        # Then delete the history record
         db.session.delete(history)
         db.session.commit()
-        return jsonify({'message': 'History deleted successfully'}), 200
+        
+        return jsonify({'message': 'Workout history deleted successfully'}), 200
+        
     except Exception as e:
         db.session.rollback()
-        print(f"Error deleting history: {str(e)}")
+        print(f"Error deleting workout history: {str(e)}")
         return jsonify({'error': str(e)}), 500
-
 
     
 
@@ -3261,6 +3265,48 @@ def get_recipe_nutrition(recipe_id):
     except Exception as e:
         print(f"Error getting nutrition info: {str(e)}")
         return jsonify({'error': str(e)}), 500
+    
+@app.route('/api/exercises/<int:exercise_id>', methods=['GET'])
+def get_exercise_details(exercise_id):
+    try:
+        exercise = Exercise.query.get_or_404(exercise_id)
+        
+        # Get the latest history
+        latest_history = SetHistory.query\
+            .filter_by(exercise_id=exercise_id)\
+            .order_by(SetHistory.created_at.desc())\
+            .first()
+            
+        latest_sets = []
+        if latest_history:
+            latest_sets = IndividualSet.query\
+                .filter_by(set_history_id=latest_history.id)\
+                .order_by(IndividualSet.set_number)\
+                .all()
+
+        return jsonify({
+            'id': exercise.id,
+            'name': exercise.name,
+            'workout_type': exercise.workout_type,
+            'major_groups': exercise.major_groups,
+            'minor_groups': exercise.minor_groups,
+            'amount_sets': exercise.amount_sets,
+            'amount_reps': exercise.amount_reps,
+            'weight': exercise.weight,
+            'rest_time': exercise.rest_time,
+            'latest_sets': [{
+                'set_number': set.set_number,
+                'reps': set.reps,
+                'weight': set.weight
+            } for set in latest_sets],
+            'latest_workout': latest_history.created_at.isoformat() if latest_history else None
+        })
+
+    except Exception as e:
+        print(f"Error fetching exercise details: {str(e)}")
+        return jsonify({'error': str(e)}), 500
+
+
     
 @app.route('/api/workouts', methods=['POST'])
 def create_workout():
