@@ -3371,6 +3371,58 @@ def get_exercise_details(exercise_id):
             'error_type': type(e).__name__
         }), 500
     
+
+# Add this route to your app.py
+
+@app.route('/api/exercise/<int:exercise_id>/sets', methods=['POST'])
+def save_exercise_sets(exercise_id):
+    try:
+        data = request.json
+        print(f"Received sets data for exercise {exercise_id}:", data)  # Debug log
+        
+        # Create new history entry
+        new_history = SetHistory(
+            exercise_id=exercise_id,
+            created_at=datetime.utcnow()
+        )
+        db.session.add(new_history)
+        db.session.flush()  # Get the history ID
+        
+        # Add all sets
+        for set_data in data['sets']:
+            new_set = IndividualSet(
+                exercise_id=exercise_id,
+                set_history_id=new_history.id,
+                set_number=set_data['set_number'],
+                reps=set_data['reps'],
+                weight=set_data['weight']
+            )
+            db.session.add(new_set)
+        
+        db.session.commit()
+        
+        # Return the saved sets with their IDs
+        sets_response = [{
+            'id': set.id,
+            'set_number': set.set_number,
+            'reps': set.reps,
+            'weight': set.weight
+        } for set in new_history.sets]
+        
+        return jsonify({
+            'message': 'Sets saved successfully',
+            'history_id': new_history.id,
+            'sets': sets_response,
+            'created_at': new_history.created_at.isoformat()
+        }), 201
+        
+    except Exception as e:
+        db.session.rollback()
+        print(f"Error saving sets: {str(e)}")
+        return jsonify({
+            'error': str(e)
+        }), 500
+
 @app.route('/api/workouts', methods=['POST'])
 def create_workout():
     try:
