@@ -3374,53 +3374,69 @@ def get_exercise_details(exercise_id):
 
 # Add this route to your app.py
 
+# Replace or update your sets endpoint in app.py
+
 @app.route('/api/exercise/<int:exercise_id>/sets', methods=['POST'])
 def save_exercise_sets(exercise_id):
     try:
+        # First verify the exercise exists
+        exercise = Exercise.query.get(exercise_id)
+        if not exercise:
+            return jsonify({'error': 'Exercise not found'}), 404
+
         data = request.json
         print(f"Received sets data for exercise {exercise_id}:", data)  # Debug log
-        
-        # Create new history entry
-        new_history = SetHistory(
-            exercise_id=exercise_id,
-            created_at=datetime.utcnow()
-        )
-        db.session.add(new_history)
-        db.session.flush()  # Get the history ID
-        
-        # Add all sets
-        for set_data in data['sets']:
-            new_set = IndividualSet(
+
+        with db.session.begin_nested():  # Create a savepoint
+            # Create new history entry
+            new_history = SetHistory(
                 exercise_id=exercise_id,
-                set_history_id=new_history.id,
-                set_number=set_data['set_number'],
-                reps=set_data['reps'],
-                weight=set_data['weight']
+                created_at=datetime.utcnow()
             )
-            db.session.add(new_set)
-        
+            db.session.add(new_history)
+            db.session.flush()  # Get the history ID
+            
+            print(f"Created history record with ID: {new_history.id}")  # Debug log
+            
+            # Add sets
+            for set_data in data.get('sets', []):
+                new_set = IndividualSet(
+                    exercise_id=exercise_id,
+                    set_history_id=new_history.id,
+                    set_number=set_data.get('set_number', 1),
+                    reps=set_data.get('reps', 0),
+                    weight=set_data.get('weight', 0)
+                )
+                db.session.add(new_set)
+            
+            db.session.flush()  # Ensure all sets are created
+            
+            # Query back the saved sets
+            saved_sets = IndividualSet.query.filter_by(
+                set_history_id=new_history.id
+            ).order_by(IndividualSet.set_number).all()
+            
+            response_data = {
+                'history_id': new_history.id,
+                'created_at': new_history.created_at.isoformat(),
+                'sets': [{
+                    'id': set.id,
+                    'set_number': set.set_number,
+                    'reps': set.reps,
+                    'weight': set.weight
+                } for set in saved_sets]
+            }
+
+        # If we got here, commit the transaction
         db.session.commit()
-        
-        # Return the saved sets with their IDs
-        sets_response = [{
-            'id': set.id,
-            'set_number': set.set_number,
-            'reps': set.reps,
-            'weight': set.weight
-        } for set in new_history.sets]
-        
-        return jsonify({
-            'message': 'Sets saved successfully',
-            'history_id': new_history.id,
-            'sets': sets_response,
-            'created_at': new_history.created_at.isoformat()
-        }), 201
-        
+        print("Successfully saved all sets")  # Debug log
+        return jsonify(response_data), 201
+
     except Exception as e:
         db.session.rollback()
         print(f"Error saving sets: {str(e)}")
         return jsonify({
-            'error': str(e)
+            'error': f"Failed to save sets: {str(e)}"
         }), 500
 
 @app.route('/api/workouts', methods=['POST'])

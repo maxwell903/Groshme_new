@@ -1,10 +1,11 @@
 import React, { useState, useEffect } from 'react';
-import { X } from 'lucide-react';
-import { fetchApi, API_URL } from '@/utils/api';
+import { X, Loader } from 'lucide-react';
+import { API_URL } from '@/utils/api';
 
 const SetsModal = ({ exercise, isOpen, onClose }) => {
   const [sets, setSets] = useState([]);
   const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState(null);
 
   useEffect(() => {
     // Initialize sets based on exercise.amount_sets
@@ -21,16 +22,24 @@ const SetsModal = ({ exercise, isOpen, onClose }) => {
   // Fetch existing sets if any
   useEffect(() => {
     const fetchExistingSets = async () => {
+      if (!exercise?.id) return;
+      
       try {
         const response = await fetch(`${API_URL}/api/exercise/${exercise.id}/sets`);
-        if (response.ok) {
-          const data = await response.json();
-          if (data.sets && data.sets.length > 0) {
+        const text = await response.text();
+        
+        try {
+          const data = JSON.parse(text);
+          if (response.ok && data.sets?.length > 0) {
             setSets(data.sets);
           }
+        } catch (e) {
+          console.error('Error parsing response:', text);
+          throw new Error('Invalid response from server');
         }
       } catch (error) {
         console.error('Error fetching existing sets:', error);
+        setError('Failed to load existing sets');
       }
     };
 
@@ -43,7 +52,7 @@ const SetsModal = ({ exercise, isOpen, onClose }) => {
     const newSets = [...sets];
     newSets[index] = {
       ...newSets[index],
-      [field]: parseFloat(value) || 0
+      [field]: value ? parseFloat(value) : 0
     };
     setSets(newSets);
   };
@@ -51,26 +60,44 @@ const SetsModal = ({ exercise, isOpen, onClose }) => {
   const handleSubmit = async (e) => {
     e.preventDefault();
     setSubmitting(true);
+    setError(null);
 
     try {
+      // Validate sets data
+      const validSets = sets.map(set => ({
+        set_number: parseInt(set.set_number, 10),
+        weight: parseFloat(set.weight) || 0,
+        reps: parseInt(set.reps, 10) || 0
+      }));
+
       const response = await fetch(`${API_URL}/api/exercise/${exercise.id}/sets`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json'
         },
-        body: JSON.stringify({ sets })
+        body: JSON.stringify({ 
+          sets: validSets
+        })
       });
 
+      const text = await response.text();
+      let data;
+      try {
+        data = JSON.parse(text);
+      } catch (e) {
+        console.error('Invalid JSON response:', text);
+        throw new Error('Invalid response from server');
+      }
+
       if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error || 'Failed to save sets');
+        throw new Error(data.error || 'Failed to save sets');
       }
 
       // Success
       onClose();
     } catch (error) {
       console.error('Error saving sets:', error);
-      alert(error.message);
+      setError(error.message || 'Failed to save sets');
     } finally {
       setSubmitting(false);
     }
@@ -91,13 +118,19 @@ const SetsModal = ({ exercise, isOpen, onClose }) => {
           </button>
         </div>
 
+        {error && (
+          <div className="mb-4 p-3 bg-red-100 text-red-700 rounded-md">
+            {error}
+          </div>
+        )}
+
         <form onSubmit={handleSubmit}>
           <div className="space-y-4">
             {sets.map((set, index) => (
               <div key={index} className="grid grid-cols-3 gap-4 p-4 bg-gray-50 rounded-lg">
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Set {index + 1}
+                    Set {set.set_number}
                   </label>
                   <input
                     type="number"
@@ -140,17 +173,23 @@ const SetsModal = ({ exercise, isOpen, onClose }) => {
               type="button"
               onClick={onClose}
               className="px-4 py-2 text-gray-600 hover:text-gray-800"
+              disabled={submitting}
             >
               Cancel
             </button>
             <button
               type="submit"
               disabled={submitting}
-              className={`px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 ${
-                submitting ? 'opacity-50 cursor-not-allowed' : ''
-              }`}
+              className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:opacity-50 flex items-center gap-2"
             >
-              {submitting ? 'Saving...' : 'Save Sets'}
+              {submitting ? (
+                <>
+                  <Loader className="animate-spin h-4 w-4" />
+                  Saving...
+                </>
+              ) : (
+                'Save Sets'
+              )}
             </button>
           </div>
         </form>
