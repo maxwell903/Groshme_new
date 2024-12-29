@@ -167,6 +167,87 @@ class SetHistory(db.Model):
     sets = db.relationship('IndividualSet', backref='history', lazy=True, cascade='all, delete-orphan')
 
 
+@app.route('/debug/routes', methods=['GET'])
+def list_routes():
+    routes = []
+    for rule in app.url_map.iter_rules():
+        routes.append({
+            'endpoint': rule.endpoint,
+            'methods': list(rule.methods),
+            'path': str(rule)
+        })
+    return jsonify({
+        'routes': routes,
+        'total_routes': len(routes)
+    })
+
+# Also add this simple test route
+@app.route('/api/test', methods=['GET'])
+def test_route():
+    return jsonify({
+        'message': 'API is working',
+        'database_url': db_url is not None,
+        'database_connected': db is not None
+    })
+
+# Add this route to verify database connection
+@app.route('/api/exercises/test', methods=['GET'])
+def test_exercises_table():
+    try:
+        # Test the database connection with proper row handling
+        with db.engine.connect() as connection:
+            # Get total count
+            result = connection.execute(text('SELECT COUNT(*) as count FROM exercises'))
+            count = result.scalar()
+            
+            # Get sample exercise with explicit column selection
+            result = connection.execute(text('''
+                SELECT 
+                    id,
+                    name,
+                    workout_type,
+                    amount_sets,
+                    amount_reps,
+                    weight,
+                    rest_time
+                FROM exercises 
+                LIMIT 1
+            '''))
+            
+            row = result.fetchone()
+            
+            if row:
+                sample = {
+                    'id': row.id,
+                    'name': row.name,
+                    'workout_type': row.workout_type,
+                    'amount_sets': row.amount_sets,
+                    'amount_reps': row.amount_reps,
+                    'weight': row.weight,
+                    'rest_time': row.rest_time
+                }
+            else:
+                sample = None
+
+        return jsonify({
+            'success': True,
+            'total_exercises': count,
+            'sample_exercise': sample,
+            'database_connected': True
+        })
+        
+    except Exception as e:
+        print(f"Database test error: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        return jsonify({
+            'success': False,
+            'error': str(e),
+            'database_connected': False,
+            'error_type': type(e).__name__
+        }), 500
+
+
 
 @app.route('/health', methods=['GET'])
 def health_check():
@@ -1226,33 +1307,47 @@ def parse_receipt_bill():
 
 
 @app.route('/api/exercises', methods=['GET'])
-def get_exercises():
+def list_exercises():
     try:
-        engine = create_engine(db_url, poolclass=NullPool)
-        with engine.connect() as connection:
-            result = connection.execute(text("""
-                SELECT id, name, workout_type, major_groups, minor_groups, 
-                       amount_sets, amount_reps, weight, rest_time
-                FROM exercises
+        with db.engine.connect() as connection:
+            result = connection.execute(text('''
+                SELECT 
+                    id,
+                    name,
+                    workout_type,
+                    amount_sets,
+                    amount_reps,
+                    weight,
+                    rest_time
+                FROM exercises 
                 ORDER BY name
-            """))
+            '''))
             
             exercises = [{
                 'id': row.id,
                 'name': row.name,
                 'workout_type': row.workout_type,
-                'major_groups': row.major_groups,
-                'minor_groups': row.minor_groups,
                 'amount_sets': row.amount_sets,
                 'amount_reps': row.amount_reps,
                 'weight': row.weight,
                 'rest_time': row.rest_time
             } for row in result]
             
-            return jsonify({'exercises': exercises})
+            return jsonify({
+                'success': True,
+                'exercises': exercises,
+                'count': len(exercises)
+            })
+            
     except Exception as e:
-        print(f"Error fetching exercises: {str(e)}")
-        return jsonify({'error': str(e)}), 500
+        print(f"Error listing exercises: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        return jsonify({
+            'success': False,
+            'error': str(e),
+            'error_type': type(e).__name__
+        }), 500
 
 @app.route('/api/exercise', methods=['POST'])
 def create_exercise():
@@ -3233,34 +3328,48 @@ def get_recipe_nutrition(recipe_id):
 @app.route('/api/exercises/<int:exercise_id>', methods=['GET'])
 def get_exercise_details(exercise_id):
     try:
-        print(f"Attempting to fetch exercise ID: {exercise_id}")  # Debug log
-        
-        # Use SQLAlchemy to query the exercise
-        exercise = db.session.query(Exercise).get_or_404(exercise_id)
-        
-        print(f"Found exercise: {exercise.name}")  # Debug log
-        
-        # Prepare response data
-        response_data = {
-            'id': exercise.id,
-            'name': exercise.name,
-            'workout_type': exercise.workout_type,
-            'major_groups': exercise.major_groups,
-            'minor_groups': exercise.minor_groups,
-            'amount_sets': exercise.amount_sets,
-            'amount_reps': exercise.amount_reps,
-            'weight': exercise.weight,
-            'rest_time': exercise.rest_time
-        }
-        
-        print(f"Sending response: {response_data}")  # Debug log
-        return jsonify(response_data)
-        
+        # Connect to database explicitly
+        with db.engine.connect() as connection:
+            # Fetch exercise with explicit column selection
+            result = connection.execute(text('''
+                SELECT 
+                    id,
+                    name,
+                    workout_type,
+                    amount_sets,
+                    amount_reps,
+                    weight,
+                    rest_time
+                FROM exercises 
+                WHERE id = :exercise_id
+            '''), {'exercise_id': exercise_id})
+            
+            exercise = result.fetchone()
+            
+            if not exercise:
+                return jsonify({'error': 'Exercise not found'}), 404
+            
+            # Convert to dictionary with explicit mapping
+            exercise_data = {
+                'id': exercise.id,
+                'name': exercise.name,
+                'workout_type': exercise.workout_type,
+                'amount_sets': exercise.amount_sets,
+                'amount_reps': exercise.amount_reps,
+                'weight': exercise.weight,
+                'rest_time': exercise.rest_time
+            }
+            
+            return jsonify(exercise_data)
+            
     except Exception as e:
-        print(f"Error fetching exercise: {str(e)}")  # Debug log
-        db.session.rollback()
-        return jsonify({'error': str(e)}), 500
-
+        print(f"Error fetching exercise: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        return jsonify({
+            'error': str(e),
+            'error_type': type(e).__name__
+        }), 500
     
 @app.route('/api/workouts', methods=['POST'])
 def create_workout():
