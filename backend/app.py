@@ -1095,6 +1095,46 @@ def get_workout_exercises(workout_id):
         print(f"Error fetching workout exercises: {str(e)}")
         return jsonify({'error': str(e)}), 500
 
+
+@app.route('/api/exercises/<int:exercise_id>/history/<int:history_id>', methods=['DELETE', 'OPTIONS'])
+def delete_exercise_history(exercise_id, history_id):
+    # Handle OPTIONS request for CORS preflight
+    if request.method == 'OPTIONS':
+        response = jsonify({'status': 'ok'})
+        response.headers.add('Access-Control-Allow-Origin', '*')
+        response.headers.add('Access-Control-Allow-Methods', 'DELETE')
+        response.headers.add('Access-Control-Allow-Headers', 'Content-Type')
+        return response
+
+    try:
+        # Verify the history belongs to this exercise and get both in one query
+        with db.session.begin_nested():  # Create savepoint
+            history = SetHistory.query.filter_by(
+                id=history_id,
+                exercise_id=exercise_id
+            ).first_or_404()
+            
+            # Delete associated sets first to maintain referential integrity
+            IndividualSet.query.filter_by(set_history_id=history_id).delete()
+            
+            # Then delete the history record
+            db.session.delete(history)
+            
+        # If no exceptions occurred, commit the transaction
+        db.session.commit()
+        
+        response = jsonify({'message': 'Exercise history deleted successfully'})
+        response.headers.add('Access-Control-Allow-Origin', '*')
+        return response, 200
+        
+    except Exception as e:
+        db.session.rollback()
+        print(f"Error deleting exercise history: {str(e)}")
+        return jsonify({
+            'error': 'Failed to delete exercise history',
+            'details': str(e)
+        }), 500
+
 @app.route('/api/workouts/<int:workout_id>/exercise', methods=['POST'])
 def add_workout_exercise():
     try:
