@@ -68,13 +68,13 @@ const ExerciseCard = ({ exercise }) => {
               onClick={() => setShowSetsModal(true)}
               className="flex-1 bg-blue-600 text-white px-3 py-2 rounded-md hover:bg-blue-700 text-sm"
             >
-              Sets
+              Log Sets
             </button>
             <button
               onClick={() => router.push(`/exercise/${exercise.id}`)}
               className="flex-1 bg-green-600 text-white px-3 py-2 rounded-md hover:bg-green-700 text-sm"
             >
-              History
+              Set History
             </button>
           </div>
         </div>
