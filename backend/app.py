@@ -412,6 +412,53 @@ def add_exercise_sets(exercise_id):
     except Exception as e:
         print(f"Error saving sets: {str(e)}")
         return jsonify({'error': str(e)}), 500
+    
+@app.route('/api/exercise/<int:exercise_id>/sets/<int:history_id>', methods=['DELETE'])
+def delete_exercise_sets(exercise_id, history_id):
+    try:
+        engine = create_engine(db_url, poolclass=NullPool)
+        
+        with engine.connect() as connection:
+            # Start a transaction
+            with connection.begin():
+                # First verify the history belongs to this exercise
+                result = connection.execute(
+                    text("""
+                        SELECT id FROM set_history 
+                        WHERE id = :history_id AND exercise_id = :exercise_id
+                    """),
+                    {
+                        'history_id': history_id,
+                        'exercise_id': exercise_id
+                    }
+                )
+                
+                if not result.fetchone():
+                    return jsonify({'error': 'Set history not found for this exercise'}), 404
+                
+                # Delete all individual sets for this history
+                connection.execute(
+                    text("""
+                        DELETE FROM individual_set 
+                        WHERE set_history_id = :history_id
+                    """),
+                    {'history_id': history_id}
+                )
+                
+                # Delete the history entry
+                connection.execute(
+                    text("""
+                        DELETE FROM set_history 
+                        WHERE id = :history_id
+                    """),
+                    {'history_id': history_id}
+                )
+            
+            return jsonify({'message': 'Exercise sets deleted successfully'})
+            
+    except Exception as e:
+        print(f"Error deleting sets: {str(e)}")
+        return jsonify({'error': str(e)}), 500
 
 
 @app.route('/api/exercises/<int:exercise_id>/sets/history', methods=['GET'])
