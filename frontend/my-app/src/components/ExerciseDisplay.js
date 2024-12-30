@@ -10,6 +10,22 @@ const ExerciseCard = ({ exercise }) => {
     const [showSetsModal, setShowSetsModal] = useState(false);
     const [showDaySelector, setShowDaySelector] = useState(false);
     const router = useRouter();
+    const [latestSet, setLatestSet] = useState(null);
+
+    useEffect(() => {
+      const fetchLatestSet = async () => {
+        try {
+          const response = await fetch(`${API_URL}/api/exercises/${exercise.id}/sets/latest`);
+          if (!response.ok) throw new Error('Failed to fetch latest set');
+          const data = await response.json();
+          setLatestSet(data.latestSet);
+        } catch (err) {
+          console.error('Error fetching latest set:', err);
+        }
+      };
+  
+      fetchLatestSet();
+    }, [exercise.id]);
   
   
     const handleDaySelect = async (day) => {
@@ -38,27 +54,23 @@ const ExerciseCard = ({ exercise }) => {
   
     return (
       <>
-      <div className="flex-none w-64 bg-white p-4 rounded-lg shadow-md">
-        <div className="flex justify-between items-start">
-          <h3 className="text-lg font-semibold mb-2">{exercise.name}</h3>
-          <button
-            onClick={() => setShowDaySelector(true)}
-            className="text-blue-600 hover:text-blue-800"
-            title="Add to Weekly Plan"
-          >
-            <Plus size={20} className="rounded-full border-2 border-current" />
-          </button>
-        </div>
-      
+        <div className="flex-none w-64 bg-white p-4 rounded-lg shadow-md">
+          <div className="flex justify-between items-start">
+            <h3 className="text-lg font-semibold mb-2">{exercise.name}</h3>
+            <button
+              onClick={() => setShowDaySelector(true)}
+              className="text-blue-600 hover:text-blue-800"
+              title="Add to Weekly Plan"
+            >
+              <Plus size={20} className="rounded-full border-2 border-current" />
+            </button>
+          </div>
+  
           <p className="text-sm text-gray-600 mb-1">
-            Major: {Array.isArray(exercise.major_groups) 
-              ? exercise.major_groups.join(', ') 
-              : exercise.major_groups}
+            Target set: {exercise.amount_reps} reps × {exercise.weight} lbs
           </p>
           <p className="text-sm text-gray-600">
-            Minor: {Array.isArray(exercise.minor_groups) 
-              ? exercise.minor_groups.join(', ') 
-              : exercise.minor_groups}
+            Last top set: {latestSet ? `${latestSet.reps} reps × ${latestSet.weight} lbs` : 'N/A'}
           </p>
           <div className="mt-2 text-sm text-gray-500">
             {exercise.amount_sets} sets • Rest: {exercise.rest_time}s
