@@ -325,6 +325,50 @@ def delete_individual_set(set_id):
         print(f"Error deleting set: {str(e)}")
         return jsonify({'error': str(e)}), 500
     
+@app.route('/api/exercises/<int:exercise_id>', methods=['PUT'])
+def update_exercise(exercise_id):
+    try:
+        data = request.json
+        
+        # Validate required fields
+        required_fields = ['name', 'workout_type', 'major_groups', 'minor_groups', 
+                           'amount_sets', 'amount_reps', 'weight', 'rest_time']
+        if not all(field in data for field in required_fields):
+            return jsonify({'error': 'Missing required fields'}), 400
+            
+        # Get the exercise
+        exercise = Exercise.query.get_or_404(exercise_id)
+        
+        # Update fields
+        exercise.name = data['name']
+        exercise.workout_type = data['workout_type']
+        exercise.major_groups = data['major_groups']
+        exercise.minor_groups = data['minor_groups']
+        exercise.amount_sets = data['amount_sets']
+        exercise.amount_reps = data['amount_reps'] 
+        exercise.weight = data['weight']
+        exercise.rest_time = data['rest_time']
+        
+        db.session.commit()
+        
+        # Return updated exercise
+        return jsonify({
+            'id': exercise.id,
+            'name': exercise.name,
+            'workout_type': exercise.workout_type,
+            'major_groups': exercise.major_groups,
+            'minor_groups': exercise.minor_groups,
+            'amount_sets': exercise.amount_sets,
+            'amount_reps': exercise.amount_reps,
+            'weight': exercise.weight,
+            'rest_time': exercise.rest_time
+        })
+        
+    except Exception as e:
+        db.session.rollback()
+        print(f"Error updating exercise: {str(e)}")
+        return jsonify({'error': str(e)}), 500
+    
 @app.route('/api/exercises/<int:exercise_id>', methods=['DELETE', 'PUT', 'OPTIONS'])
 def manage_exercise(exercise_id):
     # Handle OPTIONS request for CORS
