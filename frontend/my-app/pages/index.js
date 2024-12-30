@@ -421,9 +421,9 @@ export default function Home() {
     <div className="min-h-screen bg-gray-50">
       <div className="relative bg-white">
         <div className="absolute inset-0 bg-gradient-to-br from-blue-50 to-blue-100" />
-        <div className="relative mx-auto max-w-6xl px-4 py-20">
+        <div className="relative mx-auto max-w-6xl px-4 sm:px-6 lg:px-8 py-20">
           <div className="text-center">
-            <h1 className="mb-6 text-4xl font-bold text-gray-900">
+            <h1 className="mb-6 text-3xl sm:text-4xl font-bold text-gray-900">
               Recipe Finder
             </h1>
             
@@ -431,41 +431,39 @@ export default function Home() {
               Total Recipes: {homeData.total_recipes}
             </p>
             
-            
-            <Link 
-  href="/all-recipes"
-  className="px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 transition-colors"
->
-  My Recipes
-</Link>
+            <div className="mt-8 space-y-4 sm:space-y-0 sm:flex sm:justify-center sm:space-x-4">
               <Link 
-  href="/my-fridge"
-  className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors"
-  onClick={() => localStorage.setItem('previousPath', '/')}
->
-  My Food
-</Link>
-
-               <Link 
-   href="/meal-prep"
-   className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors"
-   onClick={() => localStorage.setItem('previousPath', '/')}
- >
-  My Fitness
- </Link>
-
+                href="/all-recipes"
+                className="block w-full sm:w-auto px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 transition-colors text-center"
+              >
+                My Recipes
+              </Link>
+              <Link 
+                href="/my-fridge"
+                className="block w-full sm:w-auto px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors text-center"
+                onClick={() => localStorage.setItem('previousPath', '/')}
+              >
+                My Food
+              </Link>
+              <Link 
+                href="/meal-prep"
+                className="block w-full sm:w-auto px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors text-center"
+                onClick={() => localStorage.setItem('previousPath', '/')}
+              >
+                My Fitness
+              </Link>
               <Link 
                 href="/grocery-bill"
-                className="inline-block rounded-lg bg-gray-600 px-6 py-3 text-white hover:bg-yellow-700 transition-colors duration-200"
+                className="block w-full sm:w-auto px-6 py-3 bg-gray-600 text-white rounded-lg hover:bg-yellow-700 transition-colors duration-200 text-center"
                 onClick={() => localStorage.setItem('previousPath', '/')}
               >
                 Grocery Bill
               </Link>
-              <div className="mt-8">
-          <EmailToMyselfButton />
-        </div>
-             
-           
+            </div>
+
+            <div className="mt-8">
+              <EmailToMyselfButton />
+            </div>
 
             {error && (
               <div className="mb-8 rounded-lg bg-green-100 p-4 text-red-700">
@@ -477,39 +475,37 @@ export default function Home() {
       </div>
 
       <div className="py-16">
-        <div className="mx-auto max-w-6xl px-4">
+        <div className="mx-auto max-w-6xl px-4 sm:px-6 lg:px-8">
           <h2 className="mb-8 text-2xl font-bold text-gray-900">Latest Recipes</h2>
-          <div className="grid gap-8 sm:grid-cols-2 lg:grid-cols-3">
-          {homeData.latest_recipes.map((recipe) => (
-  <Link 
-    href={`/recipe/${recipe.id}`}
-    key={recipe.id}
-    className="block no-underline"
-    onClick={() => {
-      localStorage.setItem('actualPreviousPath', '/');
-      localStorage.setItem('lastPath', '/');
-    }}
-  >
-    <div className="rounded-lg bg-white p-6 shadow-lg transition-all hover:-translate-y-1 hover:shadow-xl cursor-pointer">
-      <h3 className="mb-2 text-lg font-semibold text-gray-900">{recipe.name}</h3>
-      <p className="mb-4 text-gray-600">{recipe.description}</p>
-      {/* Add Total Nutrition Information */}
-      <p className="text-sm text-gray-500 mb-1">
-        
-        Protein: {recipe.total_nutrition?.protein_grams || 0}g • 
-        Fat: {recipe.total_nutrition?.fat_grams || 0}g • 
-        Carbs: {recipe.total_nutrition?.carbs_grams || 0}g
-      </p>
-      <p className="text-m text-gray-500">
-        Prep time: {recipe.name} 
-      </p>
-      <div className="mt-4 text-green-600 hover:text-green-700">
-        View Recipe →
-      </div>
-    </div>
-  </Link>
-  
-))}
+          <div className="grid gap-8 grid-cols-1 sm:grid-cols-2 md:grid-cols-3">
+            {homeData.latest_recipes.map((recipe) => (
+              <Link 
+                href={`/recipe/${recipe.id}`}
+                key={recipe.id}
+                className="block no-underline"
+                onClick={() => {
+                  localStorage.setItem('actualPreviousPath', '/');
+                  localStorage.setItem('lastPath', '/');
+                }}
+              >
+                <div className="rounded-lg bg-white p-6 shadow-lg transition-all hover:-translate-y-1 hover:shadow-xl cursor-pointer">
+                  <h3 className="mb-2 text-lg font-semibold text-gray-900">{recipe.name}</h3>
+                  <p className="mb-4 text-gray-600">{recipe.description}</p>
+                  {/* Add Total Nutrition Information */}
+                  <p className="text-sm text-gray-500 mb-1">
+                    Protein: {recipe.total_nutrition?.protein_grams || 0}g •
+                    Fat: {recipe.total_nutrition?.fat_grams || 0}g •
+                    Carbs: {recipe.total_nutrition?.carbs_grams || 0}g
+                  </p>
+                  <p className="text-m text-gray-500">
+                    Prep time: {recipe.name}
+                  </p>
+                  <div className="mt-4 text-green-600 hover:text-green-700">
+                    View Recipe →
+                  </div>
+                </div>
+              </Link>
+            ))}
           </div>
         </div>
       </div>
