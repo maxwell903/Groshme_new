@@ -12,8 +12,8 @@ const SetsModal = ({ exercise, isOpen, onClose }) => {
     if (exercise) {
       const initialSets = Array.from({ length: exercise.amount_sets }, (_, index) => ({
         set_number: index + 1,
-        weight: exercise.weight || 0,
-        reps: exercise.amount_reps || 0
+        weight: exercise.weight || '',
+        reps: exercise.amount_reps || ''
       }));
       setSets(initialSets);
     }
@@ -52,7 +52,7 @@ const SetsModal = ({ exercise, isOpen, onClose }) => {
     const newSets = [...sets];
     newSets[index] = {
       ...newSets[index],
-      [field]: value ? parseFloat(value) : 0
+      [field]: value ? parseFloat(value) : ''
     };
     setSets(newSets);
   };
@@ -66,8 +66,8 @@ const SetsModal = ({ exercise, isOpen, onClose }) => {
       // Validate sets data
       const validSets = sets.map(set => ({
         set_number: parseInt(set.set_number, 10),
-        weight: parseFloat(set.weight) || 0,
-        reps: parseInt(set.reps, 10) || 0
+        weight: parseFloat(set.weight) || '',
+        reps: parseInt(set.reps, 10) || ''
       }));
 
       const response = await fetch(`${API_URL}/api/exercises/${exercise.id}/sets`, {
@@ -148,8 +148,8 @@ const SetsModal = ({ exercise, isOpen, onClose }) => {
                     value={set.weight}
                     onChange={(e) => handleSetChange(index, 'weight', e.target.value)}
                     className="w-full p-2 border rounded"
-                    min="0"
-                    step="2.5"
+                    min=''
+                    step="5"
                   />
                 </div>
                 <div>
@@ -161,7 +161,7 @@ const SetsModal = ({ exercise, isOpen, onClose }) => {
                     value={set.reps}
                     onChange={(e) => handleSetChange(index, 'reps', e.target.value)}
                     className="w-full p-2 border rounded"
-                    min="0"
+                    min=''
                   />
                 </div>
               </div>
