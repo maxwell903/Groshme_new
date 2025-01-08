@@ -10,7 +10,7 @@ const TransactionEditModal = ({ isOpen, onClose, transactions = [], onSave }) =>
     if (newSelected.has(transactionId)) {
       newSelected.delete(transactionId);
     } else {
-      newSelected.add(transactionId);
+      newSelected.add(transactionId); 
     }
     setSelectedTransactions(newSelected);
   };
@@ -57,7 +57,7 @@ const TransactionEditModal = ({ isOpen, onClose, transactions = [], onSave }) =>
                 <div className="relative">
                   <span className="absolute left-3 top-2 text-gray-500">$</span>
                   <input
-                    type="number"
+                    type="number" 
                     value={editedAmounts[transaction.id] ?? transaction.amount}
                     onChange={(e) => handleAmountChange(transaction.id, e.target.value)}
                     className="w-full border rounded-md p-2 pl-8"

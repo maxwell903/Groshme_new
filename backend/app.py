@@ -4343,11 +4343,11 @@ def update_transactions(entry_id):
                     connection.execute(
                         text("""
                             DELETE FROM payments_history
-                            WHERE id = ANY(:transaction_ids)
+                            WHERE id = ANY(:transaction_ids)  
                             AND income_entry_id = :entry_id
                         """),
                         {
-                            "transaction_ids": data['toDelete'],
+                            "transaction_ids": data['toDelete'], 
                             "entry_id": entry_id
                         }
                     )
@@ -4359,7 +4359,7 @@ def update_transactions(entry_id):
                             UPDATE payments_history
                             SET amount = :amount
                             WHERE id = :transaction_id
-                            AND income_entry_id = :entry_id
+                            AND income_entry_id = :entry_id  
                         """),
                         {
                             "amount": float(new_amount),
