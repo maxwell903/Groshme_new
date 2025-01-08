@@ -257,7 +257,7 @@ const IncomeEntry = ({ entry, onEdit, onDelete }) => {
 export default function MyBills() {
   const [showModal, setShowModal] = useState(false);
   const [entries, setEntries] = useState([]);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
   const [editingEntry, setEditingEntry] = useState(null);
   const [summary, setSummary] = useState({
