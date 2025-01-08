@@ -170,6 +170,17 @@ class SetHistory(db.Model):
     sets = db.relationship('IndividualSet', backref='history', lazy=True, cascade='all, delete-orphan')
 
 
+class PaymentHistory(db.Model):
+    __tablename__ = 'payments_history'
+    id = db.Column(db.Integer, primary_key=True)
+    income_entry_id = db.Column(db.UUID, db.ForeignKey('income_entries.id'), nullable=False)
+    amount = db.Column(db.Float, nullable=False)
+    payment_date = db.Column(db.Date, nullable=False)
+    title = db.Column(db.String(100))  # Add this for one-time payment titles
+    is_one_time = db.Column(db.Boolean, default=False)
+    created_at = db.Column(db.DateTime, default=db.func.current_timestamp())
+
+
 @app.route('/debug/routes', methods=['GET'])
 def list_routes():
     routes = []
@@ -4095,8 +4106,10 @@ def get_income_entries():
                                 'id', id,
                                 'amount', amount,
                                 'transaction_date', payment_date,
+                                'title', title,
+                                'is_one_time', is_one_time,
                                 'created_at', created_at
-                            )
+                            ) ORDER BY payment_date DESC
                         ) as transactions
                     FROM payments_history
                     GROUP BY income_entry_id
@@ -4341,16 +4354,16 @@ def update_transactions(entry_id):
                 # Handle deletions
                 if data.get('toDelete'):
                     connection.execute(
-    text("""
-        DELETE FROM payments_history
-        WHERE id = ANY(CAST(:transaction_ids AS UUID[]))
-        AND income_entry_id = :entry_id
-    """),
-    {
-        "transaction_ids": data['toDelete'],
-        "entry_id": entry_id
-    }
-)
+                        text("""
+                            DELETE FROM payments_history
+                            WHERE id = ANY(:transaction_ids)
+                            AND income_entry_id = :entry_id
+                        """),
+                        {
+                            "transaction_ids": data['toDelete'],
+                            "entry_id": entry_id
+                        }
+                    )
                 
                 # Handle amount updates
                 for transaction_id, new_amount in data.get('amountUpdates', {}).items():
@@ -4367,8 +4380,50 @@ def update_transactions(entry_id):
                             "entry_id": entry_id
                         }
                     )
+                
+                # Handle title updates
+                for transaction_id, new_title in data.get('titleUpdates', {}).items():
+                    connection.execute(
+                        text("""
+                            UPDATE payments_history
+                            SET title = :title
+                            WHERE id = :transaction_id
+                            AND income_entry_id = :entry_id
+                            AND is_one_time = true
+                        """),
+                        {
+                            "title": new_title,
+                            "transaction_id": transaction_id,
+                            "entry_id": entry_id
+                        }
+                    )
             
-            return jsonify({'message': 'Transactions updated successfully'})
+            # Fetch updated transactions
+            result = connection.execute(
+                text("""
+                    SELECT 
+                        id, amount, payment_date as transaction_date,
+                        title, is_one_time, created_at
+                    FROM payments_history
+                    WHERE income_entry_id = :entry_id
+                    ORDER BY payment_date DESC
+                """),
+                {"entry_id": entry_id}
+            )
+            
+            updated_transactions = [{
+                'id': row.id,
+                'amount': float(row.amount),
+                'transaction_date': row.transaction_date.isoformat(),
+                'title': row.title,
+                'is_one_time': row.is_one_time,
+                'created_at': row.created_at.isoformat()
+            } for row in result]
+            
+            return jsonify({
+                'message': 'Transactions updated successfully',
+                'transactions': updated_transactions
+            })
             
     except Exception as e:
         print(f"Error updating transactions: {str(e)}")
@@ -4390,25 +4445,37 @@ def add_one_time_income(entry_id):
             if not entry:
                 return jsonify({'error': 'Income entry not found'}), 404
                 
-            # Add one-time transaction with title
-            connection.execute(
+            # Add one-time transaction
+            result = connection.execute(
                 text("""
                     INSERT INTO payments_history (
-                        income_entry_id, amount, payment_date, is_one_time, title
+                        income_entry_id, amount, payment_date, title, is_one_time
                     ) VALUES (
-                        :entry_id, :amount, :payment_date, true, :title
+                        :entry_id, :amount, :payment_date, :title, true
                     )
+                    RETURNING id, amount, payment_date, title, is_one_time
                 """),
                 {
                     'entry_id': entry_id,
                     'amount': float(data['amount']),
                     'payment_date': data['transaction_date'],
-                    'title': data['title']
+                    'title': data.get('title')
                 }
             )
             
+            new_transaction = result.fetchone()
             connection.commit()
-            return jsonify({'message': 'One-time income added successfully'}), 201
+            
+            return jsonify({
+                'message': 'One-time income added successfully',
+                'transaction': {
+                    'id': new_transaction.id,
+                    'amount': float(new_transaction.amount),
+                    'transaction_date': new_transaction.payment_date.isoformat(),
+                    'title': new_transaction.title,
+                    'is_one_time': new_transaction.is_one_time
+                }
+            }), 201
             
     except Exception as e:
         print(f"Error adding one-time income: {str(e)}")

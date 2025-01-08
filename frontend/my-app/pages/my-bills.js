@@ -202,167 +202,148 @@ const AddIncomeModal = ({ isOpen, onClose, onSubmit, initialData = null }) => {
   );
 };
 
+
+
 const IncomeEntry = ({ entry, onEdit, onDelete, onTransactionsUpdate }) => {
-    const [showTransactionModal, setShowTransactionModal] = useState(false);
-    const [showOneTimeIncomeModal, setShowOneTimeIncomeModal] = useState(false);
-  
-    // Group transactions by type (recurring vs one-time)
-    const groupedTransactions = entry.transactions.reduce((acc, transaction) => {
-      if (transaction.title) {
-        if (!acc.oneTime[transaction.title]) {
-          acc.oneTime[transaction.title] = [];
-        }
-        acc.oneTime[transaction.title].push(transaction);
-      } else {
-        acc.recurring.push(transaction);
+  const [showTransactionModal, setShowTransactionModal] = useState(false);
+  const [showOneTimeIncomeModal, setShowOneTimeIncomeModal] = useState(false);
+
+  const handleTransactionUpdate = async (updates) => {
+    try {
+      await fetchApi(`/api/income-entries/${entry.id}/transactions`, {
+        method: 'POST',
+        body: JSON.stringify(updates)
+      });
+      
+      if (onTransactionsUpdate) {
+        onTransactionsUpdate();
       }
-      return acc;
-    }, { recurring: [], oneTime: {} });
-  
-    const handleTransactionUpdate = async (updates) => {
-      try {
-        await fetchApi(`/api/income-entries/${entry.id}/transactions`, {
-          method: 'POST',
-          body: JSON.stringify(updates)
-        });
-        
-        if (onTransactionsUpdate) {
-          onTransactionsUpdate();
-        }
-      } catch (error) {
-        console.error('Error updating transactions:', error);
+    } catch (error) {
+      console.error('Error updating transactions:', error);
+    }
+  };
+
+  const handleOneTimeIncomeSubmit = async (incomeData) => {
+    try {
+      await fetchApi(`/api/income-entries/${entry.id}/one-time`, {
+        method: 'POST',
+        body: JSON.stringify(incomeData)
+      });
+      
+      if (onTransactionsUpdate) {
+        onTransactionsUpdate();
       }
-    };
-  
-    const handleOneTimeIncomeSubmit = async (incomeData) => {
-      try {
-        await fetchApi(`/api/income-entries/${entry.id}/one-time`, {
-          method: 'POST',
-          body: JSON.stringify(incomeData)
-        });
-        
-        if (onTransactionsUpdate) {
-          onTransactionsUpdate();
-        }
-        setShowOneTimeIncomeModal(false);
-      } catch (error) {
-        console.error('Error adding one-time income:', error);
-      }
-    };
-  
-    return (
-      <div className="bg-white p-4 rounded-lg shadow-md hover:shadow-lg transition-shadow">
-        <div className="flex justify-between items-start">
-          <div>
-            <h3 className="text-lg font-semibold">{entry.title}</h3>
-            <p className="text-2xl font-bold text-green-600">${entry.amount}</p>
-            <p className="text-sm text-gray-600 capitalize">
-              {entry.frequency} {entry.is_recurring && '(Recurring)'}
-            </p>
-            {entry.is_recurring && (
-              <div className="text-sm text-gray-600 mt-2">
-                <div className="flex items-center gap-2">
-                  <Calendar size={16} />
-                  <span>Next: {new Date(entry.next_payment_date).toLocaleDateString()}</span>
+      setShowOneTimeIncomeModal(false);
+    } catch (error) {
+      console.error('Error adding one-time income:', error);
+    }
+  };
+
+  // Sort transactions by date, with most recent first
+  const sortedTransactions = entry.transactions ? [...entry.transactions].sort((a, b) => 
+    new Date(b.transaction_date) - new Date(a.transaction_date)
+  ) : [];
+
+  return (
+    <div className="bg-white p-4 rounded-lg shadow-md hover:shadow-lg transition-shadow">
+      <div className="flex justify-between items-start">
+        <div>
+          <h3 className="text-lg font-semibold">{entry.title}</h3>
+          <p className="text-2xl font-bold text-green-600">${entry.amount}</p>
+          <p className="text-sm text-gray-600 capitalize">
+            {entry.frequency} {entry.is_recurring && '(Recurring)'}
+          </p>
+          {entry.is_recurring && (
+            <div className="text-sm text-gray-600 mt-2">
+              <div className="flex items-center gap-2">
+                <Calendar size={16} />
+                <span>Next: {new Date(entry.next_payment_date).toLocaleDateString()}</span>
+              </div>
+              <div className="mt-1">
+                {new Date(entry.start_date).toLocaleDateString()} - {new Date(entry.end_date).toLocaleDateString()}
+              </div>
+            </div>
+          )}
+        </div>
+        <div className="space-x-2">
+          <button
+            onClick={() => onEdit(entry)}
+            className="text-blue-600 hover:text-blue-800"
+          >
+            Edit
+          </button>
+          <button
+            onClick={() => onDelete(entry.id)}
+            className="text-red-600 hover:text-red-800"
+          >
+            Delete
+          </button>
+        </div>
+      </div>
+      
+      {sortedTransactions.length > 0 && (
+        <div className="mt-4 border-t pt-4">
+          <div className="flex justify-between items-center mb-2">
+            <h4 className="text-sm font-semibold">Transaction History</h4>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => setShowOneTimeIncomeModal(true)}
+                className="p-1 text-gray-500 hover:text-gray-700 rounded-full hover:bg-gray-100"
+                title="Add One-Time Income"
+              >
+                <Plus size={16} />
+              </button>
+              <button
+                onClick={() => setShowTransactionModal(true)}
+                className="p-1 text-gray-500 hover:text-gray-700 rounded-full hover:bg-gray-100"
+                title="Edit Transactions"
+              >
+                <Edit2 size={16} />
+              </button>
+            </div>
+          </div>
+          <div className="space-y-2">
+            {sortedTransactions.map(transaction => (
+              <div key={transaction.id} className="flex justify-between text-sm items-center">
+                <div className="flex items-center gap-2 flex-1">
+                  <span className="whitespace-nowrap">{new Date(transaction.transaction_date).toLocaleDateString()}</span>
+                  <span className="text-gray-600 truncate">
+                    {transaction.is_one_time ? ` - ${transaction.title || 'One-time payment'}` : ''}
+                  </span>
                 </div>
-                <div className="mt-1">
-                  {new Date(entry.start_date).toLocaleDateString()} - {new Date(entry.end_date).toLocaleDateString()}
+                <div className="flex items-center gap-2 ml-4">
+                  <span className="font-medium whitespace-nowrap">${parseFloat(transaction.amount).toFixed(2)}</span>
+                  {transaction.is_one_time && (
+                    <span className="text-xs bg-blue-100 text-blue-800 px-2 py-0.5 rounded-full whitespace-nowrap">
+                      One-time
+                    </span>
+                  )}
                 </div>
               </div>
-            )}
-          </div>
-          <div className="space-x-2">
-          <button
-                  onClick={() => setShowOneTimeIncomeModal(true)}
-                  className="p-1 text-gray-500 hover:text-gray-700 rounded-full hover:bg-gray-100"
-                  title="Add One-Time Income"
-                >
-                  <Plus size={16} />
-                </button>
-            <button
-              onClick={() => onEdit(entry)}
-              className="text-blue-600 hover:text-blue-800"
-            >
-              Edit
-            </button>
-            <button
-              onClick={() => onDelete(entry.id)}
-              className="text-red-600 hover:text-red-800"
-            >
-              Delete
-            </button>
+            ))}
           </div>
         </div>
-  
-        {/* Recurring Transactions */}
-        {groupedTransactions.recurring.length > 0 && (
-          <div className="mt-4 border-t pt-4">
-            <div className="flex justify-between items-center mb-2">
-              <h4 className="text-sm font-semibold">Recurring Transactions</h4>
-              <div className="flex items-center gap-2">
-                <button
-                  onClick={() => setShowOneTimeIncomeModal(true)}
-                  className="p-1 text-gray-500 hover:text-gray-700 rounded-full hover:bg-gray-100"
-                  title="Add One-Time Income"
-                >
-                  <Plus size={16} />
-                </button>
-                <button
-                  onClick={() => setShowTransactionModal(true)}
-                  className="p-1 text-gray-500 hover:text-gray-700 rounded-full hover:bg-gray-100"
-                  title="Edit Transactions"
-                >
-                  <Edit2 size={16} />
-                </button>
-              </div>
-            </div>
-            <div className="space-y-2">
-              {groupedTransactions.recurring.map(transaction => (
-                <div key={transaction.id} className="flex justify-between text-sm">
-                  <span>{new Date(transaction.transaction_date).toLocaleDateString()}</span>
-                  <span className="font-medium">${transaction.amount}</span>
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
-  
-        {/* One-Time Transactions */}
-        {Object.entries(groupedTransactions.oneTime).map(([title, transactions]) => (
-          <div key={title} className="mt-4 border-t pt-4">
-            <div className="flex justify-between items-center mb-2">
-              <h4 className="text-sm font-semibold">{title}</h4>
-            </div>
-            <div className="space-y-2">
-              {transactions.map(transaction => (
-                <div key={transaction.id} className="flex justify-between text-sm">
-                  <span>{new Date(transaction.transaction_date).toLocaleDateString()}</span>
-                  <span className="font-medium">${transaction.amount}</span>
-                </div>
-              ))}
-            </div>
-          </div>
-        ))}
-  
-        {showTransactionModal && (
-          <TransactionEditModal
-            isOpen={showTransactionModal}
-            onClose={() => setShowTransactionModal(false)}
-            transactions={entry.transactions}
-            onSave={handleTransactionUpdate}
-          />
-        )}
-        
-        {showOneTimeIncomeModal && (
-          <OneTimeIncomeModal
-            isOpen={showOneTimeIncomeModal}
-            onClose={() => setShowOneTimeIncomeModal(false)}
-            onSubmit={handleOneTimeIncomeSubmit}
-          />
-        )}
-      </div>
-    );
-  };
+      )}
+
+      {showTransactionModal && (
+        <TransactionEditModal
+          isOpen={showTransactionModal}
+          onClose={() => setShowTransactionModal(false)}
+          transactions={entry.transactions}
+          onSave={handleTransactionUpdate}
+        />
+      )}
+      {showOneTimeIncomeModal && (
+        <OneTimeIncomeModal
+          isOpen={showOneTimeIncomeModal}
+          onClose={() => setShowOneTimeIncomeModal(false)}
+          onSubmit={handleOneTimeIncomeSubmit}
+        />
+      )}
+    </div>
+  );
+};
+
 
 export default function MyBills() {
   const [showModal, setShowModal] = useState(false);

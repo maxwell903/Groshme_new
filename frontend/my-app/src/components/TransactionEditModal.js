@@ -1,16 +1,17 @@
 import React, { useState } from 'react';
-import { X, Edit2 } from 'lucide-react';
+import { X } from 'lucide-react';
 
 const TransactionEditModal = ({ isOpen, onClose, transactions = [], onSave }) => {
   const [selectedTransactions, setSelectedTransactions] = useState(new Set());
   const [editedAmounts, setEditedAmounts] = useState({});
+  const [editedTitles, setEditedTitles] = useState({});
 
   const handleCheckboxChange = (transactionId) => {
     const newSelected = new Set(selectedTransactions);
     if (newSelected.has(transactionId)) {
       newSelected.delete(transactionId);
     } else {
-      newSelected.add(transactionId); 
+      newSelected.add(transactionId);
     }
     setSelectedTransactions(newSelected);
   };
@@ -22,10 +23,18 @@ const TransactionEditModal = ({ isOpen, onClose, transactions = [], onSave }) =>
     });
   };
 
+  const handleTitleChange = (transactionId, newTitle) => {
+    setEditedTitles({
+      ...editedTitles,
+      [transactionId]: newTitle
+    });
+  };
+
   const handleSave = () => {
     const updates = {
       toDelete: Array.from(selectedTransactions),
-      amountUpdates: editedAmounts
+      amountUpdates: editedAmounts,
+      titleUpdates: editedTitles
     };
     onSave(updates);
     onClose();
@@ -35,7 +44,7 @@ const TransactionEditModal = ({ isOpen, onClose, transactions = [], onSave }) =>
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-      <div className="bg-white p-6 rounded-lg shadow-xl w-full max-w-md">
+      <div className="bg-white p-6 rounded-lg shadow-xl w-full max-w-2xl">
         <div className="flex justify-between items-center mb-4">
           <h2 className="text-xl font-semibold">Edit Transactions</h2>
           <button onClick={onClose} className="text-gray-500 hover:text-gray-700">
@@ -52,12 +61,23 @@ const TransactionEditModal = ({ isOpen, onClose, transactions = [], onSave }) =>
                 onChange={() => handleCheckboxChange(transaction.id)}
                 className="rounded border-gray-300"
               />
-              <span>{new Date(transaction.transaction_date).toLocaleDateString()}</span>
-              <div className="flex-1">
+              <div className="flex-1 grid grid-cols-3 gap-4">
+                <div className="text-sm text-gray-600">
+                  {new Date(transaction.transaction_date).toLocaleDateString()}
+                </div>
+                {transaction.is_one_time && (
+                  <input
+                    type="text"
+                    value={editedTitles[transaction.id] ?? transaction.title ?? ''}
+                    onChange={(e) => handleTitleChange(transaction.id, e.target.value)}
+                    className="border rounded-md p-2 text-sm"
+                    placeholder="Transaction title"
+                  />
+                )}
                 <div className="relative">
                   <span className="absolute left-3 top-2 text-gray-500">$</span>
                   <input
-                    type="number" 
+                    type="number"
                     value={editedAmounts[transaction.id] ?? transaction.amount}
                     onChange={(e) => handleAmountChange(transaction.id, e.target.value)}
                     className="w-full border rounded-md p-2 pl-8"
@@ -78,8 +98,10 @@ const TransactionEditModal = ({ isOpen, onClose, transactions = [], onSave }) =>
           </button>
           <button
             onClick={handleSave}
-            className="px-4 py-2 bg-red-600 text-white rounded-md hover:bg-red-700 disabled:bg-gray-300"
-            disabled={selectedTransactions.size === 0 && Object.keys(editedAmounts).length === 0}
+            className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:bg-gray-300"
+            disabled={selectedTransactions.size === 0 && 
+                     Object.keys(editedAmounts).length === 0 &&
+                     Object.keys(editedTitles).length === 0}
           >
             {selectedTransactions.size > 0 ? `Delete Selected (${selectedTransactions.size})` : 'Save Changes'}
           </button>
