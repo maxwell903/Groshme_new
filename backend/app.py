@@ -4373,6 +4373,45 @@ def update_transactions(entry_id):
     except Exception as e:
         print(f"Error updating transactions: {str(e)}")
         return jsonify({'error': str(e)}), 500
+    
+@app.route('/api/income-entries/<uuid:entry_id>/one-time', methods=['POST'])
+def add_one_time_income(entry_id):
+    try:
+        data = request.json
+        engine = create_engine(db_url, poolclass=NullPool)
+        
+        with engine.connect() as connection:
+            # Verify the income entry exists
+            entry = connection.execute(
+                text("SELECT id FROM income_entries WHERE id = :id"),
+                {"id": entry_id}
+            ).fetchone()
+            
+            if not entry:
+                return jsonify({'error': 'Income entry not found'}), 404
+                
+            # Add one-time transaction
+            connection.execute(
+                text("""
+                    INSERT INTO payments_history (
+                        income_entry_id, amount, payment_date, is_one_time
+                    ) VALUES (
+                        :entry_id, :amount, :payment_date, true
+                    )
+                """),
+                {
+                    'entry_id': entry_id,
+                    'amount': float(data['amount']),
+                    'payment_date': data['transaction_date']
+                }
+            )
+            
+            connection.commit()
+            return jsonify({'message': 'One-time income added successfully'}), 201
+            
+    except Exception as e:
+        print(f"Error adding one-time income: {str(e)}")
+        return jsonify({'error': str(e)}), 500
 
 
      

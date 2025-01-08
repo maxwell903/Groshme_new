@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react';
 import { fetchApi } from '@/utils/api';
 import { Plus, X, Calendar, DollarSign, RefreshCw, Edit2 } from 'lucide-react';
 import TransactionEditModal from '@/components/TransactionEditModal';
+import OneTimeIncomeModal from '@/components/OneTimeIncomeModal';
 
 
 
@@ -203,6 +204,7 @@ const AddIncomeModal = ({ isOpen, onClose, onSubmit, initialData = null }) => {
 
 const IncomeEntry = ({ entry, onEdit, onDelete, onTransactionsUpdate }) => {
     const [showTransactionModal, setShowTransactionModal] = useState(false);
+    const [showOneTimeIncomeModal, setShowOneTimeIncomeModal] = useState(false);
   
     const handleTransactionUpdate = async (updates) => {
       try {
@@ -218,6 +220,22 @@ const IncomeEntry = ({ entry, onEdit, onDelete, onTransactionsUpdate }) => {
         console.error('Error updating transactions:', error);
       }
     };
+
+    const handleOneTimeIncomeSubmit = async (incomeData) => {
+        try {
+          await fetchApi(`/api/income-entries/${entry.id}/one-time`, {
+            method: 'POST',
+            body: JSON.stringify(incomeData)
+          });
+          
+          if (onTransactionsUpdate) {
+            onTransactionsUpdate();
+          }
+          setShowOneTimeIncomeModal(false);
+        } catch (error) {
+          console.error('Error adding one-time income:', error);
+        }
+      };
   
     return (
       <div className="bg-white p-4 rounded-lg shadow-md hover:shadow-lg transition-shadow">
@@ -260,6 +278,14 @@ const IncomeEntry = ({ entry, onEdit, onDelete, onTransactionsUpdate }) => {
           <div className="mt-4 border-t pt-4">
             <div className="flex justify-between items-center mb-2">
               <h4 className="text-sm font-semibold">Recurring Transactions</h4>
+              <div className="flex items-center gap-2">
+              <button
+                onClick={() => setShowOneTimeIncomeModal(true)}
+                className="p-1 text-gray-500 hover:text-gray-700 rounded-full hover:bg-gray-100"
+                title="Add One-Time Income"
+              >
+                <Plus size={16} />
+              </button>
               <button
                 onClick={() => setShowTransactionModal(true)}
                 className="p-1 text-gray-500 hover:text-gray-700 rounded-full hover:bg-gray-100"
@@ -267,6 +293,8 @@ const IncomeEntry = ({ entry, onEdit, onDelete, onTransactionsUpdate }) => {
               >
                 <Edit2 size={16} />
               </button>
+            </div>
+
             </div>
             <div className="space-y-2">
               {entry.transactions.map(transaction => (
@@ -290,6 +318,13 @@ const IncomeEntry = ({ entry, onEdit, onDelete, onTransactionsUpdate }) => {
             onSave={handleTransactionUpdate}
           />
         )}
+          {showOneTimeIncomeModal && (
+        <OneTimeIncomeModal
+          isOpen={showOneTimeIncomeModal}
+          onClose={() => setShowOneTimeIncomeModal(false)}
+          onSubmit={handleOneTimeIncomeSubmit}
+        />
+      )}
       </div>
     );
   };
