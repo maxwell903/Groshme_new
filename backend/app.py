@@ -7,6 +7,7 @@ from flask_sqlalchemy import SQLAlchemy  # type: ignore
 from flask_migrate import Migrate # type: ignore
 from flask_cors import CORS # type: ignore
 from datetime import datetime, timedelta
+from dateutil.relativedelta import relativedelta
 import mysql # type: ignore
 from sqlalchemy import text # type: ignore
 from fuzzywuzzy import fuzz # type: ignore
@@ -4076,6 +4077,256 @@ def import_grocerylist_to_fridge(list_id):  # Add list_id as a parameter
     except Exception as e:
         db.session.rollback()
         print(f"Error importing to fridge: {str(e)}")
+        return jsonify({'error': str(e)}), 500
+    
+@app.route('/api/income-entries', methods=['GET'])
+def get_income_entries():
+    try:
+        engine = create_engine(db_url, poolclass=NullPool)
+        
+        with engine.connect() as connection:
+            # Get income entries with their recent transactions
+            result = connection.execute(text("""
+                WITH RecentTransactions AS (
+                    SELECT 
+                        income_entry_id,
+                        json_agg(
+                            json_build_object(
+                                'id', id,
+                                'amount', amount,
+                                'transaction_date', payment_date,
+                                'created_at', created_at
+                            )
+                        ) as transactions
+                    FROM payments_history
+                    GROUP BY income_entry_id
+                )
+                SELECT 
+                    i.*,
+                    COALESCE(rt.transactions, '[]') as transactions
+                FROM income_entries i
+                LEFT JOIN RecentTransactions rt ON i.id = rt.income_entry_id
+                ORDER BY i.created_at DESC
+            """))
+            
+            entries = []
+            for row in result:
+                entries.append({
+                    'id': str(row.id),
+                    'title': row.title,
+                    'amount': float(row.amount),
+                    'frequency': row.frequency,
+                    'is_recurring': row.is_recurring,
+                    'start_date': row.start_date.isoformat() if row.start_date else None,
+                    'end_date': row.end_date.isoformat() if row.end_date else None,
+                    'next_payment_date': row.next_payment_date.isoformat() if row.next_payment_date else None,
+                    'transactions': row.transactions
+                })
+            
+            return jsonify({'entries': entries})
+            
+    except Exception as e:
+        print(f"Error fetching income entries: {str(e)}")
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/api/income-entries', methods=['POST'])
+def create_income_entry():
+    try:
+        data = request.json
+        engine = create_engine(db_url, poolclass=NullPool)
+        
+        with engine.connect() as connection:
+            # Insert new income entry
+            result = connection.execute(
+                text("""
+                    INSERT INTO income_entries (
+                        title, amount, frequency, is_recurring,
+                        start_date, end_date, next_payment_date
+                    ) VALUES (
+                        :title, :amount, :frequency, :is_recurring,
+                        :start_date, :end_date, :next_payment_date
+                    ) RETURNING id
+                """),
+                {
+                    'title': data['title'],
+                    'amount': float(data['amount']),
+                    'frequency': data['frequency'],
+                    'is_recurring': data['is_recurring'],
+                    'start_date': data['start_date'] if data['is_recurring'] else None,
+                    'end_date': data['end_date'] if data['is_recurring'] else None,
+                    'next_payment_date': data['next_payment_date'] if data['is_recurring'] else None
+                }
+            )
+            
+            entry_id = result.fetchone()[0]
+            
+            # If it's recurring and has a start date before or equal to today,
+            # create retroactive payments
+            if data['is_recurring'] and data['start_date']:
+                start_date = datetime.strptime(data['start_date'], '%Y-%m-%d').date()
+                today = datetime.now().date()
+                
+                if start_date <= today:
+                    current_date = start_date
+                    while current_date <= today:
+                        connection.execute(
+                            text("""
+                                INSERT INTO payments_history (
+                                    income_entry_id, amount, payment_date
+                                ) VALUES (:entry_id, :amount, :payment_date)
+                            """),
+                            {
+                                'entry_id': entry_id,
+                                'amount': float(data['amount']),
+                                'payment_date': current_date
+                            }
+                        )
+                        
+                        # Calculate next payment date based on frequency
+                        if data['frequency'] == 'weekly':
+                            current_date += timedelta(days=7)
+                        elif data['frequency'] == 'biweekly':
+                            current_date += timedelta(days=14)
+                        elif data['frequency'] == 'monthly':
+                            current_date += relativedelta(months=1)
+                        elif data['frequency'] == 'yearly':
+                            current_date += relativedelta(years=1)
+            
+            connection.commit()
+            return jsonify({'message': 'Income entry created successfully', 'id': str(entry_id)}), 201
+            
+    except Exception as e:
+        print(f"Error creating income entry: {str(e)}")
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/api/income-entries/<uuid:entry_id>', methods=['PUT'])
+def update_income_entry(entry_id):
+    try:
+        data = request.json
+        engine = create_engine(db_url, poolclass=NullPool)
+        
+        with engine.connect() as connection:
+            # Update income entry
+            result = connection.execute(
+                text("""
+                    UPDATE income_entries SET
+                        title = :title,
+                        amount = :amount,
+                        frequency = :frequency,
+                        is_recurring = :is_recurring,
+                        start_date = :start_date,
+                        end_date = :end_date,
+                        next_payment_date = :next_payment_date,
+                        updated_at = NOW()
+                    WHERE id = :id
+                    RETURNING id
+                """),
+                {
+                    'id': entry_id,
+                    'title': data['title'],
+                    'amount': float(data['amount']),
+                    'frequency': data['frequency'],
+                    'is_recurring': data['is_recurring'],
+                    'start_date': data['start_date'] if data['is_recurring'] else None,
+                    'end_date': data['end_date'] if data['is_recurring'] else None,
+                    'next_payment_date': data['next_payment_date'] if data['is_recurring'] else None
+                }
+            )
+            
+            if not result.rowcount:
+                return jsonify({'error': 'Income entry not found'}), 404
+                
+            connection.commit()
+            return jsonify({'message': 'Income entry updated successfully'})
+            
+    except Exception as e:
+        print(f"Error updating income entry: {str(e)}")
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/api/income-entries/<uuid:entry_id>', methods=['DELETE'])
+def delete_income_entry(entry_id):
+    try:
+        engine = create_engine(db_url, poolclass=NullPool)
+        
+        with engine.connect() as connection:
+            # Delete income entry (will cascade delete payments_history)
+            result = connection.execute(
+                text("DELETE FROM income_entries WHERE id = :id"),
+                {"id": entry_id}
+            )
+            
+            if not result.rowcount:
+                return jsonify({'error': 'Income entry not found'}), 404
+                
+            connection.commit()
+            return jsonify({'message': 'Income entry deleted successfully'})
+            
+    except Exception as e:
+        print(f"Error deleting income entry: {str(e)}")
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/api/income-entries/process-recurring', methods=['POST'])
+def process_recurring_income():
+    try:
+        engine = create_engine(db_url, poolclass=NullPool)
+        today = datetime.now().date()
+        
+        with engine.connect() as connection:
+            # Get all active recurring entries that need processing
+            recurring_entries = connection.execute(
+                text("""
+                    SELECT id, amount, frequency, next_payment_date
+                    FROM income_entries
+                    WHERE is_recurring = true
+                    AND next_payment_date <= :today
+                    AND (end_date IS NULL OR end_date >= :today)
+                """),
+                {"today": today}
+            ).fetchall()
+            
+            for entry in recurring_entries:
+                # Create payment record
+                connection.execute(
+                    text("""
+                        INSERT INTO payments_history (
+                            income_entry_id, amount, payment_date
+                        ) VALUES (:entry_id, :amount, :payment_date)
+                    """),
+                    {
+                        'entry_id': entry.id,
+                        'amount': float(entry.amount),
+                        'payment_date': entry.next_payment_date
+                    }
+                )
+                
+                # Calculate and update next payment date
+                if entry.frequency == 'weekly':
+                    next_date = entry.next_payment_date + timedelta(days=7)
+                elif entry.frequency == 'biweekly':
+                    next_date = entry.next_payment_date + timedelta(days=14)
+                elif entry.frequency == 'monthly':
+                    next_date = entry.next_payment_date + relativedelta(months=1)
+                else:  # yearly
+                    next_date = entry.next_payment_date + relativedelta(years=1)
+                
+                # Update next payment date
+                connection.execute(
+                    text("""
+                        UPDATE income_entries
+                        SET next_payment_date = :next_date
+                        WHERE id = :id
+                    """),
+                    {
+                        'id': entry.id,
+                        'next_date': next_date
+                    }
+                )
+            
+            connection.commit()
+            return jsonify({'message': 'Recurring income processed successfully'})
+            
+    except Exception as e:
+        print(f"Error processing recurring income: {str(e)}")
         return jsonify({'error': str(e)}), 500
 
 

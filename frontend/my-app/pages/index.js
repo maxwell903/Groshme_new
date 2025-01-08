@@ -453,12 +453,13 @@ export default function Home() {
                 My Fitness
               </Link>
               <Link 
-                href="/grocery-bill"
-                className="block w-full sm:w-auto px-6 py-3 bg-gray-600 text-white rounded-lg hover:bg-yellow-700 transition-colors duration-200 text-center"
+                href="/my-bills"
+                className="block w-full sm:w-auto px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors text-center"
                 onClick={() => localStorage.setItem('previousPath', '/')}
               >
-                Grocery Bill
+                My Bills
               </Link>
+              
             </div>
 
             <div className="mt-8">
