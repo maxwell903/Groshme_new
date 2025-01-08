@@ -4328,6 +4328,51 @@ def process_recurring_income():
     except Exception as e:
         print(f"Error processing recurring income: {str(e)}")
         return jsonify({'error': str(e)}), 500
+    
+
+@app.route('/api/income-entries/<uuid:entry_id>/transactions', methods=['POST'])
+def update_transactions(entry_id):
+    try:
+        data = request.json
+        engine = create_engine(db_url, poolclass=NullPool)
+        
+        with engine.connect() as connection:
+            with connection.begin():
+                # Handle deletions
+                if data.get('toDelete'):
+                    connection.execute(
+                        text("""
+                            DELETE FROM payments_history
+                            WHERE id = ANY(:transaction_ids)
+                            AND income_entry_id = :entry_id
+                        """),
+                        {
+                            "transaction_ids": data['toDelete'],
+                            "entry_id": entry_id
+                        }
+                    )
+                
+                # Handle amount updates
+                for transaction_id, new_amount in data.get('amountUpdates', {}).items():
+                    connection.execute(
+                        text("""
+                            UPDATE payments_history
+                            SET amount = :amount
+                            WHERE id = :transaction_id
+                            AND income_entry_id = :entry_id
+                        """),
+                        {
+                            "amount": float(new_amount),
+                            "transaction_id": transaction_id,
+                            "entry_id": entry_id
+                        }
+                    )
+            
+            return jsonify({'message': 'Transactions updated successfully'})
+            
+    except Exception as e:
+        print(f"Error updating transactions: {str(e)}")
+        return jsonify({'error': str(e)}), 500
 
 
      
