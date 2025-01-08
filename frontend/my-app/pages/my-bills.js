@@ -259,7 +259,7 @@ const IncomeEntry = ({ entry, onEdit, onDelete, onTransactionsUpdate }) => {
         {entry.transactions && entry.transactions.length > 0 && (
           <div className="mt-4 border-t pt-4">
             <div className="flex justify-between items-center mb-2">
-              <h4 className="text-sm font-semibold">Recent Transactions</h4>
+              <h4 className="text-sm font-semibold">Recurring Transactions</h4>
               <button
                 onClick={() => setShowTransactionModal(true)}
                 className="p-1 text-gray-500 hover:text-gray-700 rounded-full hover:bg-gray-100"
