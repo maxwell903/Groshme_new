@@ -369,49 +369,7 @@ def update_exercise(exercise_id):
         print(f"Error updating exercise: {str(e)}")
         return jsonify({'error': str(e)}), 500
     
-@app.route('/api/exercises/<int:exercise_id>/sets/latest', methods=['GET'])
-def get_latest_set(exercise_id):
-    try:
-        connection = get_db_connection()
-        if not connection:
-            return jsonify({'error': 'Database connection failed'}), 500
-            
-        cursor = connection.cursor(dictionary=True)
-        
-        # Get the latest set by created_at first to find the most recent workout session
-        cursor.execute("""
-            WITH LatestSession AS (
-                SELECT DATE(created_at) as session_date
-                FROM individual_set
-                WHERE exercise_id = %s
-                ORDER BY created_at DESC
-                LIMIT 1
-            )
-            SELECT s.id, s.exercise_id, s.weight, s.reps, s.created_at
-            FROM individual_set s
-            JOIN LatestSession ls ON DATE(s.created_at) = ls.session_date
-            WHERE s.exercise_id = %s
-            ORDER BY s.weight DESC
-            LIMIT 1
-        """, (exercise_id, exercise_id))
-        
-        top_set = cursor.fetchone()
-        
-        cursor.close()
-        connection.close()
-        
-        return jsonify({
-            'latestSet': {
-                'id': top_set['id'],
-                'exercise_id': top_set['exercise_id'],
-                'weight': top_set['weight'],
-                'reps': top_set['reps'],
-                'created_at': top_set['created_at'].isoformat() if top_set['created_at'] else None
-            } if top_set else None
-        })
-    except Exception as e:
-        print(f"Error fetching latest set: {str(e)}")
-        return jsonify({'error': str(e)}), 500
+
     
 @app.route('/api/exercises/<int:exercise_id>', methods=['DELETE', 'PUT', 'OPTIONS'])
 def manage_exercise(exercise_id):
@@ -4030,7 +3988,6 @@ def get_weekly_workouts():
         print(f"Error fetching weekly workouts: {str(e)}")
         return jsonify({'error': str(e)}), 500
 
-
 @app.route('/api/exercises/<int:exercise_id>/sets/latest', methods=['GET'])
 def get_latest_set(exercise_id):
     try:
@@ -4074,6 +4031,7 @@ def get_latest_set(exercise_id):
     except Exception as e:
         print(f"Error fetching latest set: {str(e)}")
         return jsonify({'error': str(e)}), 500
+
     
 @app.route('/api/grocery-lists/<int:list_id>/import-to-fridge', methods=['POST'])
 def import_grocerylist_to_fridge(list_id):  # Add list_id as a parameter
