@@ -272,6 +272,13 @@ const IncomeEntry = ({ entry, onEdit, onDelete, onTransactionsUpdate }) => {
             )}
           </div>
           <div className="space-x-2">
+          <button
+                  onClick={() => setShowOneTimeIncomeModal(true)}
+                  className="p-1 text-gray-500 hover:text-gray-700 rounded-full hover:bg-gray-100"
+                  title="Add One-Time Income"
+                >
+                  <Plus size={16} />
+                </button>
             <button
               onClick={() => onEdit(entry)}
               className="text-blue-600 hover:text-blue-800"
