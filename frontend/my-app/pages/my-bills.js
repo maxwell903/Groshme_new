@@ -206,6 +206,19 @@ const IncomeEntry = ({ entry, onEdit, onDelete, onTransactionsUpdate }) => {
     const [showTransactionModal, setShowTransactionModal] = useState(false);
     const [showOneTimeIncomeModal, setShowOneTimeIncomeModal] = useState(false);
   
+    // Group transactions by type (recurring vs one-time)
+    const groupedTransactions = entry.transactions.reduce((acc, transaction) => {
+      if (transaction.title) {
+        if (!acc.oneTime[transaction.title]) {
+          acc.oneTime[transaction.title] = [];
+        }
+        acc.oneTime[transaction.title].push(transaction);
+      } else {
+        acc.recurring.push(transaction);
+      }
+      return acc;
+    }, { recurring: [], oneTime: {} });
+  
     const handleTransactionUpdate = async (updates) => {
       try {
         await fetchApi(`/api/income-entries/${entry.id}/transactions`, {
@@ -220,22 +233,22 @@ const IncomeEntry = ({ entry, onEdit, onDelete, onTransactionsUpdate }) => {
         console.error('Error updating transactions:', error);
       }
     };
-
+  
     const handleOneTimeIncomeSubmit = async (incomeData) => {
-        try {
-          await fetchApi(`/api/income-entries/${entry.id}/one-time`, {
-            method: 'POST',
-            body: JSON.stringify(incomeData)
-          });
-          
-          if (onTransactionsUpdate) {
-            onTransactionsUpdate();
-          }
-          setShowOneTimeIncomeModal(false);
-        } catch (error) {
-          console.error('Error adding one-time income:', error);
+      try {
+        await fetchApi(`/api/income-entries/${entry.id}/one-time`, {
+          method: 'POST',
+          body: JSON.stringify(incomeData)
+        });
+        
+        if (onTransactionsUpdate) {
+          onTransactionsUpdate();
         }
-      };
+        setShowOneTimeIncomeModal(false);
+      } catch (error) {
+        console.error('Error adding one-time income:', error);
+      }
+    };
   
     return (
       <div className="bg-white p-4 rounded-lg shadow-md hover:shadow-lg transition-shadow">
@@ -273,42 +286,56 @@ const IncomeEntry = ({ entry, onEdit, onDelete, onTransactionsUpdate }) => {
             </button>
           </div>
         </div>
-        
-        {entry.transactions && entry.transactions.length > 0 && (
+  
+        {/* Recurring Transactions */}
+        {groupedTransactions.recurring.length > 0 && (
           <div className="mt-4 border-t pt-4">
             <div className="flex justify-between items-center mb-2">
               <h4 className="text-sm font-semibold">Recurring Transactions</h4>
               <div className="flex items-center gap-2">
-              <button
-                onClick={() => setShowOneTimeIncomeModal(true)}
-                className="p-1 text-gray-500 hover:text-gray-700 rounded-full hover:bg-gray-100"
-                title="Add One-Time Income"
-              >
-                <Plus size={16} />
-              </button>
-              <button
-                onClick={() => setShowTransactionModal(true)}
-                className="p-1 text-gray-500 hover:text-gray-700 rounded-full hover:bg-gray-100"
-                title="Edit Transactions"
-              >
-                <Edit2 size={16} />
-              </button>
-            </div>
-
+                <button
+                  onClick={() => setShowOneTimeIncomeModal(true)}
+                  className="p-1 text-gray-500 hover:text-gray-700 rounded-full hover:bg-gray-100"
+                  title="Add One-Time Income"
+                >
+                  <Plus size={16} />
+                </button>
+                <button
+                  onClick={() => setShowTransactionModal(true)}
+                  className="p-1 text-gray-500 hover:text-gray-700 rounded-full hover:bg-gray-100"
+                  title="Edit Transactions"
+                >
+                  <Edit2 size={16} />
+                </button>
+              </div>
             </div>
             <div className="space-y-2">
-              {entry.transactions.map(transaction => (
+              {groupedTransactions.recurring.map(transaction => (
                 <div key={transaction.id} className="flex justify-between text-sm">
                   <span>{new Date(transaction.transaction_date).toLocaleDateString()}</span>
                   <span className="font-medium">${transaction.amount}</span>
-                  {transaction.is_retroactive && (
-                    <span className="text-xs text-gray-500">(Retroactive)</span>
-                  )}
                 </div>
               ))}
             </div>
           </div>
         )}
+  
+        {/* One-Time Transactions */}
+        {Object.entries(groupedTransactions.oneTime).map(([title, transactions]) => (
+          <div key={title} className="mt-4 border-t pt-4">
+            <div className="flex justify-between items-center mb-2">
+              <h4 className="text-sm font-semibold">{title}</h4>
+            </div>
+            <div className="space-y-2">
+              {transactions.map(transaction => (
+                <div key={transaction.id} className="flex justify-between text-sm">
+                  <span>{new Date(transaction.transaction_date).toLocaleDateString()}</span>
+                  <span className="font-medium">${transaction.amount}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        ))}
   
         {showTransactionModal && (
           <TransactionEditModal
@@ -318,13 +345,14 @@ const IncomeEntry = ({ entry, onEdit, onDelete, onTransactionsUpdate }) => {
             onSave={handleTransactionUpdate}
           />
         )}
-          {showOneTimeIncomeModal && (
-        <OneTimeIncomeModal
-          isOpen={showOneTimeIncomeModal}
-          onClose={() => setShowOneTimeIncomeModal(false)}
-          onSubmit={handleOneTimeIncomeSubmit}
-        />
-      )}
+        
+        {showOneTimeIncomeModal && (
+          <OneTimeIncomeModal
+            isOpen={showOneTimeIncomeModal}
+            onClose={() => setShowOneTimeIncomeModal(false)}
+            onSubmit={handleOneTimeIncomeSubmit}
+          />
+        )}
       </div>
     );
   };

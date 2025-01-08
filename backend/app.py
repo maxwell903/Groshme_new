@@ -4390,19 +4390,20 @@ def add_one_time_income(entry_id):
             if not entry:
                 return jsonify({'error': 'Income entry not found'}), 404
                 
-            # Add one-time transaction
+            # Add one-time transaction with title
             connection.execute(
                 text("""
                     INSERT INTO payments_history (
-                        income_entry_id, amount, payment_date, is_one_time
+                        income_entry_id, amount, payment_date, is_one_time, title
                     ) VALUES (
-                        :entry_id, :amount, :payment_date, true
+                        :entry_id, :amount, :payment_date, true, :title
                     )
                 """),
                 {
                     'entry_id': entry_id,
                     'amount': float(data['amount']),
-                    'payment_date': data['transaction_date']
+                    'payment_date': data['transaction_date'],
+                    'title': data['title']
                 }
             )
             
@@ -4412,7 +4413,6 @@ def add_one_time_income(entry_id):
     except Exception as e:
         print(f"Error adding one-time income: {str(e)}")
         return jsonify({'error': str(e)}), 500
-
 
      
 def upgrade_database():
