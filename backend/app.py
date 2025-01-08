@@ -4341,16 +4341,16 @@ def update_transactions(entry_id):
                 # Handle deletions
                 if data.get('toDelete'):
                     connection.execute(
-                        text("""
-                            DELETE FROM payments_history
-                            WHERE id = ANY(:transaction_ids)  
-                            AND income_entry_id = :entry_id
-                        """),
-                        {
-                            "transaction_ids": data['toDelete'], 
-                            "entry_id": entry_id
-                        }
-                    )
+    text("""
+        DELETE FROM payments_history
+        WHERE id = ANY(CAST(:transaction_ids AS UUID[]))
+        AND income_entry_id = :entry_id
+    """),
+    {
+        "transaction_ids": data['toDelete'],
+        "entry_id": entry_id
+    }
+)
                 
                 # Handle amount updates
                 for transaction_id, new_amount in data.get('amountUpdates', {}).items():
