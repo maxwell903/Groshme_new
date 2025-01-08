@@ -283,6 +283,7 @@ export default function MyBills() {
 
   useEffect(() => {
      // Check for recurring transactions once per day
+     fetchEntries();
    const processRecurring = async () => {
          try {
            await fetchApi('/api/income-entries/process-recurring', { method: 'POST' });
@@ -296,7 +297,7 @@ export default function MyBills() {
       const interval = setInterval(processRecurring, 86400000); // 24 hours (1 day)
     
        return () => clearInterval(interval);
-    fetchEntries();
+    
   }, []);
 
   
