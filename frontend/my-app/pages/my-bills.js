@@ -204,7 +204,7 @@ const AddIncomeModal = ({ isOpen, onClose, onSubmit, initialData = null }) => {
 
 
 
-const IncomeEntry = ({ entry, onEdit, onDelete, onTransactionsUpdate }) => {
+const BudgetEntry = ({ entry, onEdit, onDelete, onTransactionsUpdate }) => {
   const [showTransactionModal, setShowTransactionModal] = useState(false);
   const [showOneTimeIncomeModal, setShowOneTimeIncomeModal] = useState(false);
 
@@ -266,6 +266,13 @@ const IncomeEntry = ({ entry, onEdit, onDelete, onTransactionsUpdate }) => {
           )}
         </div>
         <div className="space-x-2">
+        <button
+                onClick={() => setShowOneTimeIncomeModal(true)}
+                className="p-1 text-gray-500 hover:text-gray-700 rounded-full hover:bg-gray-100"
+                title="Add One-Time Income"
+              >
+                <Plus size={16} />
+              </button>
           <button
             onClick={() => onEdit(entry)}
             className="text-blue-600 hover:text-blue-800"
@@ -473,7 +480,7 @@ export default function MyBills() {
     <div className="min-h-screen bg-gray-50 p-4">
       <div className="max-w-6xl mx-auto">
         <div className="flex justify-between items-center mb-6">
-          <h1 className="text-2xl font-bold">Income Management</h1>
+          <h1 className="text-2xl font-bold">Budget Management</h1>
           <button
             onClick={() => setShowModal(true)}
             className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700"
@@ -486,15 +493,15 @@ export default function MyBills() {
         {/* Summary Cards */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
           <div className="bg-white p-4 rounded-lg shadow">
-            <h3 className="text-lg font-semibold text-gray-600">Weekly Total</h3>
+            <h3 className="text-lg font-semibold text-gray-600">Total Weekly Budget</h3>
             <p className="text-2xl font-bold text-green-600">${summary.weekly}</p>
           </div>
           <div className="bg-white p-4 rounded-lg shadow">
-            <h3 className="text-lg font-semibold text-gray-600">Monthly Total</h3>
+            <h3 className="text-lg font-semibold text-gray-600">Total Monthly Budget</h3>
             <p className="text-2xl font-bold text-green-600">${summary.monthly}</p>
           </div>
           <div className="bg-white p-4 rounded-lg shadow">
-            <h3 className="text-lg font-semibold text-gray-600">Yearly Total</h3>
+            <h3 className="text-lg font-semibold text-gray-600">Total Yearly Budget</h3>
             <p className="text-2xl font-bold text-green-600">${summary.yearly}</p>
           </div>
         </div>
@@ -526,7 +533,7 @@ export default function MyBills() {
             <>
               <div className="grid gap-4 md:grid-cols-2">
                 {entries.map((entry) => (
-                  <IncomeEntry
+                  <BudgetEntry
                   key={entry.id}
                   entry={entry}
                   onEdit={handleEdit}
