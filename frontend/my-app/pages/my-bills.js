@@ -1,5 +1,5 @@
 // pages/my-bills.js
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 
 import { fetchApi } from '@/utils/api';
 import { Plus, X, Calendar, DollarSign, RefreshCw, Edit2 } from 'lucide-react';
@@ -244,16 +244,33 @@ const BudgetEntry = ({ entry, onEdit, onDelete, onTransactionsUpdate }) => {
     new Date(b.transaction_date) - new Date(a.transaction_date)
   ) : [];
 
+
+   // Calculate total transactions
+   const totalTransactions = useMemo(() => {
+    return sortedTransactions.reduce((sum, transaction) => sum + parseFloat(transaction.amount), 0);
+  }, [sortedTransactions]);
+
+  // Calculate remaining budget
+  const remainingBudget = parseFloat(entry.amount) - totalTransactions;
+
   return (
     <div className="bg-white p-4 rounded-lg shadow-md hover:shadow-lg transition-shadow">
       <div className="flex justify-between items-start">
         <div>
           <h3 className="text-lg font-semibold">{entry.title}</h3>
-          <p className="text-2xl font-bold text-green-600">${entry.amount}</p>
+          <div className="flex items-center gap-2 mt-1">
+            <span className="text-2xl font-bold text-green-600">${entry.amount}</span>
+            <span className="text-xl">-</span>
+            <span className="text-2xl font-bold text-red-600">${totalTransactions.toFixed(2)}</span>
+            <span className="text-xl">=</span>
+            <span className={`text-2xl font-bold ${remainingBudget >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+              ${remainingBudget.toFixed(2)}
+            </span>
+          </div>
           <p className="text-sm text-gray-600 capitalize">
             {entry.frequency} {entry.is_recurring && '(Recurring)'}
           </p>
-          {entry.is_recurring && (
+          {entry.is_recurring && entry.next_payment_date && (
             <div className="text-sm text-gray-600 mt-2">
               <div className="flex items-center gap-2">
                 <Calendar size={16} />
@@ -266,13 +283,6 @@ const BudgetEntry = ({ entry, onEdit, onDelete, onTransactionsUpdate }) => {
           )}
         </div>
         <div className="space-x-2">
-        <button
-                onClick={() => setShowOneTimeIncomeModal(true)}
-                className="p-1 text-gray-500 hover:text-gray-700 rounded-full hover:bg-gray-100"
-                title="Add One-Time Income"
-              >
-                <Plus size={16} />
-              </button>
           <button
             onClick={() => onEdit(entry)}
             className="text-blue-600 hover:text-blue-800"
@@ -288,49 +298,47 @@ const BudgetEntry = ({ entry, onEdit, onDelete, onTransactionsUpdate }) => {
         </div>
       </div>
       
-      {sortedTransactions.length > 0 && (
-        <div className="mt-4 border-t pt-4">
-          <div className="flex justify-between items-center mb-2">
-            <h4 className="text-sm font-semibold">Transaction History</h4>
-            <div className="flex items-center gap-2">
-              <button
-                onClick={() => setShowOneTimeIncomeModal(true)}
-                className="p-1 text-gray-500 hover:text-gray-700 rounded-full hover:bg-gray-100"
-                title="Add One-Time Income"
-              >
-                <Plus size={16} />
-              </button>
-              <button
-                onClick={() => setShowTransactionModal(true)}
-                className="p-1 text-gray-500 hover:text-gray-700 rounded-full hover:bg-gray-100"
-                title="Edit Transactions"
-              >
-                <Edit2 size={16} />
-              </button>
-            </div>
-          </div>
-          <div className="space-y-2">
-            {sortedTransactions.map(transaction => (
-              <div key={transaction.id} className="flex justify-between text-sm items-center">
-                <div className="flex items-center gap-2 flex-1">
-                  <span className="whitespace-nowrap">{new Date(transaction.transaction_date).toLocaleDateString()}</span>
-                  <span className="text-gray-600 truncate">
-                    {transaction.is_one_time ? ` - ${transaction.title || 'One-time payment'}` : ''}
-                  </span>
-                </div>
-                <div className="flex items-center gap-2 ml-4">
-                  <span className="font-medium whitespace-nowrap">${parseFloat(transaction.amount).toFixed(2)}</span>
-                  {transaction.is_one_time && (
-                    <span className="text-xs bg-blue-100 text-blue-800 px-2 py-0.5 rounded-full whitespace-nowrap">
-                      One-time
-                    </span>
-                  )}
-                </div>
-              </div>
-            ))}
+      <div className="mt-4 border-t pt-4">
+        <div className="flex justify-between items-center mb-2">
+          <h4 className="text-sm font-semibold">Transaction History</h4>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => setShowOneTimeIncomeModal(true)}
+              className="p-1 text-gray-500 hover:text-gray-700 rounded-full hover:bg-gray-100"
+              title="Add One-Time Income"
+            >
+              <Plus size={16} />
+            </button>
+            <button
+              onClick={() => setShowTransactionModal(true)}
+              className="p-1 text-gray-500 hover:text-gray-700 rounded-full hover:bg-gray-100"
+              title="Edit Transactions"
+            >
+              <Edit2 size={16} />
+            </button>
           </div>
         </div>
-      )}
+        <div className="space-y-2">
+          {sortedTransactions.map(transaction => (
+            <div key={transaction.id} className="flex justify-between text-sm items-center">
+              <div className="flex items-center gap-2 flex-1">
+                <span className="whitespace-nowrap">{new Date(transaction.transaction_date).toLocaleDateString()}</span>
+                <span className="text-gray-600 truncate">
+                  {transaction.is_one_time ? ` - ${transaction.title || 'One-time payment'}` : ''}
+                </span>
+              </div>
+              <div className="flex items-center gap-2 ml-4">
+                <span className="font-medium whitespace-nowrap">${parseFloat(transaction.amount).toFixed(2)}</span>
+                {transaction.is_one_time && (
+                  <span className="text-xs bg-blue-100 text-blue-800 px-2 py-0.5 rounded-full whitespace-nowrap">
+                    One-time
+                  </span>
+                )}
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
 
       {showTransactionModal && (
         <TransactionEditModal
@@ -350,6 +358,7 @@ const BudgetEntry = ({ entry, onEdit, onDelete, onTransactionsUpdate }) => {
     </div>
   );
 };
+
 
 
 export default function MyBills() {
