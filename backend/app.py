@@ -4351,17 +4351,20 @@ def update_transactions(entry_id):
         
         with engine.connect() as connection:
             with connection.begin():
-                # Handle deletions
+                # Handle deletions with proper UUID casting
                 if data.get('toDelete'):
+                    # Convert array of strings to array of UUIDs using unnest and casting
                     connection.execute(
                         text("""
                             DELETE FROM payments_history
-                            WHERE id = ANY(:transaction_ids)
+                            WHERE id = ANY(
+                                SELECT uuid(unnest(:transaction_ids))
+                            )
                             AND income_entry_id = :entry_id
                         """),
                         {
                             "transaction_ids": data['toDelete'],
-                            "entry_id": entry_id
+                            "entry_id": str(entry_id)
                         }
                     )
                 
@@ -4371,13 +4374,13 @@ def update_transactions(entry_id):
                         text("""
                             UPDATE payments_history
                             SET amount = :amount
-                            WHERE id = :transaction_id
+                            WHERE id = uuid(:transaction_id)
                             AND income_entry_id = :entry_id  
                         """),
                         {
                             "amount": float(new_amount),
                             "transaction_id": transaction_id,
-                            "entry_id": entry_id
+                            "entry_id": str(entry_id)
                         }
                     )
                 
@@ -4387,14 +4390,14 @@ def update_transactions(entry_id):
                         text("""
                             UPDATE payments_history
                             SET title = :title
-                            WHERE id = :transaction_id
+                            WHERE id = uuid(:transaction_id)
                             AND income_entry_id = :entry_id
                             AND is_one_time = true
                         """),
                         {
                             "title": new_title,
                             "transaction_id": transaction_id,
-                            "entry_id": entry_id
+                            "entry_id": str(entry_id)
                         }
                     )
             
@@ -4408,11 +4411,11 @@ def update_transactions(entry_id):
                     WHERE income_entry_id = :entry_id
                     ORDER BY payment_date DESC
                 """),
-                {"entry_id": entry_id}
+                {"entry_id": str(entry_id)}
             )
             
             updated_transactions = [{
-                'id': row.id,
+                'id': str(row.id),  # Convert UUID to string
                 'amount': float(row.amount),
                 'transaction_date': row.transaction_date.isoformat(),
                 'title': row.title,

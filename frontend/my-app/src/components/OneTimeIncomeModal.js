@@ -8,13 +8,28 @@ const OneTimeIncomeModal = ({ isOpen, onClose, onSubmit }) => {
     transaction_date: new Date().toISOString().split('T')[0]
   });
 
+  const [errors, setErrors] = useState({});
+
+  const validateForm = () => {
+    const newErrors = {};
+    if (!formData.title.trim()) newErrors.title = 'Title is required';
+    if (!formData.amount || formData.amount <= 0) newErrors.amount = 'Valid amount is required';
+    if (!formData.transaction_date) newErrors.transaction_date = 'Date is required';
+    
+    setErrors(newErrors);
+    return Object.keys(newErrors).length === 0;
+  };
+
   const handleSubmit = (e) => {
     e.preventDefault();
-    onSubmit({
-      ...formData,
-      amount: parseFloat(formData.amount)
-    });
-    onClose();
+    if (validateForm()) {
+      onSubmit({
+        ...formData,
+        amount: parseFloat(formData.amount),
+        is_one_time: true
+      });
+      onClose();
+    }
   };
 
   if (!isOpen) return null;
@@ -39,8 +54,10 @@ const OneTimeIncomeModal = ({ isOpen, onClose, onSubmit }) => {
               value={formData.title}
               onChange={(e) => setFormData({ ...formData, title: e.target.value })}
               className="w-full border rounded-md p-2"
+              placeholder="e.g., Bonus, Contract Payment"
               required
             />
+            {errors.title && <p className="text-red-500 text-sm mt-1">{errors.title}</p>}
           </div>
 
           <div>
@@ -55,9 +72,11 @@ const OneTimeIncomeModal = ({ isOpen, onClose, onSubmit }) => {
                 onChange={(e) => setFormData({ ...formData, amount: e.target.value })}
                 className="w-full border rounded-md p-2 pl-8"
                 step="0.01"
+                placeholder="0.00"
                 required
               />
             </div>
+            {errors.amount && <p className="text-red-500 text-sm mt-1">{errors.amount}</p>}
           </div>
 
           <div>
@@ -71,6 +90,9 @@ const OneTimeIncomeModal = ({ isOpen, onClose, onSubmit }) => {
               className="w-full border rounded-md p-2"
               required
             />
+            {errors.transaction_date && (
+              <p className="text-red-500 text-sm mt-1">{errors.transaction_date}</p>
+            )}
           </div>
 
           <div className="flex justify-end gap-3 pt-4">

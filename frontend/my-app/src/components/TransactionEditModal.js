@@ -19,7 +19,7 @@ const TransactionEditModal = ({ isOpen, onClose, transactions = [], onSave }) =>
   const handleAmountChange = (transactionId, newAmount) => {
     setEditedAmounts({
       ...editedAmounts,
-      [transactionId]: newAmount
+      [transactionId]: parseFloat(newAmount)
     });
   };
 
@@ -37,7 +37,6 @@ const TransactionEditModal = ({ isOpen, onClose, transactions = [], onSave }) =>
       titleUpdates: editedTitles
     };
     onSave(updates);
-    onClose();
   };
 
   if (!isOpen) return null;
@@ -53,40 +52,44 @@ const TransactionEditModal = ({ isOpen, onClose, transactions = [], onSave }) =>
         </div>
 
         <div className="max-h-96 overflow-y-auto">
-          {transactions.map((transaction) => (
-            <div key={transaction.id} className="flex items-center gap-4 py-2 border-b">
-              <input
-                type="checkbox"
-                checked={selectedTransactions.has(transaction.id)}
-                onChange={() => handleCheckboxChange(transaction.id)}
-                className="rounded border-gray-300"
-              />
-              <div className="flex-1 grid grid-cols-3 gap-4">
-                <div className="text-sm text-gray-600">
-                  {new Date(transaction.transaction_date).toLocaleDateString()}
-                </div>
-                {transaction.is_one_time && (
-                  <input
-                    type="text"
-                    value={editedTitles[transaction.id] ?? transaction.title ?? ''}
-                    onChange={(e) => handleTitleChange(transaction.id, e.target.value)}
-                    className="border rounded-md p-2 text-sm"
-                    placeholder="Transaction title"
-                  />
-                )}
-                <div className="relative">
-                  <span className="absolute left-3 top-2 text-gray-500">$</span>
-                  <input
-                    type="number"
-                    value={editedAmounts[transaction.id] ?? transaction.amount}
-                    onChange={(e) => handleAmountChange(transaction.id, e.target.value)}
-                    className="w-full border rounded-md p-2 pl-8"
-                    step="0.01"
-                  />
+          {transactions.length === 0 ? (
+            <p className="text-gray-500 text-center py-4">No transactions to display</p>
+          ) : (
+            transactions.map((transaction) => (
+              <div key={transaction.id} className="flex items-center gap-4 py-2 border-b">
+                <input
+                  type="checkbox"
+                  checked={selectedTransactions.has(transaction.id)}
+                  onChange={() => handleCheckboxChange(transaction.id)}
+                  className="rounded border-gray-300"
+                />
+                <div className="flex-1 grid grid-cols-3 gap-4">
+                  <div className="text-sm text-gray-600">
+                    {new Date(transaction.transaction_date).toLocaleDateString()}
+                  </div>
+                  {transaction.is_one_time && (
+                    <input
+                      type="text"
+                      value={editedTitles[transaction.id] ?? transaction.title ?? ''}
+                      onChange={(e) => handleTitleChange(transaction.id, e.target.value)}
+                      className="border rounded-md p-2 text-sm"
+                      placeholder="Transaction title"
+                    />
+                  )}
+                  <div className="relative">
+                    <span className="absolute left-3 top-2 text-gray-500">$</span>
+                    <input
+                      type="number"
+                      value={editedAmounts[transaction.id] ?? transaction.amount}
+                      onChange={(e) => handleAmountChange(transaction.id, e.target.value)}
+                      className="w-full border rounded-md p-2 pl-8"
+                      step="0.01"
+                    />
+                  </div>
                 </div>
               </div>
-            </div>
-          ))}
+            ))
+          )}
         </div>
 
         <div className="flex justify-end gap-3 mt-4">
