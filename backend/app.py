@@ -8,6 +8,7 @@ from flask_migrate import Migrate # type: ignore
 from flask_cors import CORS # type: ignore
 from datetime import datetime, timedelta
 from dateutil.relativedelta import relativedelta
+from sqlalchemy.dialects.postgresql import UUID  # Add this line
 import mysql # type: ignore
 from sqlalchemy import text # type: ignore
 from fuzzywuzzy import fuzz # type: ignore
@@ -179,6 +180,52 @@ class PaymentHistory(db.Model):
     title = db.Column(db.String(100))  # Add this for one-time payment titles
     is_one_time = db.Column(db.Boolean, default=False)
     created_at = db.Column(db.DateTime, default=db.func.current_timestamp())
+
+class IncomeEntry(db.Model):
+    __tablename__ = 'income_entries'
+    id = db.Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    title = db.Column(db.String(100), nullable=False)
+    amount = db.Column(db.Float, nullable=False)
+    frequency = db.Column(db.String(20), nullable=False)
+    is_recurring = db.Column(db.Boolean, default=False)
+    start_date = db.Column(db.Date)
+    end_date = db.Column(db.Date)
+    next_payment_date = db.Column(db.Date)
+    created_at = db.Column(db.DateTime, default=db.func.current_timestamp())
+    updated_at = db.Column(db.DateTime, onupdate=db.func.current_timestamp())
+    # Add parent-child relationship fields
+    parent_id = db.Column(UUID(as_uuid=True), db.ForeignKey('income_entries.id'))
+    is_subaccount = db.Column(db.Boolean, default=False)
+        # Relationship to track child budgets
+    children = db.relationship('IncomeEntry', 
+                             backref=db.backref('parent', remote_side=[id]),
+                             cascade='all, delete-orphan')
+
+    def calculate_totals(self):
+        """Calculate total amounts including child budgets"""
+        # Base amounts for this budget
+        total_budget = float(self.amount)
+        total_spent = sum(float(t.amount) for t in self.transactions)
+        
+        # Add amounts from child budgets if this is a parent
+        if not self.is_subaccount:
+            for child in self.children:
+                child_totals = child.calculate_totals()
+                total_budget += child_totals['budget']
+                total_spent += child_totals['spent']
+                
+        return {
+            'budget': total_budget,
+            'spent': total_spent,
+            'remaining': total_budget - total_spent
+        }
+    # Add migration for new fields
+def upgrade():
+    op.add_column('income_entries', sa.Column('parent_id', UUID(as_uuid=True)))
+    op.add_column('income_entries', sa.Column('is_subaccount', sa.Boolean(), default=False))
+    op.create_foreign_key('fk_parent_budget', 
+                         'income_entries', 'income_entries',
+                         ['parent_id'], ['id'])
 
 
 @app.route('/debug/routes', methods=['GET'])
@@ -4096,35 +4143,68 @@ def get_income_entries():
         engine = create_engine(db_url, poolclass=NullPool)
         
         with engine.connect() as connection:
-            # Get income entries with their recent transactions
+            # Modified query to include parent-child relationships
             result = connection.execute(text("""
-                WITH RecentTransactions AS (
+                WITH RECURSIVE BudgetHierarchy AS (
+                    -- Base case: get parent budgets
+                    SELECT 
+                        id, title, amount, frequency, is_recurring,
+                        start_date, end_date, next_payment_date,
+                        parent_id, is_subaccount,
+                        ARRAY[]::uuid[] as path,
+                        0 as level
+                    FROM income_entries 
+                    WHERE parent_id IS NULL
+                    
+                    UNION ALL
+                    
+                    -- Recursive case: get child budgets
+                    SELECT 
+                        c.id, c.title, c.amount, c.frequency, c.is_recurring,
+                        c.start_date, c.end_date, c.next_payment_date,
+                        c.parent_id, c.is_subaccount,
+                        path || c.parent_id,
+                        level + 1
+                    FROM income_entries c
+                    JOIN BudgetHierarchy p ON c.parent_id = p.id
+                ),
+                TransactionTotals AS (
                     SELECT 
                         income_entry_id,
-                        json_agg(
-                            json_build_object(
-                                'id', id,
-                                'amount', amount,
-                                'transaction_date', payment_date,
-                                'title', title,
-                                'is_one_time', is_one_time,
-                                'created_at', created_at
-                            ) ORDER BY payment_date DESC
-                        ) as transactions
+                        COALESCE(SUM(amount), 0) as total_spent
                     FROM payments_history
                     GROUP BY income_entry_id
                 )
                 SELECT 
-                    i.*,
-                    COALESCE(rt.transactions, '[]') as transactions
-                FROM income_entries i
-                LEFT JOIN RecentTransactions rt ON i.id = rt.income_entry_id
-                ORDER BY i.created_at DESC
+                    bh.*,
+                    COALESCE(tt.total_spent, 0) as total_spent,
+                    json_agg(
+                        json_build_object(
+                            'id', ph.id,
+                            'amount', ph.amount,
+                            'payment_date', ph.payment_date,
+                            'title', ph.title,
+                            'is_one_time', ph.is_one_time
+                        )
+                    ) FILTER (WHERE ph.id IS NOT NULL) as transactions
+                FROM BudgetHierarchy bh
+                LEFT JOIN TransactionTotals tt ON bh.id = tt.income_entry_id
+                LEFT JOIN payments_history ph ON bh.id = ph.income_entry_id
+                GROUP BY 
+                    bh.id, bh.title, bh.amount, bh.frequency, 
+                    bh.is_recurring, bh.start_date, bh.end_date, 
+                    bh.next_payment_date, bh.parent_id, 
+                    bh.is_subaccount, bh.path, bh.level,
+                    tt.total_spent
+                ORDER BY bh.path, bh.level, bh.title
             """))
             
             entries = []
+            parent_map = {}
+            
+            # Process results and build hierarchy
             for row in result:
-                entries.append({
+                entry_data = {
                     'id': str(row.id),
                     'title': row.title,
                     'amount': float(row.amount),
@@ -4133,8 +4213,24 @@ def get_income_entries():
                     'start_date': row.start_date.isoformat() if row.start_date else None,
                     'end_date': row.end_date.isoformat() if row.end_date else None,
                     'next_payment_date': row.next_payment_date.isoformat() if row.next_payment_date else None,
-                    'transactions': row.transactions
-                })
+                    'is_subaccount': row.is_subaccount,
+                    'parent_id': str(row.parent_id) if row.parent_id else None,
+                    'total_spent': float(row.total_spent),
+                    'transactions': row.transactions if row.transactions else [],
+                    'children': []
+                }
+                
+                if row.parent_id:
+                    parent = parent_map.get(str(row.parent_id))
+                    if parent:
+                        parent['children'].append(entry_data)
+                        # Update parent totals
+                        parent['total_budget'] = parent.get('total_budget', float(parent['amount'])) + float(row.amount)
+                        parent['total_spent'] = parent.get('total_spent', 0) + float(row.total_spent)
+                else:
+                    entries.append(entry_data)
+                
+                parent_map[str(row.id)] = entry_data
             
             return jsonify({'entries': entries})
             

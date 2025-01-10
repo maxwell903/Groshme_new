@@ -8,7 +8,7 @@ import OneTimeIncomeModal from '@/components/OneTimeIncomeModal';
 
 
 
-const AddIncomeModal = ({ isOpen, onClose, onSubmit, initialData = null }) => {
+const AddIncomeModal = ({ isOpen, onClose, onSubmit, initialData = null, entries = [] }) => {
   const [formData, setFormData] = useState({
     title: '',
     amount: '',
@@ -17,10 +17,35 @@ const AddIncomeModal = ({ isOpen, onClose, onSubmit, initialData = null }) => {
     start_date: '',
     end_date: '',
     next_payment_date: '',
+    is_subaccount: false,
+    parent_id: null,
     ...initialData
   });
 
   const [errors, setErrors] = useState({});
+
+  // Filter out potential parent accounts (exclude current entry if editing and any subaccounts)
+  const availableParents = useMemo(() => {
+    if (!initialData) {
+      // If creating new, all non-subaccounts are available
+      return entries.filter(entry => !entry.is_subaccount);
+    } else {
+      // If editing, exclude self and children
+      return entries.filter(entry => 
+        !entry.is_subaccount && 
+        entry.id !== initialData.id &&
+        !isDescendantOf(entry, initialData.id)
+      );
+    }
+  }, [entries, initialData]);
+
+  // Helper function to check if an entry is a descendant of another
+  const isDescendantOf = (entry, parentId) => {
+    if (!entry.children) return false;
+    return entry.children.some(child => 
+      child.id === parentId || isDescendantOf(child, parentId)
+    );
+  };
 
   const validateForm = () => {
     const newErrors = {};
@@ -32,8 +57,8 @@ const AddIncomeModal = ({ isOpen, onClose, onSubmit, initialData = null }) => {
       if (!formData.end_date) newErrors.end_date = 'End date is required';
       if (!formData.next_payment_date) newErrors.next_payment_date = 'Next payment date is required';
       
-      // Validate date ranges
-      if (formData.start_date && formData.end_date && new Date(formData.start_date) > new Date(formData.end_date)) {
+      if (formData.start_date && formData.end_date && 
+          new Date(formData.start_date) > new Date(formData.end_date)) {
         newErrors.end_date = 'End date must be after start date';
       }
       if (formData.next_payment_date && formData.start_date && 
@@ -41,7 +66,7 @@ const AddIncomeModal = ({ isOpen, onClose, onSubmit, initialData = null }) => {
         newErrors.next_payment_date = 'Next payment date must be after start date';
       }
     }
-    
+
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
   };
@@ -66,6 +91,53 @@ const AddIncomeModal = ({ isOpen, onClose, onSubmit, initialData = null }) => {
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-4">
+          {/* Subaccount Controls */}
+          <div className="space-y-2">
+            <div className="flex items-center gap-2">
+              <input
+                type="checkbox"
+                id="is_subaccount"
+                checked={formData.is_subaccount}
+                onChange={(e) => {
+                  const newValue = e.target.checked;
+                  setFormData(prev => ({
+                    ...prev,
+                    is_subaccount: newValue,
+                    parent_id: newValue ? prev.parent_id : null
+                  }));
+                }}
+                className="rounded border-gray-300"
+              />
+              <label htmlFor="is_subaccount" className="text-sm font-medium text-gray-700">
+                Make this a subaccount
+              </label>
+            </div>
+
+            {formData.is_subaccount && (
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Parent Account
+                </label>
+                <select
+                  value={formData.parent_id || ''}
+                  onChange={(e) => setFormData(prev => ({
+                    ...prev,
+                    parent_id: e.target.value
+                  }))}
+                  className="w-full border rounded-md p-2"
+                  required={formData.is_subaccount}
+                >
+                  <option value="">Select a parent account</option>
+                  {availableParents.map(parent => (
+                    <option key={parent.id} value={parent.id}>
+                      {parent.title}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            )}
+          </div>
+
           {/* Title Input */}
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">
@@ -204,69 +276,76 @@ const AddIncomeModal = ({ isOpen, onClose, onSubmit, initialData = null }) => {
 
 
 
-const BudgetEntry = ({ entry, onEdit, onDelete, onTransactionsUpdate }) => {
+
+
+const BudgetEntry = ({ 
+  entry, 
+  onEdit, 
+  onDelete, 
+  onTransactionsUpdate,
+  onSetParent
+}) => {
   const [showTransactionModal, setShowTransactionModal] = useState(false);
   const [showOneTimeIncomeModal, setShowOneTimeIncomeModal] = useState(false);
 
-  const handleTransactionUpdate = async (updates) => {
-    try {
-      await fetchApi(`/api/income-entries/${entry.id}/transactions`, {
-        method: 'POST',
-        body: JSON.stringify(updates)
+  // Calculate combined totals including child budgets
+  const totals = useMemo(() => {
+    let totalBudget = parseFloat(entry.amount);
+    let totalSpent = entry.total_spent || 0;
+    
+    // Add totals from child budgets if any exist
+    if (entry.children && entry.children.length > 0) {
+      entry.children.forEach(child => {
+        totalBudget += parseFloat(child.amount);
+        totalSpent += child.total_spent || 0;
       });
-      
-      if (onTransactionsUpdate) {
-        onTransactionsUpdate();
-      }
-    } catch (error) {
-      console.error('Error updating transactions:', error);
     }
+    
+    return {
+      budget: totalBudget,
+      spent: totalSpent,
+      remaining: totalBudget - totalSpent
+    };
+  }, [entry]);
+
+  // Format numbers for display
+  const formatCurrency = (amount) => {
+    return new Intl.NumberFormat('en-US', {
+      style: 'currency',
+      currency: 'USD'
+    }).format(amount);
   };
-
-  const handleOneTimeIncomeSubmit = async (incomeData) => {
-    try {
-      await fetchApi(`/api/income-entries/${entry.id}/one-time`, {
-        method: 'POST',
-        body: JSON.stringify(incomeData)
-      });
-      
-      if (onTransactionsUpdate) {
-        onTransactionsUpdate();
-      }
-      setShowOneTimeIncomeModal(false);
-    } catch (error) {
-      console.error('Error adding one-time income:', error);
-    }
-  };
-
-  // Sort transactions by date, with most recent first
-  const sortedTransactions = entry.transactions ? [...entry.transactions].sort((a, b) => 
-    new Date(b.transaction_date) - new Date(a.transaction_date)
-  ) : [];
-
-
-   // Calculate total transactions
-   const totalTransactions = useMemo(() => {
-    return sortedTransactions.reduce((sum, transaction) => sum + parseFloat(transaction.amount), 0);
-  }, [sortedTransactions]);
-
-  // Calculate remaining budget
-  const remainingBudget = parseFloat(entry.amount) - totalTransactions;
 
   return (
-    <div className="bg-white p-4 rounded-lg shadow-md hover:shadow-lg transition-shadow">
+    <div className={`bg-white p-4 rounded-lg shadow-md hover:shadow-lg transition-shadow
+      ${entry.is_subaccount ? 'border-l-4 border-blue-500 ml-6' : ''}`}>
       <div className="flex justify-between items-start">
         <div>
-          <h3 className="text-lg font-semibold">{entry.title}</h3>
+          <h3 className="text-lg font-semibold">
+            {entry.title}
+            {entry.is_subaccount && 
+              <span className="ml-2 text-sm text-blue-600">(Subaccount)</span>
+            }
+          </h3>
+          
+          {/* Budget Calculation Display */}
           <div className="flex items-center gap-2 mt-1">
-            <span className="text-2xl font-bold text-green-600">${entry.amount}</span>
+            <span className="text-2xl font-bold text-green-600">
+              {formatCurrency(totals.budget)}
+            </span>
             <span className="text-xl">-</span>
-            <span className="text-2xl font-bold text-red-600">${totalTransactions.toFixed(2)}</span>
+            <span className="text-2xl font-bold text-red-600">
+              {formatCurrency(totals.spent)}
+            </span>
             <span className="text-xl">=</span>
-            <span className={`text-2xl font-bold ${remainingBudget >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-              ${remainingBudget.toFixed(2)}
+            <span className={`text-2xl font-bold ${
+              totals.remaining >= 0 ? 'text-green-600' : 'text-red-600'
+            }`}>
+              {formatCurrency(totals.remaining)}
             </span>
           </div>
+
+          {/* Frequency and Schedule Info */}
           <p className="text-sm text-gray-600 capitalize">
             {entry.frequency} {entry.is_recurring && '(Recurring)'}
           </p>
@@ -277,12 +356,24 @@ const BudgetEntry = ({ entry, onEdit, onDelete, onTransactionsUpdate }) => {
                 <span>Next: {new Date(entry.next_payment_date).toLocaleDateString()}</span>
               </div>
               <div className="mt-1">
-                {new Date(entry.start_date).toLocaleDateString()} - {new Date(entry.end_date).toLocaleDateString()}
+                {new Date(entry.start_date).toLocaleDateString()} - 
+                {new Date(entry.end_date).toLocaleDateString()}
               </div>
             </div>
           )}
         </div>
+
+        {/* Action Buttons */}
         <div className="space-x-2">
+          {!entry.is_subaccount && (
+            <button
+              onClick={() => onSetParent(entry.id)}
+              className="text-blue-600 hover:text-blue-800"
+              title="Add Subaccount"
+            >
+              <Plus size={16} />
+            </button>
+          )}
           <button
             onClick={() => onEdit(entry)}
             className="text-blue-600 hover:text-blue-800"
@@ -298,6 +389,7 @@ const BudgetEntry = ({ entry, onEdit, onDelete, onTransactionsUpdate }) => {
         </div>
       </div>
       
+      {/* Transaction History */}
       <div className="mt-4 border-t pt-4">
         <div className="flex justify-between items-center mb-2">
           <h4 className="text-sm font-semibold">Transaction History</h4>
@@ -305,7 +397,7 @@ const BudgetEntry = ({ entry, onEdit, onDelete, onTransactionsUpdate }) => {
             <button
               onClick={() => setShowOneTimeIncomeModal(true)}
               className="p-1 text-gray-500 hover:text-gray-700 rounded-full hover:bg-gray-100"
-              title="Add One-Time Income"
+              title="Add One-Time Transaction"
             >
               <Plus size={16} />
             </button>
@@ -318,17 +410,26 @@ const BudgetEntry = ({ entry, onEdit, onDelete, onTransactionsUpdate }) => {
             </button>
           </div>
         </div>
+
+        {/* Transactions List */}
         <div className="space-y-2">
-          {sortedTransactions.map(transaction => (
+          {entry.transactions?.map(transaction => (
             <div key={transaction.id} className="flex justify-between text-sm items-center">
               <div className="flex items-center gap-2 flex-1">
-                <span className="whitespace-nowrap">{new Date(transaction.transaction_date).toLocaleDateString()}</span>
+                <span className="whitespace-nowrap">
+                  {new Date(transaction.transaction_date).toLocaleDateString()}
+                </span>
                 <span className="text-gray-600 truncate">
-                  {transaction.is_one_time ? ` - ${transaction.title || 'One-time payment'}` : ''}
+                  {transaction.is_one_time ? 
+                    ` - ${transaction.title || 'One-time payment'}` : 
+                    ''
+                  }
                 </span>
               </div>
               <div className="flex items-center gap-2 ml-4">
-                <span className="font-medium whitespace-nowrap">${parseFloat(transaction.amount).toFixed(2)}</span>
+                <span className="font-medium whitespace-nowrap">
+                  {formatCurrency(transaction.amount)}
+                </span>
                 {transaction.is_one_time && (
                   <span className="text-xs bg-blue-100 text-blue-800 px-2 py-0.5 rounded-full whitespace-nowrap">
                     One-time
@@ -338,21 +439,46 @@ const BudgetEntry = ({ entry, onEdit, onDelete, onTransactionsUpdate }) => {
             </div>
           ))}
         </div>
+
+        {/* Child Budgets Section */}
+        {entry.children && entry.children.length > 0 && (
+          <div className="mt-4 border-t pt-4">
+            <h4 className="text-sm font-semibold mb-2">Subaccounts</h4>
+            <div className="space-y-2">
+              {entry.children.map(child => (
+                <div key={child.id} className="flex justify-between text-sm items-center">
+                  <span>{child.title}</span>
+                  <span className="font-medium">
+                    {formatCurrency(child.amount)}
+                  </span>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
       </div>
 
+      {/* Modals */}
       {showTransactionModal && (
         <TransactionEditModal
           isOpen={showTransactionModal}
           onClose={() => setShowTransactionModal(false)}
           transactions={entry.transactions}
-          onSave={handleTransactionUpdate}
+          onSave={async (updates) => {
+            await handleTransactionUpdate(updates);
+            setShowTransactionModal(false);
+          }}
         />
       )}
+      
       {showOneTimeIncomeModal && (
         <OneTimeIncomeModal
           isOpen={showOneTimeIncomeModal}
           onClose={() => setShowOneTimeIncomeModal(false)}
-          onSubmit={handleOneTimeIncomeSubmit}
+          onSubmit={async (incomeData) => {
+            await handleOneTimeIncomeSubmit(incomeData);
+            setShowOneTimeIncomeModal(false);
+          }}
         />
       )}
     </div>
@@ -565,6 +691,7 @@ export default function MyBills() {
             }}
             onSubmit={handleSubmit}
             initialData={editingEntry}
+            entries={entries}
           />
         )}
       </div>
