@@ -4242,18 +4242,28 @@ def get_income_entries():
 def create_income_entry():
     try:
         data = request.json
+        print("Received data for income entry:", data)
+        print("Subaccount status:", data.get('is_subaccount'), "Parent ID:", data.get('parent_id'))
+        
         engine = create_engine(db_url, poolclass=NullPool)
         
         with engine.connect() as connection:
-            # Insert new income entry
+            # Handle parent_id properly
+            parent_id = data.get('parent_id')
+            if not parent_id or parent_id == '':
+                parent_id = None
+            
+            # Modified query to handle NULL parent_id correctly
             result = connection.execute(
                 text("""
                     INSERT INTO income_entries (
                         title, amount, frequency, is_recurring,
-                        start_date, end_date, next_payment_date
+                        start_date, end_date, next_payment_date,
+                        parent_id, is_subaccount
                     ) VALUES (
                         :title, :amount, :frequency, :is_recurring,
-                        :start_date, :end_date, :next_payment_date
+                        :start_date, :end_date, :next_payment_date,
+                        :parent_id, :is_subaccount
                     ) RETURNING id
                 """),
                 {
@@ -4263,14 +4273,14 @@ def create_income_entry():
                     'is_recurring': data['is_recurring'],
                     'start_date': data['start_date'] if data['is_recurring'] else None,
                     'end_date': data['end_date'] if data['is_recurring'] else None,
-                    'next_payment_date': data['next_payment_date'] if data['is_recurring'] else None
+                    'next_payment_date': data['next_payment_date'] if data['is_recurring'] else None,
+                    'parent_id': parent_id,  # This will now be None instead of empty string
+                    'is_subaccount': bool(data.get('is_subaccount', False))
                 }
             )
             
             entry_id = result.fetchone()[0]
             
-            # If it's recurring and has a start date before or equal to today,
-            # create retroactive payments
             if data['is_recurring'] and data['start_date']:
                 start_date = datetime.strptime(data['start_date'], '%Y-%m-%d').date()
                 today = datetime.now().date()
