@@ -283,7 +283,8 @@ const BudgetEntry = ({
   onEdit, 
   onDelete, 
   onTransactionsUpdate,
-  onSetParent
+  onSetParent,
+  level = 0
 }) => {
   const [showTransactionModal, setShowTransactionModal] = useState(false);
   const [showOneTimeIncomeModal, setShowOneTimeIncomeModal] = useState(false);
@@ -318,9 +319,9 @@ const BudgetEntry = ({
 
   return (
     <div className={`bg-white p-4 rounded-lg shadow-md hover:shadow-lg transition-shadow
-      ${entry.is_subaccount ? 'border-l-4 border-blue-500 ml-6' : ''}`}>
-      <div className="flex justify-between items-start">
-        <div>
+      ${entry.is_subaccount ? `ml-${level * 4} border-l-4 border-blue-500` : ''}`}>
+      <div className="flex flex-col sm:flex-row justify-between items-start">
+        <div className="w-full sm:w-auto mb-4 sm:mb-0">
           <h3 className="text-lg font-semibold">
             {entry.title}
             {entry.is_subaccount && 
@@ -611,6 +612,18 @@ export default function MyBills() {
     setShowModal(true);
   };
 
+
+
+  const handleSetParent = (parentId) => {
+    setEditingEntry(entries.find(entry => entry.id === parentId));
+    setFormData(prev => ({
+      ...prev,
+      is_subaccount: true,
+      parent_id: parentId
+    }));
+    setShowModal(true);
+  };
+
   return (
     <div className="min-h-screen bg-gray-50 p-4">
       <div className="max-w-6xl mx-auto">
@@ -665,21 +678,37 @@ export default function MyBills() {
               </button>
             </div>
           ) : (
-            <>
-              <div className="grid gap-4 md:grid-cols-2">
-                {entries.map((entry) => (
-                  <BudgetEntry
-                  key={entry.id}
+            <div className="space-y-4">
+            {entries.map((entry) => (
+              <div key={entry.id}>
+                <BudgetEntry
                   entry={entry}
                   onEdit={handleEdit}
                   onDelete={handleDelete}
-                  onTransactionsUpdate={fetchEntries} // Add this prop
+                  onTransactionsUpdate={fetchEntries}
+                  onSetParent={handleSetParent}
                 />
-                ))}
+                {entry.children && entry.children.length > 0 && (
+                  <div className="mt-4 space-y-4">
+                    {entry.children.map(child => (
+                      <BudgetEntry
+                        key={child.id}
+                        entry={child}
+                        onEdit={handleEdit}
+                        onDelete={handleDelete}
+                        onTransactionsUpdate={fetchEntries}
+                        onSetParent={handleSetParent}
+                        level={1}
+                      />
+                    ))}
+                  </div>
+                )}
               </div>
-            </>
+            ))}
+          </div>
           )}
         </div>
+        
 
         {/* Add/Edit Income Modal */}
         {showModal && (
