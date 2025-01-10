@@ -313,8 +313,23 @@ const BudgetEntry = ({
   const formatCurrency = (amount) => {
     return new Intl.NumberFormat('en-US', {
       style: 'currency',
-      currency: 'USD'
+      currency: 'USD',
+      minimumFractionDigits: 0,
+    maximumFractionDigits: 0
     }).format(amount);
+  };
+
+  const handleOneTimeIncomeSubmit = async (incomeData) => {
+    try {
+      await fetchApi(`/api/income-entries/${entry.id}/one-time`, {
+        method: 'POST',
+        body: JSON.stringify(incomeData)
+      });
+      onTransactionsUpdate();
+    } catch (error) {
+      console.error('Error adding one-time income:', error);
+      // Handle error state if needed
+    }
   };
 
   return (
