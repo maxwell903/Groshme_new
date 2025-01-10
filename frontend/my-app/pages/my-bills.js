@@ -309,6 +309,19 @@ const BudgetEntry = ({
     };
   }, [entry]);
 
+  const handleTransactionUpdate = async (updates) => {
+    try {
+      await fetchApi(`/api/income-entries/${entry.id}/transactions`, {
+        method: 'POST',
+        body: JSON.stringify(updates)
+      });
+      onTransactionsUpdate();
+    } catch (error) {
+      console.error('Error updating transactions:', error);
+      // Handle error state if needed
+    }
+  };
+
   // Format numbers for display
   const formatCurrency = (amount) => {
     return new Intl.NumberFormat('en-US', {
@@ -334,15 +347,24 @@ const BudgetEntry = ({
 
   return (
     <div className={`bg-white p-4 rounded-lg shadow-md hover:shadow-lg transition-shadow
-      ${entry.is_subaccount ? `ml-${level * 4} border-l-4 border-blue-500` : ''}`}>
+      ${entry.is_subaccount ? `ml-${level * 2} border-l-4 border-blue-500` : ''}`}>
       <div className="flex flex-col sm:flex-row justify-between items-start">
         <div className="w-full sm:w-auto mb-4 sm:mb-0">
           <h3 className="text-lg font-semibold">
             {entry.title}
+
+
+ 
             {entry.is_subaccount && 
               <span className="ml-2 text-sm text-blue-600">(Subaccount)</span>
+              
+
+
             }
+            
           </h3>
+
+          
           
           {/* Budget Calculation Display */}
           <div className="flex items-center gap-2 mt-1">
@@ -360,6 +382,24 @@ const BudgetEntry = ({
               {formatCurrency(totals.remaining)}
             </span>
           </div>
+               {/* Action Buttons */}
+        <div className="space-x-2">
+         
+         
+          <button
+            onClick={() => onEdit(entry)}
+            className="text-blue-600 hover:text-blue-800"
+          >
+            Edit
+          </button>
+          <button
+            onClick={() => onDelete(entry.id)}
+            className="text-red-600 hover:text-red-800"
+          >
+            Delete
+          </button>
+        </div>
+      
 
           {/* Frequency and Schedule Info */}
           <p className="text-sm text-gray-600 capitalize">
@@ -377,32 +417,10 @@ const BudgetEntry = ({
               </div>
             </div>
           )}
+          
         </div>
 
-        {/* Action Buttons */}
-        <div className="space-x-2">
-          {!entry.is_subaccount && (
-            <button
-              onClick={() => onSetParent(entry.id)}
-              className="text-blue-600 hover:text-blue-800"
-              title="Add Subaccount"
-            >
-              <Plus size={16} />
-            </button>
-          )}
-          <button
-            onClick={() => onEdit(entry)}
-            className="text-blue-600 hover:text-blue-800"
-          >
-            Edit
-          </button>
-          <button
-            onClick={() => onDelete(entry.id)}
-            className="text-red-600 hover:text-red-800"
-          >
-            Delete
-          </button>
-        </div>
+       
       </div>
       
       {/* Transaction History */}
@@ -714,6 +732,7 @@ export default function MyBills() {
                         onTransactionsUpdate={fetchEntries}
                         onSetParent={handleSetParent}
                         level={1}
+                        
                       />
                     ))}
                   </div>
