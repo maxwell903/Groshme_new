@@ -291,7 +291,241 @@ const AddIncomeModal = ({ isOpen, onClose, onSubmit, initialData = null, entries
 };
 
 
+const calculateBudgetByFrequency = (amount, frequency) => {
+  let weekly = 0;
+  let monthly = 0;
+  let yearly = 0;
+  let biweekly = 0;
+  
+  const baseAmount = parseFloat(amount) || 0;
 
+  switch (frequency) {
+    case 'weekly':
+      weekly = baseAmount;
+      biweekly = weekly * 2;
+      monthly = weekly * 52 / 12;
+      yearly = weekly * 52;
+      break;
+
+    case 'biweekly':
+      biweekly = baseAmount;
+      weekly = biweekly / 2;
+      monthly = biweekly * 26 / 12;
+      yearly = biweekly * 26;
+      break;
+
+    case 'monthly':
+      monthly = baseAmount;
+      weekly = monthly * 12 / 52;
+      biweekly = monthly * 12 / 26;
+      yearly = monthly * 12;
+      break;
+
+    case 'yearly':
+      yearly = baseAmount;
+      monthly = yearly / 12;
+      weekly = yearly / 52;
+      biweekly = yearly / 26;
+      break;
+  }
+
+  return { weekly, biweekly, monthly, yearly };
+};
+
+// Component for displaying budget calculations
+const BudgetCalculations = ({ budget }) => {
+  const calculations = useMemo(() => {
+    // Calculate budget for all frequencies
+    const baseCalc = calculateBudgetByFrequency(budget.amount, budget.frequency);
+    
+    // Include any child budgets if they exist
+    if (budget.children && budget.children.length > 0) {
+      budget.children.forEach(child => {
+        const childCalc = calculateBudgetByFrequency(child.amount, child.frequency);
+        baseCalc.weekly += childCalc.weekly;
+        baseCalc.biweekly += childCalc.biweekly;
+        baseCalc.monthly += childCalc.monthly;
+        baseCalc.yearly += childCalc.yearly;
+      });
+    }
+    
+    return baseCalc;
+  }, [budget]);
+
+  // Format currency values
+  const formatCurrency = (amount) => {
+    return new Intl.NumberFormat('en-US', {
+      style: 'currency',
+      currency: 'USD',
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2
+    }).format(amount);
+  };
+
+  return (
+    <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mt-4">
+      <div className="bg-gray-50 p-3 rounded">
+        <span className="text-sm text-gray-600">Weekly:</span>
+        <div className="font-semibold">{formatCurrency(calculations.weekly)}</div>
+      </div>
+      <div className="bg-gray-50 p-3 rounded">
+        <span className="text-sm text-gray-600">Biweekly:</span>
+        <div className="font-semibold">{formatCurrency(calculations.biweekly)}</div>
+      </div>
+      <div className="bg-gray-50 p-3 rounded">
+        <span className="text-sm text-gray-600">Monthly:</span>
+        <div className="font-semibold">{formatCurrency(calculations.monthly)}</div>
+      </div>
+      <div className="bg-gray-50 p-3 rounded">
+        <span className="text-sm text-gray-600">Yearly:</span>
+        <div className="font-semibold">{formatCurrency(calculations.yearly)}</div>
+      </div>
+    </div>
+  );
+};
+
+const calculateByFrequency = (amount, frequency) => {
+  let weekly = 0;
+  let monthly = 0;
+  let yearly = 0;
+  let biweekly = 0;
+
+  switch (frequency) {
+    case 'weekly':
+      weekly = parseFloat(amount);
+      monthly = weekly * 52 / 12; // Weekly to monthly (52 weeks / 12 months)
+      yearly = weekly * 52;       // Weekly to yearly
+      biweekly = weekly * 2;      // Weekly to biweekly
+      break;
+
+    case 'biweekly':
+      biweekly = parseFloat(amount);
+      weekly = biweekly / 2;      // Biweekly to weekly
+      monthly = biweekly * 26 / 12; // Biweekly to monthly (26 pay periods)
+      yearly = biweekly * 26;     // Biweekly to yearly
+      break;
+
+    case 'monthly':
+      monthly = parseFloat(amount);
+      weekly = monthly * 12 / 52;  // Monthly to weekly
+      yearly = monthly * 12;       // Monthly to yearly
+      biweekly = monthly * 12 / 26; // Monthly to biweekly
+      break;
+
+    case 'yearly':
+      yearly = parseFloat(amount);
+      weekly = yearly / 52;        // Yearly to weekly
+      monthly = yearly / 12;       // Yearly to monthly
+      biweekly = yearly / 26;      // Yearly to biweekly
+      break;
+  }
+
+  return { weekly, monthly, yearly, biweekly };
+};
+
+// Component to display income summary
+const IncomeSummary = ({ entries }) => {
+  const totals = entries.reduce((acc, entry) => {
+    if (!entry.amount) return acc;  // Skip if no amount
+    
+    const calculations = calculateByFrequency(entry.amount, entry.frequency);
+    
+    // Add calculated amounts to accumulator
+    acc.weekly += calculations.weekly;
+    acc.monthly += calculations.monthly;
+    acc.yearly += calculations.yearly;
+    acc.biweekly += calculations.biweekly;
+    
+    return acc;
+  }, { weekly: 0, monthly: 0, yearly: 0, biweekly: 0 });
+
+  // Format numbers to 2 decimal places
+  const formatCurrency = (amount) => {
+    return new Intl.NumberFormat('en-US', {
+      style: 'currency',
+      currency: 'USD',
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2
+    }).format(amount);
+  };
+
+  return (
+    <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
+      <div className="bg-white p-4 rounded-lg shadow">
+        <h3 className="text-lg font-semibold text-gray-600">Weekly Income</h3>
+        <p className="text-2xl font-bold text-green-600">
+          {formatCurrency(totals.weekly)}
+        </p>
+      </div>
+      <div className="bg-white p-4 rounded-lg shadow">
+        <h3 className="text-lg font-semibold text-gray-600">Biweekly Income</h3>
+        <p className="text-2xl font-bold text-green-600">
+          {formatCurrency(totals.biweekly)}
+        </p>
+      </div>
+      <div className="bg-white p-4 rounded-lg shadow">
+        <h3 className="text-lg font-semibold text-gray-600">Monthly Income</h3>
+        <p className="text-2xl font-bold text-green-600">
+          {formatCurrency(totals.monthly)}
+        </p>
+      </div>
+      <div className="bg-white p-4 rounded-lg shadow">
+        <h3 className="text-lg font-semibold text-gray-600">Yearly Income</h3>
+        <p className="text-2xl font-bold text-green-600">
+          {formatCurrency(totals.yearly)}
+        </p>
+      </div>
+    </div>
+  );
+};
+
+
+
+const DeleteBudgetDialog = ({ 
+  isOpen, 
+  onClose, 
+  onConfirm, 
+  title, 
+  error = null,
+  isSubaccount = false 
+}) => {
+  return (
+    <AlertDialog open={isOpen} onOpenChange={onClose}>
+      <AlertDialogContent className="max-w-md">
+        <AlertDialogHeader>
+          <AlertDialogTitle>Delete {isSubaccount ? 'Subaccount' : 'Budget'}</AlertDialogTitle>
+          <AlertDialogDescription>
+            {error ? (
+              <Alert variant="destructive" className="mt-4">
+                <AlertDescription>
+                  {error}
+                </AlertDescription>
+              </Alert>
+            ) : (
+              <>
+                Are you sure you want to delete "{title}"? 
+                {isSubaccount ? 
+                  " This subaccount will be permanently removed." :
+                  " This will permanently delete this budget and all its payment history."}
+              </>
+            )}
+          </AlertDialogDescription>
+        </AlertDialogHeader>
+        <AlertDialogFooter>
+          <AlertDialogCancel onClick={onClose}>Cancel</AlertDialogCancel>
+          {!error && (
+            <AlertDialogAction
+              onClick={onConfirm}
+              className="bg-red-600 hover:bg-red-700 focus:ring-red-600"
+            >
+              Delete
+            </AlertDialogAction>
+          )}
+        </AlertDialogFooter>
+      </AlertDialogContent>
+    </AlertDialog>
+  );
+};
 
 
 const BudgetEntry = ({ 
@@ -307,13 +541,47 @@ const BudgetEntry = ({
 
   // Calculate combined totals including child budgets
   const totals = useMemo(() => {
-    let totalBudget = parseFloat(entry.amount);
+    const calculateAmountByFrequency = (amount, frequency) => {
+      const baseAmount = parseFloat(amount);
+      switch (frequency) {
+        case 'weekly':
+          return {
+            periodic: baseAmount,
+            monthly: baseAmount * 52 / 12,
+            yearly: baseAmount * 52
+          };
+        case 'biweekly':
+          return {
+            periodic: baseAmount,
+            monthly: baseAmount * 26 / 12,
+            yearly: baseAmount * 26
+          };
+        case 'monthly':
+          return {
+            periodic: baseAmount,
+            monthly: baseAmount,
+            yearly: baseAmount * 12
+          };
+        case 'yearly':
+          return {
+            periodic: baseAmount / 12, // Show monthly amount for periodic
+            monthly: baseAmount / 12,
+            yearly: baseAmount
+          };
+        default:
+          return { periodic: 0, monthly: 0, yearly: 0 };
+      }
+    };
+  
+    let totalBudget = calculateAmountByFrequency(entry.amount, entry.frequency).monthly;
     let totalSpent = entry.total_spent || 0;
     
     // Add totals from child budgets if any exist
     if (entry.children && entry.children.length > 0) {
       entry.children.forEach(child => {
-        totalBudget += parseFloat(child.amount);
+        // Convert child amount to monthly for consistent comparison
+        const childAmount = calculateAmountByFrequency(child.amount, child.frequency).monthly;
+        totalBudget += childAmount;
       });
     }
     
@@ -585,39 +853,9 @@ export default function MyBills() {
   
 
   const calculateSummary = (entries) => {
-    const totals = entries.reduce((acc, entry) => {
-      const amount = parseFloat(entry.amount);
-      switch (entry.frequency) {
-        case 'weekly':
-          acc.weekly += amount;
-          acc.monthly += amount * 4.33;
-          acc.yearly += amount * 52;
-          break;
-        case 'biweekly':
-          acc.weekly += amount / 2;
-          acc.monthly += amount * 2.17;
-          acc.yearly += amount * 26;
-          break;
-        case 'monthly':
-          acc.weekly += amount / 4.33;
-          acc.monthly += amount;
-          acc.yearly += amount * 12;
-          break;
-        case 'yearly':
-          acc.weekly += amount / 52;
-          acc.monthly += amount / 12;
-          acc.yearly += amount;
-          break;
-      }
-      return acc;
-    }, { weekly: 0, monthly: 0, yearly: 0 });
-
-    setSummary({
-      weekly: Math.round(totals.weekly * 100) / 100,
-      monthly: Math.round(totals.monthly * 100) / 100,
-      yearly: Math.round(totals.yearly * 100) / 100
-    });
+    setEntries(entries);  // Just update the entries state
   };
+  
 
   const handleSubmit = async (formData) => {
     try {
@@ -692,21 +930,8 @@ export default function MyBills() {
           </button>
         </div>
 
-        {/* Summary Cards */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
-          <div className="bg-white p-4 rounded-lg shadow">
-            <h3 className="text-lg font-semibold text-gray-600">Total Weekly Budget</h3>
-            <p className="text-2xl font-bold text-green-600">${summary.weekly}</p>
-          </div>
-          <div className="bg-white p-4 rounded-lg shadow">
-            <h3 className="text-lg font-semibold text-gray-600">Total Monthly Budget</h3>
-            <p className="text-2xl font-bold text-green-600">${summary.monthly}</p>
-          </div>
-          <div className="bg-white p-4 rounded-lg shadow">
-            <h3 className="text-lg font-semibold text-gray-600">Total Yearly Budget</h3>
-            <p className="text-2xl font-bold text-green-600">${summary.yearly}</p>
-          </div>
-        </div>
+       {/* Summary Cards */}
+          <IncomeSummary entries={entries} />
 
         {/* Income Entries List */}
         <div className="space-y-4">

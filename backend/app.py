@@ -4436,17 +4436,52 @@ def delete_income_entry(entry_id):
         engine = create_engine(db_url, poolclass=NullPool)
         
         with engine.connect() as connection:
-            # Delete income entry (will cascade delete payments_history)
-            result = connection.execute(
-                text("DELETE FROM income_entries WHERE id = :id"),
-                {"id": entry_id}
+            # First check if this is a parent account with subaccounts
+            subaccounts = connection.execute(
+                text("""
+                    SELECT COUNT(*) as count
+                    FROM income_entries
+                    WHERE parent_id = :entry_id
+                """),
+                {"entry_id": entry_id}
+            ).fetchone()
+
+            if subaccounts.count > 0:
+                return jsonify({
+                    'error': 'Cannot delete this budget while it has subaccounts. Please delete all subaccounts first.',
+                    'hasSubaccounts': True
+                }), 400
+
+            # If no subaccounts, proceed with deletion
+            # First delete associated payment history
+            connection.execute(
+                text("""
+                    DELETE FROM payments_history
+                    WHERE income_entry_id = :entry_id
+                """),
+                {"entry_id": entry_id}
             )
             
-            if not result.rowcount:
+            # Then delete the income entry
+            result = connection.execute(
+                text("""
+                    DELETE FROM income_entries 
+                    WHERE id = :entry_id
+                    RETURNING id, is_subaccount, parent_id
+                """),
+                {"entry_id": entry_id}
+            )
+            
+            deleted_entry = result.fetchone()
+            if not deleted_entry:
                 return jsonify({'error': 'Income entry not found'}), 404
                 
             connection.commit()
-            return jsonify({'message': 'Income entry deleted successfully'})
+            return jsonify({
+                'message': 'Income entry deleted successfully',
+                'wasSubaccount': deleted_entry.is_subaccount,
+                'parentId': str(deleted_entry.parent_id) if deleted_entry.parent_id else None
+            })
             
     except Exception as e:
         print(f"Error deleting income entry: {str(e)}")
