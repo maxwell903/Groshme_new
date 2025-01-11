@@ -4164,7 +4164,7 @@ def get_income_entries():
                         c.start_date, c.end_date, c.next_payment_date,
                         c.parent_id, c.is_subaccount,
                         path || c.parent_id,
-                        level + 1
+                        level + 0
                     FROM income_entries c
                     JOIN BudgetHierarchy p ON c.parent_id = p.id
                 ),

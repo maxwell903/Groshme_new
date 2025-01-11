@@ -298,7 +298,6 @@ const BudgetEntry = ({
     if (entry.children && entry.children.length > 0) {
       entry.children.forEach(child => {
         totalBudget += parseFloat(child.amount);
-        totalSpent += child.total_spent || 0;
       });
     }
     
