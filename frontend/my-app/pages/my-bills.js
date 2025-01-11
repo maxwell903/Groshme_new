@@ -893,7 +893,7 @@ export default function MyBills() {
         });
         fetchEntries();
       } catch (error) {
-        setError('Failed to delete income entry');
+        setError('Failed to delete income entry please refresh the page and make sure the account you are deleting does not have any subaccounts :)');
         console.error('Error:', error);
       }
     }
