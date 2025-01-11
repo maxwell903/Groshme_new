@@ -1,0 +1,115 @@
+import React, { useState, useMemo } from 'react';
+import { DollarSign, ArrowRight } from 'lucide-react';
+
+const ProfitLossCard = ({ summaryData }) => {
+  const [timeframe, setTimeframe] = useState('yearly');
+
+  const calculations = useMemo(() => {
+    const { weekly, monthly, yearly, totalSpent } = summaryData;
+    
+    // Calculate daily values (assuming average month length)
+    const daily = {
+      budget: weekly / 5, // Business days only
+      spent: totalSpent / 260, // 52 weeks * 5 business days
+    };
+    daily.remaining = daily.budget - daily.spent;
+
+    // Calculate other timeframes
+    const timeframes = {
+      daily,
+      weekly: {
+        budget: weekly,
+        spent: totalSpent / 52,
+        remaining: weekly - (totalSpent / 52)
+      },
+      monthly: {
+        budget: monthly,
+        spent: totalSpent / 12,
+        remaining: monthly - (totalSpent / 12)
+      },
+      yearly: {
+        budget: yearly,
+        spent: totalSpent,
+        remaining: yearly - totalSpent
+      }
+    };
+
+    return timeframes;
+  }, [summaryData]);
+
+  const formatCurrency = (amount) => {
+    return new Intl.NumberFormat('en-US', {
+      style: 'currency',
+      currency: 'USD',
+      minimumFractionDigits: 0,
+      maximumFractionDigits: 0
+    }).format(amount);
+  };
+
+  const timeframeLabels = {
+    daily: 'Daily',
+    weekly: 'Weekly',
+    monthly: 'Monthly',
+    yearly: 'Yearly'
+  };
+
+  return (
+    <div className="bg-white p-4 rounded-lg">
+      <div className="flex justify-between items-center mb-4">
+        <div className="flex items-center gap-2 text-gray-800">
+          <DollarSign size={20} />
+          <span className="font-medium">Profit & Loss</span>
+        </div>
+        <div className="flex gap-2">
+          {Object.keys(timeframeLabels).map((tf) => (
+            <button
+              key={tf}
+              onClick={() => setTimeframe(tf)}
+              className={`px-3 py-1 rounded text-sm font-medium transition-colors ${
+                timeframe === tf
+                  ? 'bg-blue-100 text-blue-700'
+                  : 'text-gray-600 hover:bg-gray-100'
+              }`}
+            >
+              {timeframeLabels[tf]}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      <div className="space-y-4">
+        <div className="flex items-center justify-between text-lg">
+          <span className="text-gray-600">Budget:</span>
+          <span className="font-semibold text-blue-600">
+            {formatCurrency(calculations[timeframe].budget)}
+          </span>
+        </div>
+
+        <div className="flex items-center justify-between text-lg">
+          <span className="text-gray-600">Spent:</span>
+          <span className="font-semibold text-red-600">
+            {formatCurrency(calculations[timeframe].spent)}
+          </span>
+        </div>
+
+        <div className="border-t pt-4">
+          <div className="flex items-center justify-between text-xl">
+            <span className="font-medium">Remaining:</span>
+            <span className={`font-bold ${
+              calculations[timeframe].remaining >= 0 
+                ? 'text-green-600' 
+                : 'text-red-600'
+            }`}>
+              {formatCurrency(Math.abs(calculations[timeframe].remaining))}
+              <span className="text-sm ml-1">
+                {calculations[timeframe].remaining >= 0 ? '(Under)' : '(Over)'}
+              </span>
+            </span>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+export default ProfitLossCard;

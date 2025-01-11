@@ -5,6 +5,7 @@ import { fetchApi } from '@/utils/api';
 import { Plus, X, Calendar, DollarSign, RefreshCw, Edit2 } from 'lucide-react';
 import TransactionEditModal from '@/components/TransactionEditModal';
 import OneTimeIncomeModal from '@/components/OneTimeIncomeModal';
+import BudgetSummaryCard from '@/components/BudgetSummaryCard';
 
 
 
@@ -424,108 +425,11 @@ const calculateByFrequency = (amount, frequency) => {
 };
 
 // Component to display income summary
-const IncomeSummary = ({ entries }) => {
-  const totals = entries.reduce((acc, entry) => {
-    if (!entry.amount) return acc;  // Skip if no amount
-    
-    const calculations = calculateByFrequency(entry.amount, entry.frequency);
-    
-    // Add calculated amounts to accumulator
-    acc.weekly += calculations.weekly;
-    acc.monthly += calculations.monthly;
-    acc.yearly += calculations.yearly;
-    acc.biweekly += calculations.biweekly;
-    
-    return acc;
-  }, { weekly: 0, monthly: 0, yearly: 0, biweekly: 0 });
-
-  // Format numbers to 2 decimal places
-  const formatCurrency = (amount) => {
-    return new Intl.NumberFormat('en-US', {
-      style: 'currency',
-      currency: 'USD',
-      minimumFractionDigits: 2,
-      maximumFractionDigits: 2
-    }).format(amount);
-  };
-
-  return (
-    <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
-      <div className="bg-white p-4 rounded-lg shadow">
-        <h3 className="text-lg font-semibold text-gray-600">Weekly Income</h3>
-        <p className="text-2xl font-bold text-green-600">
-          {formatCurrency(totals.weekly)}
-        </p>
-      </div>
-      <div className="bg-white p-4 rounded-lg shadow">
-        <h3 className="text-lg font-semibold text-gray-600">Biweekly Income</h3>
-        <p className="text-2xl font-bold text-green-600">
-          {formatCurrency(totals.biweekly)}
-        </p>
-      </div>
-      <div className="bg-white p-4 rounded-lg shadow">
-        <h3 className="text-lg font-semibold text-gray-600">Monthly Income</h3>
-        <p className="text-2xl font-bold text-green-600">
-          {formatCurrency(totals.monthly)}
-        </p>
-      </div>
-      <div className="bg-white p-4 rounded-lg shadow">
-        <h3 className="text-lg font-semibold text-gray-600">Yearly Income</h3>
-        <p className="text-2xl font-bold text-green-600">
-          {formatCurrency(totals.yearly)}
-        </p>
-      </div>
-    </div>
-  );
-};
 
 
 
-const DeleteBudgetDialog = ({ 
-  isOpen, 
-  onClose, 
-  onConfirm, 
-  title, 
-  error = null,
-  isSubaccount = false 
-}) => {
-  return (
-    <AlertDialog open={isOpen} onOpenChange={onClose}>
-      <AlertDialogContent className="max-w-md">
-        <AlertDialogHeader>
-          <AlertDialogTitle>Delete {isSubaccount ? 'Subaccount' : 'Budget'}</AlertDialogTitle>
-          <AlertDialogDescription>
-            {error ? (
-              <Alert variant="destructive" className="mt-4">
-                <AlertDescription>
-                  {error}
-                </AlertDescription>
-              </Alert>
-            ) : (
-              <>
-                Are you sure you want to delete "{title}"? 
-                {isSubaccount ? 
-                  " This subaccount will be permanently removed." :
-                  " This will permanently delete this budget and all its payment history."}
-              </>
-            )}
-          </AlertDialogDescription>
-        </AlertDialogHeader>
-        <AlertDialogFooter>
-          <AlertDialogCancel onClick={onClose}>Cancel</AlertDialogCancel>
-          {!error && (
-            <AlertDialogAction
-              onClick={onConfirm}
-              className="bg-red-600 hover:bg-red-700 focus:ring-red-600"
-            >
-              Delete
-            </AlertDialogAction>
-          )}
-        </AlertDialogFooter>
-      </AlertDialogContent>
-    </AlertDialog>
-  );
-};
+
+
 
 
 const BudgetEntry = ({ 
@@ -923,15 +827,17 @@ export default function MyBills() {
           <h1 className="text-2xl font-bold">Budget Management</h1>
           <button
             onClick={() => setShowModal(true)}
-            className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700"
+            className="flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700"
           >
             <Plus size={20} />
-            Add Income
+            Add Budget
           </button>
         </div>
 
-       {/* Summary Cards */}
-          <IncomeSummary entries={entries} />
+      
+
+  <BudgetSummaryCard entries={entries} />
+          
 
         {/* Income Entries List */}
         <div className="space-y-4">
