@@ -24,29 +24,45 @@ const AddIncomeModal = ({ isOpen, onClose, onSubmit, initialData = null, entries
 
   const [errors, setErrors] = useState({});
 
-  // Filter out potential parent accounts (exclude current entry if editing and any subaccounts)
-  const availableParents = useMemo(() => {
-    if (!initialData) {
-      // If creating new, all non-subaccounts are available
-      return entries.filter(entry => !entry.is_subaccount);
-    } else {
-      // If editing, exclude self and children
-      return entries.filter(entry => 
-        !entry.is_subaccount && 
-        entry.id !== initialData.id &&
-        !isDescendantOf(entry, initialData.id)
-      );
-    }
-  }, [entries, initialData]);
-
-  // Helper function to check if an entry is a descendant of another
-  const isDescendantOf = (entry, parentId) => {
+   // Helper function to check if an entry is a descendant of another
+   const isDescendantOf = (entry, parentId) => {
     if (!entry.children) return false;
     return entry.children.some(child => 
       child.id === parentId || isDescendantOf(child, parentId)
     );
   };
+  // Filter out potential parent accounts (exclude current entry if editing and any subaccounts)
+  const availableParents = useMemo(() => {
+    // Get all potential parent accounts (non-subaccounts)
+    const potentialParents = entries.filter(entry => {
+      // Entry is valid as parent if:
+      // 1. It's not a subaccount itself
+      // 2. It's not the current entry being edited
+      return !entry.is_subaccount && (!initialData || entry.id !== initialData.id);
+    });
+  
+    return potentialParents;
+  }, [entries, initialData]);
+  
+  // Then in your select element, make sure to include and select the current parent_id
+  <select
+    value={formData.parent_id || ''}
+    onChange={(e) => setFormData(prev => ({
+      ...prev,
+      parent_id: e.target.value
+    }))}
+    className="w-full border rounded-md p-2"
+    required={formData.is_subaccount}
+  >
+    <option value="">Select a parent account</option>
+    {availableParents.map(parent => (
+      <option key={parent.id} value={parent.id}>
+        {parent.title}
+      </option>
+    ))}
+  </select>
 
+ 
   const validateForm = () => {
     const newErrors = {};
     if (!formData.title.trim()) newErrors.title = 'Title is required';
@@ -122,7 +138,7 @@ const AddIncomeModal = ({ isOpen, onClose, onSubmit, initialData = null, entries
                   value={formData.parent_id || ''}
                   onChange={(e) => setFormData(prev => ({
                     ...prev,
-                    parent_id: e.target.value
+                    parent_id: e.target.value || null // Handle empty string case
                   }))}
                   className="w-full border rounded-md p-2"
                   required={formData.is_subaccount}
@@ -605,6 +621,12 @@ export default function MyBills() {
 
   const handleSubmit = async (formData) => {
     try {
+      
+        const dataToSubmit = {
+          ...formData,
+          parent_id: formData.is_subaccount ? formData.parent_id : null,
+          // Ensure parent_id is null if not a subaccount
+        };
       if (editingEntry) {
         await fetchApi(`/api/income-entries/${editingEntry.id}`, {
           method: 'PUT',

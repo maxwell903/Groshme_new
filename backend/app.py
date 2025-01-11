@@ -4325,39 +4325,107 @@ def update_income_entry(entry_id):
         engine = create_engine(db_url, poolclass=NullPool)
         
         with engine.connect() as connection:
-            # Update income entry
-            result = connection.execute(
-                text("""
-                    UPDATE income_entries SET
-                        title = :title,
-                        amount = :amount,
-                        frequency = :frequency,
-                        is_recurring = :is_recurring,
-                        start_date = :start_date,
-                        end_date = :end_date,
-                        next_payment_date = :next_payment_date,
-                        updated_at = NOW()
-                    WHERE id = :id
-                    RETURNING id
-                """),
-                {
-                    'id': entry_id,
-                    'title': data['title'],
-                    'amount': float(data['amount']),
-                    'frequency': data['frequency'],
-                    'is_recurring': data['is_recurring'],
-                    'start_date': data['start_date'] if data['is_recurring'] else None,
-                    'end_date': data['end_date'] if data['is_recurring'] else None,
-                    'next_payment_date': data['next_payment_date'] if data['is_recurring'] else None
-                }
-            )
-            
-            if not result.rowcount:
-                return jsonify({'error': 'Income entry not found'}), 404
+            # Start a transaction
+            with connection.begin():
+                # First verify the entry exists
+                entry_check = connection.execute(
+                    text("SELECT id FROM income_entries WHERE id = :id"),
+                    {"id": entry_id}
+                ).fetchone()
                 
-            connection.commit()
-            return jsonify({'message': 'Income entry updated successfully'})
-            
+                if not entry_check:
+                    return jsonify({'error': 'Income entry not found'}), 404
+                
+                # Handle parent_id: if is_subaccount is false, set parent_id to null
+                parent_id = data.get('parent_id') if data.get('is_subaccount') else None
+                
+                # If this is becoming a subaccount, verify parent exists and is not a subaccount itself
+                if parent_id:
+                    parent_check = connection.execute(
+                        text("""
+                            SELECT id, is_subaccount 
+                            FROM income_entries 
+                            WHERE id = :parent_id
+                        """),
+                        {"parent_id": parent_id}
+                    ).fetchone()
+                    
+                    if not parent_check:
+                        return jsonify({'error': 'Parent account not found'}), 400
+                    if parent_check.is_subaccount:
+                        return jsonify({'error': 'Parent account cannot be a subaccount'}), 400
+                
+                # Update the income entry with all fields including parent relationship
+                result = connection.execute(
+                    text("""
+                        UPDATE income_entries SET
+                            title = :title,
+                            amount = :amount,
+                            frequency = :frequency,
+                            is_recurring = :is_recurring,
+                            start_date = :start_date,
+                            end_date = :end_date,
+                            next_payment_date = :next_payment_date,
+                            is_subaccount = :is_subaccount,
+                            parent_id = :parent_id,
+                            updated_at = CURRENT_TIMESTAMP
+                        WHERE id = :id
+                        RETURNING id, title, amount, is_subaccount, parent_id
+                    """),
+                    {
+                        'id': entry_id,
+                        'title': data['title'],
+                        'amount': float(data['amount']),
+                        'frequency': data['frequency'],
+                        'is_recurring': data['is_recurring'],
+                        'start_date': data.get('start_date'),
+                        'end_date': data.get('end_date'),
+                        'next_payment_date': data.get('next_payment_date'),
+                        'is_subaccount': bool(data.get('is_subaccount')),
+                        'parent_id': parent_id
+                    }
+                )
+                
+                updated = result.fetchone()
+                
+                # Validate no circular dependencies
+                if parent_id:
+                    cycle_check = connection.execute(
+                        text("""
+                            WITH RECURSIVE hierarchy AS (
+                                SELECT id, parent_id, 1 as level
+                                FROM income_entries
+                                WHERE id = :parent_id
+                                
+                                UNION ALL
+                                
+                                SELECT e.id, e.parent_id, h.level + 1
+                                FROM income_entries e
+                                JOIN hierarchy h ON h.parent_id = e.id
+                                WHERE h.level < 100
+                            )
+                            SELECT COUNT(*) as cycle_count
+                            FROM hierarchy
+                            WHERE id = :entry_id
+                        """),
+                        {"parent_id": parent_id, "entry_id": entry_id}
+                    ).fetchone()
+                    
+                    if cycle_check.cycle_count > 0:
+                        connection.rollback()
+                        return jsonify({'error': 'Circular dependency detected'}), 400
+
+                return jsonify({
+                    'message': 'Income entry updated successfully',
+                    'entry': {
+                        'id': str(updated.id),
+                        'title': updated.title,
+                        'amount': float(updated.amount),
+                        'is_subaccount': updated.is_subaccount,
+                        'parent_id': str(updated.parent_id) if updated.parent_id else None
+                    }
+                })
+                
     except Exception as e:
         print(f"Error updating income entry: {str(e)}")
         return jsonify({'error': str(e)}), 500
