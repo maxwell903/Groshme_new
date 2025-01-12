@@ -620,7 +620,6 @@ const BudgetEntry = ({
         </div>
 
         {/* Action Buttons */}
-        {/* Action Buttons */}
         <div className="flex gap-1 shrink-0"> {/* Added shrink-0 */}
           <button
             onClick={() => onEdit(entry)}

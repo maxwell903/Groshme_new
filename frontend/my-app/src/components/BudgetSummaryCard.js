@@ -1,10 +1,24 @@
-import React, { useState, useMemo } from 'react';
-import { Clock, Plus } from 'lucide-react';
+import React, { useState, useMemo, useEffect } from 'react';
+import { Clock, Plus, Edit2 } from 'lucide-react';
 import IncomeCalculatorModal from './IncomeCalculatorModal';
 import ProfitLossCard from './ProfitLossCard';
 
+const STORAGE_KEY = 'savedIncomeCalculations';
+
 const BudgetSummaryCard = ({ entries }) => {
   const [showIncomeModal, setShowIncomeModal] = useState(false);
+  const [calculatedIncome, setCalculatedIncome] = useState(null);
+  const [hasExistingCalculations, setHasExistingCalculations] = useState(false);
+
+  // Load saved calculations from localStorage on component mount
+  useEffect(() => {
+    const savedCalculations = localStorage.getItem(STORAGE_KEY);
+    if (savedCalculations) {
+      const parsedCalculations = JSON.parse(savedCalculations);
+      setCalculatedIncome(parsedCalculations);
+      setHasExistingCalculations(true);
+    }
+  }, []);
 
   const summaryData = useMemo(() => {
     let totalBudget = 0;
@@ -59,6 +73,13 @@ const BudgetSummaryCard = ({ entries }) => {
 
     entries.forEach(processEntry);
 
+    // If we have calculated income, use those values instead
+    if (calculatedIncome) {
+      weeklyTotal = calculatedIncome.weekly;
+      monthlyTotal = calculatedIncome.monthly;
+      yearlyTotal = calculatedIncome.yearly;
+    }
+
     return {
       totalBudget: yearlyTotal,
       totalSpent,
@@ -67,7 +88,7 @@ const BudgetSummaryCard = ({ entries }) => {
       monthly: monthlyTotal,
       yearly: yearlyTotal
     };
-  }, [entries]);
+  }, [entries, calculatedIncome]);
 
   const formatCurrency = (amount) => {
     return new Intl.NumberFormat('en-US', {
@@ -79,7 +100,11 @@ const BudgetSummaryCard = ({ entries }) => {
   };
 
   const handleIncomeSubmit = (calculations) => {
-    console.log('Income calculations:', calculations);
+    setCalculatedIncome(calculations);
+    setHasExistingCalculations(true);
+    // Save to localStorage
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(calculations));
+    setShowIncomeModal(false);
   };
 
   return (
@@ -90,8 +115,8 @@ const BudgetSummaryCard = ({ entries }) => {
           onClick={() => setShowIncomeModal(true)}
           className="flex items-center gap-2 px-3 py-1 bg-blue-600 text-white rounded-md hover:bg-blue-700 text-sm"
         >
-          <Plus size={16} />
-          Add Income
+          {hasExistingCalculations ? <Edit2 size={16} /> : <Plus size={16} />}
+          {hasExistingCalculations ? 'Edit Income' : 'Add Income'}
         </button>
       </div>
       
@@ -128,6 +153,7 @@ const BudgetSummaryCard = ({ entries }) => {
         isOpen={showIncomeModal}
         onClose={() => setShowIncomeModal(false)}
         onSubmit={handleIncomeSubmit}
+        initialData={calculatedIncome}
       />
     </div>
   );
