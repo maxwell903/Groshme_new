@@ -557,85 +557,81 @@ const BudgetEntry = ({
   return (
     <div className={`bg-white p-4 rounded-lg shadow-md hover:shadow-lg transition-shadow
       ${entry.is_subaccount ? `ml-${level * 2} border-l-4 border-blue-500` : ''}`}>
-      <div className="flex flex-col sm:flex-row justify-between items-start">
-        <div className="w-full sm:w-auto mb-4 sm:mb-0">
-          <h3 className="text-lg font-semibold">
+      <div className="flex flex-col w-full">
+        {/* Title and Actions Row */}
+        <div className="flex justify-between items-start w-full mb-2">
+          <h3 className="text-lg font-semibold flex flex-wrap items-center">
             {entry.title}
             {entry.is_subaccount && 
-              <span className="ml-2 text-sm text-blue-600">(Subaccount)</span>
+              <span className="ml-2 text-sm text-blue-600 whitespace-nowrap">(Subaccount)</span>
             }
           </h3>
-
-          {/* Timeframe Selector */}
-          <div className="flex gap-2 mt-2 mb-3">
-            {Object.keys(timeframeLabels).map((tf) => (
-              <button
-                key={tf}
-                onClick={() => setTimeframe(tf)}
-                className={`px-3 py-1 rounded text-sm font-medium transition-colors ${
-                  timeframe === tf
-                    ? 'bg-blue-100 text-blue-700'
-                    : 'text-gray-600 hover:bg-gray-100'
-                }`}
-              >
-                {timeframeLabels[tf]}
-              </button>
-            ))}
+          <div className="flex gap-2 ml-2 whitespace-nowrap">
+            <button
+              onClick={() => onEdit(entry)}
+              className="text-blue-600 hover:text-blue-800"
+            >
+              Edit
+            </button>
+            <button
+              onClick={() => onDelete(entry.id)}
+              className="text-red-600 hover:text-red-800"
+            >
+              Delete
+            </button>
           </div>
-          
-          {/* Budget Calculation Display */}
-          <div className="flex items-center gap-2 mt-1">
-            <span className="text-2xl font-bold text-green-600">
-              {formatCurrency(currentTimeframe.budget)}
-            </span>
-            <span className="text-xl">-</span>
-            <span className="text-2xl font-bold text-red-600">
-              {formatCurrency(currentTimeframe.spent)}
-            </span>
-            <span className="text-xl">=</span>
-            <span className={`text-2xl font-bold ${
-              currentTimeframe.remaining >= 0 ? 'text-green-600' : 'text-red-600'
-            }`}>
-              {formatCurrency(Math.abs(currentTimeframe.remaining))}
-              <span className="text-sm ml-1">
-                {currentTimeframe.remaining >= 0 ? '(Under)' : '(Over)'}
-              </span>
-            </span>
-          </div>
+        </div>
 
-          {/* Frequency and Schedule Info */}
-          <p className="text-sm text-gray-600 capitalize mt-2">
-            {entry.frequency} {entry.is_recurring && '(Recurring)'}
-          </p>
-          {entry.is_recurring && entry.next_payment_date && (
-            <div className="text-sm text-gray-600 mt-2">
-              <div className="flex items-center gap-2">
-                <Calendar size={16} />
-                <span>Next: {new Date(entry.next_payment_date).toLocaleDateString()}</span>
-              </div>
-              <div className="mt-1">
-                {new Date(entry.start_date).toLocaleDateString()} - 
-                {new Date(entry.end_date).toLocaleDateString()}
-              </div>
+        {/* Timeframe Selector */}
+        <div className="flex flex-wrap gap-2 mt-2 mb-3">
+          {Object.keys(timeframeLabels).map((tf) => (
+            <button
+              key={tf}
+              onClick={() => setTimeframe(tf)}
+              className={`px-3 py-1 rounded text-sm font-medium transition-colors ${
+                timeframe === tf
+                  ? 'bg-blue-100 text-blue-700'
+                  : 'text-gray-600 hover:bg-gray-100'
+              }`}
+            >
+              {timeframeLabels[tf]}
+            </button>
+          ))}
+        </div>
+        
+        {/* Budget Calculation Display - Updated for better mobile display */}
+        <div className="flex flex-wrap items-center gap-2 mt-1">
+          <span className="text-2xl font-bold text-green-600 break-all">
+            {formatCurrency(currentTimeframe.budget)}
+          </span>
+          <span className="text-xl">-</span>
+          <span className="text-2xl font-bold text-red-600 break-all">
+            {formatCurrency(currentTimeframe.spent)}
+          </span>
+          <span className="text-xl">=</span>
+          <span className={`text-2xl font-bold break-all ${
+            currentTimeframe.remaining >= 0 ? 'text-green-600' : 'text-red-600'
+          }`}>
+            {formatCurrency(Math.abs(currentTimeframe.remaining))}
+          </span>
+        </div>
+
+        {/* Frequency and Schedule Info */}
+        <p className="text-sm text-gray-600 capitalize mt-2">
+          {entry.frequency} {entry.is_recurring && '(Recurring)'}
+        </p>
+        {entry.is_recurring && entry.next_payment_date && (
+          <div className="text-sm text-gray-600 mt-2">
+            <div className="flex items-center gap-2">
+              <Calendar size={16} />
+              <span className="break-all">Next: {new Date(entry.next_payment_date).toLocaleDateString()}</span>
             </div>
-          )}
-        </div>
-
-        {/* Action Buttons */}
-        <div className="space-x-2">
-          <button
-            onClick={() => onEdit(entry)}
-            className="text-blue-600 hover:text-blue-800"
-          >
-            Edit
-          </button>
-          <button
-            onClick={() => onDelete(entry.id)}
-            className="text-red-600 hover:text-red-800"
-          >
-            Delete
-          </button>
-        </div>
+            <div className="mt-1 break-all">
+              {new Date(entry.start_date).toLocaleDateString()} - 
+              {new Date(entry.end_date).toLocaleDateString()}
+            </div>
+          </div>
+        )}
       </div>
       
       {/* Transaction History */}
@@ -660,27 +656,26 @@ const BudgetEntry = ({
           </div>
         </div>
 
-        {/* Transactions List */}
+        {/* Transactions List - Updated for better mobile display */}
         <div className="space-y-2">
           {entry.transactions?.map(transaction => (
-            <div key={transaction.id} className="flex justify-between text-sm items-center">
-              <div className="flex items-center gap-2 flex-1">
+            <div key={transaction.id} className="flex flex-wrap justify-between text-sm items-center gap-2">
+              <div className="flex items-center gap-2 min-w-0">
                 <span className="whitespace-nowrap">
                   {new Date(transaction.transaction_date).toLocaleDateString()}
                 </span>
-                <span className="text-gray-600 truncate">
-                  {transaction.is_one_time ? 
-                    ` - ${transaction.title || 'One-time payment'}` : 
-                    ''
-                  }
-                </span>
+                {transaction.title && (
+                  <span className="text-gray-600 truncate">
+                    - {transaction.title}
+                  </span>
+                )}
               </div>
-              <div className="flex items-center gap-2 ml-4">
+              <div className="flex items-center gap-2">
                 <span className="font-medium whitespace-nowrap">
                   {formatCurrency(transaction.amount)}
                 </span>
                 {transaction.is_one_time && (
-                  <span className="text-xs bg-blue-100 text-blue-800 px-2 py-0.5 rounded-full whitespace-nowrap">
+                  <span className="text-xs bg-blue-100 text-blue-800 px-2 py-0.5 rounded-full">
                     One-time
                   </span>
                 )}
@@ -695,9 +690,9 @@ const BudgetEntry = ({
             <h4 className="text-sm font-semibold mb-2">Subaccounts</h4>
             <div className="space-y-2">
               {entry.children.map(child => (
-                <div key={child.id} className="flex justify-between text-sm items-center">
-                  <span>{child.title}</span>
-                  <span className="font-medium">
+                <div key={child.id} className="flex flex-wrap justify-between text-sm items-center gap-2">
+                  <span className="break-all">{child.title}</span>
+                  <span className="font-medium whitespace-nowrap">
                     {formatCurrency(
                       calculations[timeframe].budget / 
                       (getMonthlyAmount(entry.amount, entry.frequency) / 
@@ -711,7 +706,7 @@ const BudgetEntry = ({
         )}
       </div>
 
-      {/* Modals */}
+      {/* Keep modals unchanged */}
       {showTransactionModal && (
         <TransactionEditModal
           isOpen={showTransactionModal}
