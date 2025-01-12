@@ -55,10 +55,7 @@ const ProfitLossCard = ({ summaryData }) => {
   return (
     <div className="bg-white p-4 rounded-lg">
       <div className="flex justify-between items-center mb-4">
-        <div className="flex items-center gap-2 text-gray-800">
-          <DollarSign size={20} />
-          <span className="font-medium">Profit & Loss</span>
-        </div>
+        
         <div className="flex gap-2">
           {Object.keys(timeframeLabels).map((tf) => (
             <button
