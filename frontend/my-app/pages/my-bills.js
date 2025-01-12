@@ -620,7 +620,7 @@ const BudgetEntry = ({
         </div>
 
         {/* Action Buttons */}
-        <div className="space-x-2">
+        <div className="space-ml-2">
           <button
             onClick={() => onEdit(entry)}
             className="text-blue-600 hover:text-blue-800"
