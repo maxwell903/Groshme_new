@@ -676,7 +676,7 @@ const BudgetEntry = ({
             <div key={transaction.id} className="flex justify-between text-sm items-center">
               <div className="flex items-center gap-2 flex-1">
                 <span className="whitespace-nowrap">
-                  {formatDate(transaction.transaction_date)}
+                  {formatDate(transaction.next_payment_date)}
                 </span>
                 <span className="text-gray-600 truncate">
                   {transaction.is_one_time ? 
