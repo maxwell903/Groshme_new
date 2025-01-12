@@ -8,7 +8,7 @@ const ProfitLossCard = ({ summaryData }) => {
     const { weekly, monthly, yearly, totalSpent } = summaryData;
   
     const daily = {
-      budget: weekly / 7, // Business days only
+      budget: monthly / (4.33*7), // Business days only
       spent: totalSpent / (4.33*7)
     };
     daily.remaining = daily.budget - daily.spent;
@@ -17,7 +17,7 @@ const ProfitLossCard = ({ summaryData }) => {
     const timeframes = {
       daily,
       weekly: {
-        budget: weekly,
+        budget: monthly / 4.33,
         spent: totalSpent / 4.33,
         remaining: weekly - (totalSpent / 4.33)
       },
