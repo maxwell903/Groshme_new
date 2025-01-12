@@ -23,13 +23,13 @@ const AverageIncomeCard = ({ averageIncome, summaryData, isLoading, timeframe, o
   const getTimeframeAmount = (baseAmount) => {
     switch (timeframe) {
       case 'daily':
-        return baseAmount / 365;
+        return baseAmount / (4.33 * 7);
       case 'weekly':
-        return baseAmount / 52;
+        return baseAmount / 4.33;
       case 'monthly':
-        return baseAmount / 12;
-      case 'yearly':
         return baseAmount;
+      case 'yearly':
+        return baseAmount * 12;
       default:
         return baseAmount;
     }
