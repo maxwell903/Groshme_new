@@ -19,18 +19,18 @@ const ProfitLossCard = ({ summaryData }) => {
       daily,
       weekly: {
         budget: weekly,
-        spent: totalSpent / 52,
-        remaining: weekly - (totalSpent / 52)
+        spent: totalSpent / 4.33,
+        remaining: weekly - (totalSpent / 4.33)
       },
       monthly: {
         budget: monthly,
-        spent: totalSpent / 12,
-        remaining: monthly - (totalSpent / 12)
+        spent: totalSpent,
+        remaining: monthly - (totalSpent)
       },
       yearly: {
         budget: yearly,
-        spent: totalSpent,
-        remaining: yearly - totalSpent
+        spent: (totalSpent * 12),
+        remaining: yearly - (totalSpent * 12)
       }
     };
 
