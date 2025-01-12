@@ -5,31 +5,6 @@ import ProfitLossCard from './ProfitLossCard';
 
 const BudgetSummaryCard = ({ entries }) => {
   const [showIncomeModal, setShowIncomeModal] = useState(false);
-  const [salaryData, setSalaryData] = useState(null);
-  const [salaryCalculations, setSalaryCalculations] = useState(null);
-
-  useEffect(() => {
-    fetchSalaryData();
-  }, []);
-
-  const fetchSalaryData = async () => {
-    try {
-      // Fetch basic salary info
-      const salaryResponse = await fetch('/api/real-salary');
-      const salaryResult = await salaryResponse.json();
-      
-      if (salaryResult.salary) {
-        setSalaryData(salaryResult.salary);
-        
-        // Fetch calculations if we have salary data
-        const calculationsResponse = await fetch('/api/real-salary/calculate');
-        const calculationsResult = await calculationsResponse.json();
-        setSalaryCalculations(calculationsResult.calculations);
-      }
-    } catch (error) {
-      console.error('Error fetching salary data:', error);
-    }
-  };
 
   const summaryData = useMemo(() => {
     let totalBudget = 0;
