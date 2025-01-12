@@ -4,6 +4,8 @@ import { X } from 'lucide-react';
 const IncomeCalculatorModal = ({ isOpen, onClose, onSubmit }) => {
   const [amount, setAmount] = useState('');
   const [frequency, setFrequency] = useState('hourly');
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [error, setError] = useState('');
 
   const calculations = useMemo(() => {
     const baseAmount = parseFloat(amount) || 0;
@@ -80,6 +82,9 @@ const IncomeCalculatorModal = ({ isOpen, onClose, onSubmit }) => {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    setError('');
+    setIsSubmitting(true);
+
     try {
       const response = await fetch('/api/real-salary', {
         method: 'POST',
@@ -93,17 +98,21 @@ const IncomeCalculatorModal = ({ isOpen, onClose, onSubmit }) => {
       });
 
       if (!response.ok) {
-        throw new Error('Failed to save salary');
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Failed to save salary');
       }
 
       const data = await response.json();
-      onSubmit(data.salary);
+      await onSubmit(data.salary);
       onClose();
     } catch (error) {
       console.error('Error saving salary:', error);
-      // You might want to show an error message to the user here
+      setError(error.message || 'Failed to save salary. Please try again.');
+    } finally {
+      setIsSubmitting(false);
     }
   };
+
   if (!isOpen) return null;
 
   return (
@@ -187,14 +196,16 @@ const IncomeCalculatorModal = ({ isOpen, onClose, onSubmit }) => {
               type="button"
               onClick={onClose}
               className="px-4 py-2 text-gray-600 hover:text-gray-800"
+              disabled={isSubmitting}
             >
               Cancel
             </button>
             <button
               type="submit"
-              className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700"
+              className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:opacity-50"
+              disabled={isSubmitting}
             >
-              Add Income
+              {isSubmitting ? 'Saving...' : 'Add Income'}
             </button>
           </div>
         </form>

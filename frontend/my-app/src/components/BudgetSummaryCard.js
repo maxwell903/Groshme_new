@@ -5,13 +5,68 @@ import ProfitLossCard from './ProfitLossCard';
 
 const BudgetSummaryCard = ({ entries }) => {
   const [showIncomeModal, setShowIncomeModal] = useState(false);
+  const [realSalary, setRealSalary] = useState(null);
+  
+    // Fetch real salary on component mount
+    useEffect(() => {
+      const fetchRealSalary = async () => {
+        try {
+          const response = await fetch('/api/real-salary');
+          const data = await response.json();
+          if (data.salary) {
+            setRealSalary(data.salary);
+          }
+        } catch (error) {
+          console.error('Error fetching real salary:', error);
+        }
+      };
+  
+      fetchRealSalary();
+    }, []);
 
-  const summaryData = useMemo(() => {
-    let totalBudget = 0;
-    let totalSpent = 0;
-    let weeklyTotal = 0;
-    let monthlyTotal = 0;
-    let yearlyTotal = 0;
+  
+    const summaryData = useMemo(() => {
+      let totalBudget = 0;
+      let totalSpent = 0;
+      let weeklyTotal = realSalary ? calculateWeekly(realSalary.amount, realSalary.frequency) : 0;
+      let monthlyTotal = realSalary ? calculateMonthly(realSalary.amount, realSalary.frequency) : 0;
+      let yearlyTotal = realSalary ? calculateYearly(realSalary.amount, realSalary.frequency) : 0;
+  
+      const calculateWeekly = (amount, frequency) => {
+        switch (frequency) {
+          case 'hourly': return amount * 8 * 5;
+          case 'daily': return amount * 5;
+          case 'weekly': return amount;
+          case 'biweekly': return amount / 2;
+          case 'monthly': return (amount * 12) / 52;
+          case 'yearly': return amount / 52;
+          default: return 0;
+        }
+      };
+  
+      const calculateMonthly = (amount, frequency) => {
+        switch (frequency) {
+          case 'hourly': return amount * 8 * 5 * 52 / 12;
+          case 'daily': return amount * 5 * 52 / 12;
+          case 'weekly': return amount * 52 / 12;
+          case 'biweekly': return amount * 26 / 12;
+          case 'monthly': return amount;
+          case 'yearly': return amount / 12;
+          default: return 0;
+        }
+      };
+  
+      const calculateYearly = (amount, frequency) => {
+        switch (frequency) {
+          case 'hourly': return amount * 8 * 5 * 52;
+          case 'daily': return amount * 5 * 52;
+          case 'weekly': return amount * 52;
+          case 'biweekly': return amount * 26;
+          case 'monthly': return amount * 12;
+          case 'yearly': return amount;
+          default: return 0;
+        }
+      };
 
     const processEntry = (entry) => {
       const amount = parseFloat(entry.amount) || 0;
@@ -67,7 +122,7 @@ const BudgetSummaryCard = ({ entries }) => {
       monthly: monthlyTotal,
       yearly: yearlyTotal
     };
-  }, [entries]);
+  }, [entries, realSalary]);
 
   const formatCurrency = (amount) => {
     return new Intl.NumberFormat('en-US', {
@@ -78,8 +133,8 @@ const BudgetSummaryCard = ({ entries }) => {
     }).format(amount);
   };
 
-  const handleIncomeSubmit = (calculations) => {
-    console.log('Income calculations:', calculations);
+  const handleIncomeSubmit = async (salary) => {
+    setRealSalary(salary);
   };
 
   return (
@@ -123,7 +178,6 @@ const BudgetSummaryCard = ({ entries }) => {
           </div>
         </div>
       </div>
-      
 
       <IncomeCalculatorModal
         isOpen={showIncomeModal}
