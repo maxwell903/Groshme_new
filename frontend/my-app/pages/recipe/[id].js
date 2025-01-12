@@ -790,7 +790,7 @@ const getBackLabel = (path) => {
           onClick={() => handleAddNutrition(index)}
           className={`px-3 py-1 rounded-md ${
             ingredient.nutrition 
-              ? 'bg-green-500 text-white hover:bg-green-600' 
+              ? 'bg-green-500 text-blue-700 hover:bg-blue-200' 
               : 'bg-green-100 text-green-700 hover:bg-green-200'
           }`}
         >
