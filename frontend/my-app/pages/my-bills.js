@@ -597,9 +597,7 @@ const BudgetEntry = ({
               currentTimeframe.remaining >= 0 ? 'text-green-600' : 'text-red-600'
             }`}>
               {formatCurrency(Math.abs(currentTimeframe.remaining))}
-              <span className="text-sm ml-1">
-                {currentTimeframe.remaining >= 0 ? '(Under)' : '(Over)'}
-              </span>
+              
             </span>
           </div>
 
