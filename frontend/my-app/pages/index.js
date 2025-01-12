@@ -424,7 +424,7 @@ export default function Home() {
         <div className="relative mx-auto max-w-6xl px-4 sm:px-6 lg:px-8 py-20">
           <div className="text-center">
             <h1 className="mb-6 text-3xl sm:text-4xl font-bold text-gray-900">
-              Recipe Finder
+              Personal Productivity API
             </h1>
             
             <p className="mb-8 text-gray-600">
