@@ -3,13 +3,93 @@ import { Clock, Plus } from 'lucide-react';
 import IncomeCalculatorModal from './IncomeCalculatorModal';
 import ProfitLossCard from './ProfitLossCard';
 
+const AverageIncomeCard = ({ averageIncome, isLoading }) => {
+  const [timeframe, setTimeframe] = useState('monthly');
+
+  const formatCurrency = (amount) => {
+    return new Intl.NumberFormat('en-US', {
+      style: 'currency',
+      currency: 'USD',
+      minimumFractionDigits: 0,
+      maximumFractionDigits: 0
+    }).format(amount);
+  };
+
+  const timeframeLabels = {
+    daily: 'Daily',
+    weekly: 'Weekly',
+    monthly: 'Monthly',
+    yearly: 'Yearly'
+  };
+
+  return (
+    <div className="bg-purple-50 p-4 rounded-lg">
+      <div className="flex items-center gap-2 text-purple-600 mb-4">
+        <Clock size={20} />
+        <span className="font-medium">Average Income</span>
+      </div>
+
+      <div className="flex gap-2 mb-4">
+        {Object.keys(timeframeLabels).map((tf) => (
+          <button
+            key={tf}
+            onClick={() => setTimeframe(tf)}
+            className={`px-3 py-1 rounded text-sm font-medium transition-colors ${
+              timeframe === tf
+                ? 'bg-purple-200 text-purple-700'
+                : 'text-purple-600 hover:bg-purple-100'
+            }`}
+          >
+            {timeframeLabels[tf]}
+          </button>
+        ))}
+      </div>
+
+      {isLoading ? (
+        <div className="text-center text-gray-500 py-4">
+          Loading income data...
+        </div>
+      ) : averageIncome ? (
+        <div className="space-y-4">
+          <div className="flex justify-between items-center">
+            <span className="text-sm text-purple-700">Budget:</span>
+            <span className="font-semibold text-lg text-purple-700">
+              {formatCurrency(averageIncome[timeframe])}
+            </span>
+          </div>
+          
+          <div className="flex justify-between items-center">
+            <span className="text-sm text-purple-700">Spent:</span>
+            <span className="font-semibold text-lg text-red-600">
+              {formatCurrency(averageIncome[timeframe] * 0.75)} {/* Example spent amount */}
+            </span>
+          </div>
+          
+          <div className="pt-4 border-t border-purple-200">
+            <div className="flex justify-between items-center">
+              <span className="text-sm font-medium text-purple-700">Remaining:</span>
+              <span className="font-bold text-xl text-green-600">
+                {formatCurrency(averageIncome[timeframe] * 0.25)} {/* Example remaining */}
+                <span className="text-sm ml-1">(Under)</span>
+              </span>
+            </div>
+          </div>
+        </div>
+      ) : (
+        <div className="text-center text-gray-500 py-4">
+          No salary information available
+        </div>
+      )}
+    </div>
+  );
+};
+
 const BudgetSummaryCard = ({ entries }) => {
   const [showIncomeModal, setShowIncomeModal] = useState(false);
   const [realSalary, setRealSalary] = useState(null);
   const [averageIncome, setAverageIncome] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
 
-  // Fetch real salary data on component mount
   useEffect(() => {
     const fetchRealSalary = async () => {
       try {
@@ -18,7 +98,6 @@ const BudgetSummaryCard = ({ entries }) => {
           const data = await response.json();
           if (data.salary) {
             setRealSalary(data.salary);
-            // After getting salary, fetch calculations
             const calcResponse = await fetch('https://groshmebeta-05487aa160b2.herokuapp.com/api/real-salary/calculate');
             if (calcResponse.ok) {
               const calcData = await calcResponse.json();
@@ -98,28 +177,14 @@ const BudgetSummaryCard = ({ entries }) => {
     };
   }, [entries]);
 
-  const formatCurrency = (amount) => {
-    return new Intl.NumberFormat('en-US', {
-      style: 'currency',
-      currency: 'USD',
-      minimumFractionDigits: 0,
-      maximumFractionDigits: 0
-    }).format(amount);
-  };
-
   const handleIncomeSubmit = async (salaryData) => {
     try {
-      // Update local state with the new salary data
       setRealSalary(salaryData);
-      
-      // Fetch new calculations after updating salary
       const calcResponse = await fetch('https://groshmebeta-05487aa160b2.herokuapp.com/api/real-salary/calculate');
       if (calcResponse.ok) {
         const calcData = await calcResponse.json();
         setAverageIncome(calcData.calculations);
       }
-      
-      // Close the modal
       setShowIncomeModal(false);
     } catch (error) {
       console.error('Error updating salary calculations:', error);
@@ -141,41 +206,10 @@ const BudgetSummaryCard = ({ entries }) => {
       
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         <ProfitLossCard summaryData={summaryData} />
-
-        <div className="bg-purple-50 p-4 rounded-lg">
-          <div className="flex items-center gap-2 text-purple-600 mb-2">
-            <Clock size={20} />
-            <span className="font-medium">Average Income</span>
-          </div>
-          {isLoading ? (
-            <div className="text-center text-gray-500 py-4">
-              Loading income data...
-            </div>
-          ) : averageIncome ? (
-            <div className="space-y-1">
-              <div className="flex justify-between text-sm text-purple-700">
-                <span>Daily:</span>
-                <span className="font-semibold">{formatCurrency(averageIncome.daily)}</span>
-              </div>
-              <div className="flex justify-between text-sm text-purple-700">
-                <span>Weekly:</span>
-                <span className="font-semibold">{formatCurrency(averageIncome.weekly)}</span>
-              </div>
-              <div className="flex justify-between text-sm text-purple-700">
-                <span>Monthly:</span>
-                <span className="font-semibold">{formatCurrency(averageIncome.monthly)}</span>
-              </div>
-              <div className="flex justify-between text-sm text-purple-700">
-                <span>Yearly:</span>
-                <span className="font-semibold">{formatCurrency(averageIncome.yearly)}</span>
-              </div>
-            </div>
-          ) : (
-            <div className="text-center text-gray-500 py-4">
-              No salary information available
-            </div>
-          )}
-        </div>
+        <AverageIncomeCard 
+          averageIncome={averageIncome}
+          isLoading={isLoading}
+        />
       </div>
 
       <IncomeCalculatorModal
