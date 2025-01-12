@@ -127,6 +127,23 @@ class MealPrepWeek(db.Model):
             'show_dates': self.show_dates,
             'created_date': self.created_date.strftime('%Y-%m-%d')
         }
+    
+class RealSalary(db.Model):
+    __tablename__ = 'real_salary'
+    id = db.Column(db.Integer, primary_key=True)
+    amount = db.Column(db.Float, nullable=False)
+    frequency = db.Column(db.String(20), nullable=False)
+    created_at = db.Column(db.DateTime, default=db.func.current_timestamp())
+    updated_at = db.Column(db.DateTime, default=db.func.current_timestamp(), onupdate=db.func.current_timestamp())
+
+    def to_dict(self):
+        return {
+            'id': self.id,
+            'amount': float(self.amount),
+            'frequency': self.frequency,
+            'created_at': self.created_at.isoformat() if self.created_at else None,
+            'updated_at': self.updated_at.isoformat() if self.updated_at else None
+        }
 
 class WorkoutPrepWeek(db.Model):
     id = db.Column(db.Integer, primary_key=True)
@@ -226,6 +243,180 @@ def upgrade():
     op.create_foreign_key('fk_parent_budget', 
                          'income_entries', 'income_entries',
                          ['parent_id'], ['id'])
+    
+
+@app.route('/api/real-salary', methods=['GET'])
+def get_real_salary():
+    try:
+        engine = create_engine(db_url, poolclass=NullPool)
+        
+        with engine.connect() as connection:
+            result = connection.execute(
+                text("""
+                    SELECT id, amount, frequency, created_at, updated_at
+                    FROM real_salary
+                    LIMIT 1
+                """)
+            ).fetchone()
+            
+            if result:
+                return jsonify({
+                    'salary': {
+                        'id': result.id,
+                        'amount': float(result.amount),
+                        'frequency': result.frequency,
+                        'created_at': result.created_at.isoformat(),
+                        'updated_at': result.updated_at.isoformat()
+                    }
+                })
+            else:
+                return jsonify({'salary': None})
+            
+    except Exception as e:
+        print(f"Error fetching real salary: {str(e)}")
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/api/real-salary', methods=['POST'])
+def set_real_salary():
+    try:
+        data = request.json
+        if not data or 'amount' not in data or 'frequency' not in data:
+            return jsonify({'error': 'Amount and frequency are required'}), 400
+            
+        engine = create_engine(db_url, poolclass=NullPool)
+        
+        with engine.connect() as connection:
+            # Due to our trigger, this will automatically delete any existing entries
+            result = connection.execute(
+                text("""
+                    INSERT INTO real_salary (amount, frequency)
+                    VALUES (:amount, :frequency)
+                    RETURNING id, amount, frequency, created_at, updated_at
+                """),
+                {
+                    'amount': float(data['amount']),
+                    'frequency': data['frequency']
+                }
+            )
+            
+            new_salary = result.fetchone()
+            connection.commit()
+            
+            return jsonify({
+                'message': 'Salary updated successfully',
+                'salary': {
+                    'id': new_salary.id,
+                    'amount': float(new_salary.amount),
+                    'frequency': new_salary.frequency,
+                    'created_at': new_salary.created_at.isoformat(),
+                    'updated_at': new_salary.updated_at.isoformat()
+                }
+            }), 201
+            
+    except Exception as e:
+        print(f"Error setting real salary: {str(e)}")
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/api/real-salary', methods=['DELETE'])
+def delete_real_salary():
+    try:
+        engine = create_engine(db_url, poolclass=NullPool)
+        
+        with engine.connect() as connection:
+            connection.execute(text("DELETE FROM real_salary"))
+            connection.commit()
+            
+            return jsonify({'message': 'Salary entry deleted successfully'})
+            
+    except Exception as e:
+        print(f"Error deleting real salary: {str(e)}")
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/api/real-salary/calculate', methods=['GET'])
+def calculate_salary():
+    try:
+        engine = create_engine(db_url, poolclass=NullPool)
+        
+        with engine.connect() as connection:
+            result = connection.execute(
+                text("""
+                    SELECT amount, frequency
+                    FROM real_salary
+                    LIMIT 1
+                """)
+            ).fetchone()
+            
+            if not result:
+                return jsonify({'error': 'No salary information found'}), 404
+                
+            amount = float(result.amount)
+            frequency = result.frequency
+            
+            # Calculate all frequencies
+            calculations = {
+                'hourly': 0,
+                'daily': 0,
+                'weekly': 0,
+                'biweekly': 0,
+                'monthly': 0,
+                'yearly': 0
+            }
+            
+            # Base calculations on frequency
+            if frequency == 'hourly':
+                calculations['hourly'] = amount
+                calculations['daily'] = amount * 8  # 8 hours per day
+                calculations['weekly'] = calculations['daily'] * 5  # 5 days per week
+                calculations['biweekly'] = calculations['weekly'] * 2
+                calculations['monthly'] = calculations['weekly'] * 52 / 12  # 52 weeks per year
+                calculations['yearly'] = calculations['weekly'] * 52
+            elif frequency == 'daily':
+                calculations['hourly'] = amount / 8
+                calculations['daily'] = amount
+                calculations['weekly'] = amount * 5
+                calculations['biweekly'] = calculations['weekly'] * 2
+                calculations['monthly'] = calculations['weekly'] * 52 / 12
+                calculations['yearly'] = calculations['weekly'] * 52
+            elif frequency == 'weekly':
+                calculations['hourly'] = amount / (8 * 5)
+                calculations['daily'] = amount / 5
+                calculations['weekly'] = amount
+                calculations['biweekly'] = amount * 2
+                calculations['monthly'] = amount * 52 / 12
+                calculations['yearly'] = amount * 52
+            elif frequency == 'biweekly':
+                calculations['weekly'] = amount / 2
+                calculations['hourly'] = calculations['weekly'] / (8 * 5)
+                calculations['daily'] = calculations['weekly'] / 5
+                calculations['biweekly'] = amount
+                calculations['monthly'] = amount * 26 / 12  # 26 biweekly periods per year
+                calculations['yearly'] = amount * 26
+            elif frequency == 'monthly':
+                calculations['yearly'] = amount * 12
+                calculations['biweekly'] = calculations['yearly'] / 26
+                calculations['weekly'] = calculations['yearly'] / 52
+                calculations['daily'] = calculations['weekly'] / 5
+                calculations['hourly'] = calculations['daily'] / 8
+                calculations['monthly'] = amount
+            elif frequency == 'yearly':
+                calculations['monthly'] = amount / 12
+                calculations['biweekly'] = amount / 26
+                calculations['weekly'] = amount / 52
+                calculations['daily'] = calculations['weekly'] / 5
+                calculations['hourly'] = calculations['daily'] / 8
+                calculations['yearly'] = amount
+                
+            # Round all values to 2 decimal places
+            calculations = {
+                k: round(v, 2) 
+                for k, v in calculations.items()
+            }
+            
+            return jsonify({'calculations': calculations})
+            
+    except Exception as e:
+        print(f"Error calculating salary: {str(e)}")
+        return jsonify({'error': str(e)}), 500
 
 
 @app.route('/debug/routes', methods=['GET'])
