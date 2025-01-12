@@ -1,5 +1,5 @@
 import React, { useState, useMemo } from 'react';
-import { X } from 'lucide-react';
+import { X, Loader2 } from 'lucide-react';
 
 const IncomeCalculatorModal = ({ isOpen, onClose, onSubmit }) => {
   const [amount, setAmount] = useState('');
@@ -63,7 +63,6 @@ const IncomeCalculatorModal = ({ isOpen, onClose, onSubmit }) => {
         break;
     }
 
-    // Round all values
     Object.keys(calculations).forEach(key => {
       calculations[key] = Math.round(calculations[key]);
     });
@@ -80,9 +79,20 @@ const IncomeCalculatorModal = ({ isOpen, onClose, onSubmit }) => {
     }).format(value);
   };
 
+  const validateInput = () => {
+    if (!amount || isNaN(amount) || parseFloat(amount) <= 0) {
+      setError('Please enter a valid amount greater than 0');
+      return false;
+    }
+    return true;
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError(null);
+
+    if (!validateInput()) return;
+
     setIsSubmitting(true);
 
     try {
@@ -93,25 +103,26 @@ const IncomeCalculatorModal = ({ isOpen, onClose, onSubmit }) => {
         },
         body: JSON.stringify({
           amount: parseFloat(amount),
-          frequency: frequency
+          frequency
         }),
       });
 
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error || 'Failed to save salary');
+      const contentType = response.headers.get('content-type');
+      if (!contentType || !contentType.includes('application/json')) {
+        throw new Error('Invalid server response format');
       }
 
       const data = await response.json();
       
-      // Call the parent's onSubmit with the full response data
+      if (!response.ok) {
+        throw new Error(data.error || 'Failed to save salary');
+      }
+
       onSubmit(data.salary);
-      
-      // Close the modal
       onClose();
     } catch (error) {
       console.error('Error saving salary:', error);
-      setError(error.message);
+      setError(error.message || 'Failed to save salary. Please try again.');
     } finally {
       setIsSubmitting(false);
     }
@@ -124,17 +135,22 @@ const IncomeCalculatorModal = ({ isOpen, onClose, onSubmit }) => {
       <div className="bg-white p-6 rounded-lg shadow-xl w-full max-w-md">
         <div className="flex justify-between items-center mb-4">
           <h2 className="text-xl font-semibold">Calculate Income</h2>
-          <button onClick={onClose} className="text-gray-500 hover:text-gray-700">
+          <button 
+            onClick={onClose}
+            className="text-gray-500 hover:text-gray-700 disabled:opacity-50"
+            disabled={isSubmitting}
+          >
             <X size={24} />
           </button>
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-4">
-        {error && (
+          {error && (
             <div className="bg-red-50 text-red-600 p-3 rounded-md text-sm">
               {error}
             </div>
           )}
+          
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">
               Amount
@@ -144,10 +160,15 @@ const IncomeCalculatorModal = ({ isOpen, onClose, onSubmit }) => {
               <input
                 type="number"
                 value={amount}
-                onChange={(e) => setAmount(e.target.value)}
-                className="w-full border rounded-md p-2 pl-8"
+                onChange={(e) => {
+                  setAmount(e.target.value);
+                  setError(null);
+                }}
+                className="w-full border rounded-md p-2 pl-8 disabled:bg-gray-100"
                 placeholder="0"
-                step="1"
+                step="0.01"
+                min="0"
+                disabled={isSubmitting}
               />
             </div>
           </div>
@@ -159,7 +180,8 @@ const IncomeCalculatorModal = ({ isOpen, onClose, onSubmit }) => {
             <select
               value={frequency}
               onChange={(e) => setFrequency(e.target.value)}
-              className="w-full border rounded-md p-2"
+              className="w-full border rounded-md p-2 disabled:bg-gray-100"
+              disabled={isSubmitting}
             >
               <option value="hourly">Hourly</option>
               <option value="daily">Daily</option>
@@ -173,30 +195,12 @@ const IncomeCalculatorModal = ({ isOpen, onClose, onSubmit }) => {
           <div className="mt-4 bg-gray-50 p-4 rounded-lg">
             <h3 className="font-medium mb-2">Calculated Income</h3>
             <div className="grid grid-cols-2 gap-4">
-              <div>
-                <p className="text-sm text-gray-600">Hourly:</p>
-                <p className="font-semibold">{formatCurrency(calculations.hourly)}</p>
-              </div>
-              <div>
-                <p className="text-sm text-gray-600">Daily:</p>
-                <p className="font-semibold">{formatCurrency(calculations.daily)}</p>
-              </div>
-              <div>
-                <p className="text-sm text-gray-600">Weekly:</p>
-                <p className="font-semibold">{formatCurrency(calculations.weekly)}</p>
-              </div>
-              <div>
-                <p className="text-sm text-gray-600">Biweekly:</p>
-                <p className="font-semibold">{formatCurrency(calculations.biweekly)}</p>
-              </div>
-              <div>
-                <p className="text-sm text-gray-600">Monthly:</p>
-                <p className="font-semibold">{formatCurrency(calculations.monthly)}</p>
-              </div>
-              <div>
-                <p className="text-sm text-gray-600">Yearly:</p>
-                <p className="font-semibold">{formatCurrency(calculations.yearly)}</p>
-              </div>
+              {Object.entries(calculations).map(([period, value]) => (
+                <div key={period}>
+                  <p className="text-sm text-gray-600 capitalize">{period}:</p>
+                  <p className="font-semibold">{formatCurrency(value)}</p>
+                </div>
+              ))}
             </div>
           </div>
 
@@ -204,17 +208,18 @@ const IncomeCalculatorModal = ({ isOpen, onClose, onSubmit }) => {
             <button
               type="button"
               onClick={onClose}
-              className="px-4 py-2 text-gray-600 hover:text-gray-800"
+              className="px-4 py-2 text-gray-600 hover:text-gray-800 disabled:opacity-50"
               disabled={isSubmitting}
             >
               Cancel
             </button>
             <button
               type="submit"
-              className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:bg-blue-300"
+              className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:bg-blue-400 flex items-center gap-2"
               disabled={isSubmitting}
             >
-               {isSubmitting ? 'Saving...' : 'Add Income'}
+              {isSubmitting && <Loader2 size={16} className="animate-spin" />}
+              {isSubmitting ? 'Saving...' : 'Add Income'}
             </button>
           </div>
         </form>
