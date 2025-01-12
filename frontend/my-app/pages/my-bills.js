@@ -444,58 +444,79 @@ const BudgetEntry = ({
   const [showOneTimeIncomeModal, setShowOneTimeIncomeModal] = useState(false);
   const [timeframe, setTimeframe] = useState('monthly');
 
-  // Calculate combined totals including child budgets
-  const totals = useMemo(() => {
-    const calculateAmountByFrequency = (amount, frequency) => {
-      const baseAmount = parseFloat(amount);
-      switch (frequency) {
-        case 'weekly':
-          return {
-            periodic: baseAmount,
-            monthly: baseAmount * 52 / 12,
-            yearly: baseAmount * 52
-          };
-        case 'biweekly':
-          return {
-            periodic: baseAmount,
-            monthly: baseAmount * 26 / 12,
-            yearly: baseAmount * 26
-          };
-        case 'monthly':
-          return {
-            periodic: baseAmount,
-            monthly: baseAmount,
-            yearly: baseAmount * 12
-          };
-        case 'yearly':
-          return {
-            periodic: baseAmount / 12, // Show monthly amount for periodic
-            monthly: baseAmount / 12,
-            yearly: baseAmount
-          };
-        default:
-          return { periodic: 0, monthly: 0, yearly: 0 };
-      }
+  const getMonthlyAmount = (amount, frequency) => {
+    switch (frequency) {
+      case 'weekly':
+        return amount * 52 / 12;
+      case 'biweekly':
+        return amount * 26 / 12;
+      case 'monthly':
+        return amount;
+      case 'yearly':
+        return amount / 12;
+      default:
+        return amount;
+    }
+  };
+
+  
+  // Calculate amounts for different timeframes
+  const calculations = useMemo(() => {
+    // First get monthly base amount
+    const baseMonthly = getMonthlyAmount(entry.amount, entry.frequency);
+    const monthlySpent = entry.total_spent || 0;
+  
+    // Calculate child budgets (if any)
+    let childrenMonthly = 0;
+    if (entry.children && entry.children.length > 0) {
+      childrenMonthly = entry.children.reduce((sum, child) => {
+        return sum + getMonthlyAmount(child.amount, child.frequency);
+      }, 0);
+    }
+  
+    const totalMonthly = baseMonthly + childrenMonthly;
+    
+    // Calculate different timeframes
+    const daily = {
+      budget: totalMonthly / 30,  // Approximate days in a month
+      spent: monthlySpent / 30,
+    };
+    daily.remaining = daily.budget - daily.spent;
+  
+    const weekly = {
+      budget: totalMonthly * 12 / 52,
+      spent: monthlySpent * 12 / 52,
+    };
+    weekly.remaining = weekly.budget - weekly.spent;
+  
+    const monthly = {
+      budget: totalMonthly,
+      spent: monthlySpent,
+      remaining: totalMonthly - monthlySpent
     };
   
-    let totalBudget = calculateAmountByFrequency(entry.amount, entry.frequency).monthly;
-    let totalSpent = entry.total_spent || 0;
-    
-    // Add totals from child budgets if any exist
-    if (entry.children && entry.children.length > 0) {
-      entry.children.forEach(child => {
-        // Convert child amount to monthly for consistent comparison
-        const childAmount = calculateAmountByFrequency(child.amount, child.frequency).monthly;
-        totalBudget += childAmount;
-      });
-    }
-    
-    return {
-      budget: totalBudget,
-      spent: totalSpent,
-      remaining: totalBudget - totalSpent
+    const yearly = {
+      budget: totalMonthly * 12,
+      spent: monthlySpent * 12,
+      remaining: (totalMonthly * 12) - (monthlySpent * 12)
     };
-  }, [entry]);
+  
+    return {
+      daily,
+      weekly,
+      monthly,
+      yearly
+    };
+  }, [entry.amount, entry.frequency, entry.total_spent, entry.children]);
+  
+  const timeframeLabels = {
+    daily: 'Daily',
+    weekly: 'Weekly',
+    monthly: 'Monthly',
+    yearly: 'Yearly'
+  };
+
+  const currentTimeframe = calculations[timeframe];
 
   const handleTransactionUpdate = async (updates) => {
     try {
@@ -540,57 +561,50 @@ const BudgetEntry = ({
         <div className="w-full sm:w-auto mb-4 sm:mb-0">
           <h3 className="text-lg font-semibold">
             {entry.title}
-
-
- 
             {entry.is_subaccount && 
               <span className="ml-2 text-sm text-blue-600">(Subaccount)</span>
-              
-
-
             }
-            
           </h3>
 
-          
+          {/* Timeframe Selector */}
+          <div className="flex gap-2 mt-2 mb-3">
+            {Object.keys(timeframeLabels).map((tf) => (
+              <button
+                key={tf}
+                onClick={() => setTimeframe(tf)}
+                className={`px-3 py-1 rounded text-sm font-medium transition-colors ${
+                  timeframe === tf
+                    ? 'bg-blue-100 text-blue-700'
+                    : 'text-gray-600 hover:bg-gray-100'
+                }`}
+              >
+                {timeframeLabels[tf]}
+              </button>
+            ))}
+          </div>
           
           {/* Budget Calculation Display */}
           <div className="flex items-center gap-2 mt-1">
             <span className="text-2xl font-bold text-green-600">
-              {formatCurrency(totals.budget)}
+              {formatCurrency(currentTimeframe.budget)}
             </span>
             <span className="text-xl">-</span>
             <span className="text-2xl font-bold text-red-600">
-              {formatCurrency(totals.spent)}
+              {formatCurrency(currentTimeframe.spent)}
             </span>
             <span className="text-xl">=</span>
             <span className={`text-2xl font-bold ${
-              totals.remaining >= 0 ? 'text-green-600' : 'text-red-600'
+              currentTimeframe.remaining >= 0 ? 'text-green-600' : 'text-red-600'
             }`}>
-              {formatCurrency(totals.remaining)}
+              {formatCurrency(Math.abs(currentTimeframe.remaining))}
+              <span className="text-sm ml-1">
+                {currentTimeframe.remaining >= 0 ? '(Under)' : '(Over)'}
+              </span>
             </span>
           </div>
-               {/* Action Buttons */}
-        <div className="space-x-2">
-         
-         
-          <button
-            onClick={() => onEdit(entry)}
-            className="text-blue-600 hover:text-blue-800"
-          >
-            Edit
-          </button>
-          <button
-            onClick={() => onDelete(entry.id)}
-            className="text-red-600 hover:text-red-800"
-          >
-            Delete
-          </button>
-        </div>
-      
 
           {/* Frequency and Schedule Info */}
-          <p className="text-sm text-gray-600 capitalize">
+          <p className="text-sm text-gray-600 capitalize mt-2">
             {entry.frequency} {entry.is_recurring && '(Recurring)'}
           </p>
           {entry.is_recurring && entry.next_payment_date && (
@@ -605,10 +619,23 @@ const BudgetEntry = ({
               </div>
             </div>
           )}
-          
         </div>
 
-       
+        {/* Action Buttons */}
+        <div className="space-x-2">
+          <button
+            onClick={() => onEdit(entry)}
+            className="text-blue-600 hover:text-blue-800"
+          >
+            Edit
+          </button>
+          <button
+            onClick={() => onDelete(entry.id)}
+            className="text-red-600 hover:text-red-800"
+          >
+            Delete
+          </button>
+        </div>
       </div>
       
       {/* Transaction History */}
@@ -671,7 +698,11 @@ const BudgetEntry = ({
                 <div key={child.id} className="flex justify-between text-sm items-center">
                   <span>{child.title}</span>
                   <span className="font-medium">
-                    {formatCurrency(child.amount)}
+                    {formatCurrency(
+                      calculations[timeframe].budget / 
+                      (getMonthlyAmount(entry.amount, entry.frequency) / 
+                       getMonthlyAmount(child.amount, child.frequency))
+                    )}
                   </span>
                 </div>
               ))}
