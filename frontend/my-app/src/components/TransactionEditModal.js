@@ -88,7 +88,7 @@ const TransactionEditModal = ({ isOpen, onClose, transactions = [], onSave }) =>
                 />
                 <div className="flex-1 grid grid-cols-3 gap-4">
                   <div className="text-sm text-gray-600">
-                    {formatDate(transaction.transaction_date)}
+                    {formatDate(transaction.payment_date)}
                   </div>
                   {transaction.is_one_time && (
                     <input
