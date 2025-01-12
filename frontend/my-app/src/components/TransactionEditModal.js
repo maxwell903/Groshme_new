@@ -95,7 +95,7 @@ const TransactionEditModal = ({ isOpen, onClose, transactions = [], onSave }) =>
                 />
                 <div className="flex-1 grid grid-cols-3 gap-4">
                   <div className="text-sm text-gray-600">
-                    <SafeDateDisplay dateString={transaction.transaction_date} />
+                    {new Date(transaction.transaction_date).toLocaleDateString()}
                   </div>
                   {transaction.is_one_time && (
                     <input

@@ -664,7 +664,7 @@ const BudgetEntry = ({
             <div key={transaction.id} className="flex justify-between text-sm items-center">
               <div className="flex items-center gap-2 flex-1">
                 <span className="whitespace-nowrap">
-                <SafeDateDisplay dateString={transaction.transaction_date} />
+                  {new Date(transaction.transaction_date).toLocaleDateString()}
                 </span>
                 <span className="text-gray-600 truncate">
                   {transaction.is_one_time ? 
