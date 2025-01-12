@@ -558,13 +558,30 @@ const BudgetEntry = ({
     <div className={`bg-white p-4 rounded-lg shadow-md hover:shadow-lg transition-shadow
       ${entry.is_subaccount ? `ml-${level * 2} border-l-4 border-blue-500` : ''}`}>
       <div className="flex flex-col sm:flex-row justify-between items-start">
-        <div className="w-full sm:w-auto mb-4 sm:mb-0">
+      <div className="flex justify-between items-start w-full mb-4">
           <h3 className="text-lg font-semibold">
             {entry.title}
             {entry.is_subaccount && 
               <span className="ml-2 text-sm text-blue-600">(Subaccount)</span>
             }
           </h3>
+          <div className="flex gap-2 ml-2">
+            <button
+              onClick={() => onEdit(entry)}
+              className="text-blue-600 hover:text-blue-800 whitespace-nowrap"
+            >
+              Edit
+            </button>
+            <button
+              onClick={() => onDelete(entry.id)}
+              className="text-red-600 hover:text-red-800 whitespace-nowrap"
+            >
+              Delete
+            </button>
+          </div>
+        </div>
+
+
 
           {/* Timeframe Selector */}
           <div className="flex gap-2 mt-2 mb-3">
@@ -619,23 +636,8 @@ const BudgetEntry = ({
           )}
         </div>
 
-        {/* Action Buttons */}
-        {/* Action Buttons */}
-<div className="flex justify-end gap-2 w-full">
-  <button
-    onClick={() => onEdit(entry)}
-    className="text-blue-600 hover:text-blue-800"
-  >
-    Edit
-  </button>
-  <button
-    onClick={() => onDelete(entry.id)}
-    className="text-red-600 hover:text-red-800"
-  >
-    Delete
-  </button>
-</div>
-</div>
+
+
       
       {/* Transaction History */}
       <div className="mt-4 border-t pt-4">
