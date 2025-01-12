@@ -557,8 +557,9 @@ const BudgetEntry = ({
   return (
     <div className={`bg-white p-4 rounded-lg shadow-md hover:shadow-lg transition-shadow
       ${entry.is_subaccount ? `ml-${level * 2} border-l-4 border-blue-500` : ''}`}>
-      <div className="flex flex-col sm:flex-row justify-between items-start">
-      <div className="flex justify-between items-start w-full mb-4">
+      <div className="flex flex-col w-full">
+        {/* Header section with title and buttons */}
+        <div className="flex justify-between items-start w-full mb-4">
           <h3 className="text-lg font-semibold">
             {entry.title}
             {entry.is_subaccount && 
@@ -581,42 +582,39 @@ const BudgetEntry = ({
           </div>
         </div>
 
-
-
-          {/* Timeframe Selector */}
-          <div className="flex gap-2 mt-2 mb-3">
-            {Object.keys(timeframeLabels).map((tf) => (
-              <button
-                key={tf}
-                onClick={() => setTimeframe(tf)}
-                className={`px-3 py-1 rounded text-sm font-medium transition-colors ${
-                  timeframe === tf
-                    ? 'bg-blue-100 text-blue-700'
-                    : 'text-gray-600 hover:bg-gray-100'
-                }`}
-              >
-                {timeframeLabels[tf]}
-              </button>
-            ))}
-          </div>
-          
-          {/* Budget Calculation Display */}
-          <div className="flex items-center gap-2 mt-1">
-            <span className="text-2xl font-bold text-green-600">
-              {formatCurrency(currentTimeframe.budget)}
-            </span>
-            <span className="text-xl">-</span>
-            <span className="text-2xl font-bold text-red-600">
-              {formatCurrency(currentTimeframe.spent)}
-            </span>
-            <span className="text-xl">=</span>
-            <span className={`text-2xl font-bold ${
-              currentTimeframe.remaining >= 0 ? 'text-green-600' : 'text-red-600'
-            }`}>
-              {formatCurrency(Math.abs(currentTimeframe.remaining))}
-              
-            </span>
-          </div>
+        {/* Timeframe Selector - Updated with responsive spacing */}
+        <div className="flex flex-wrap gap-1 mb-3">
+          {Object.keys(timeframeLabels).map((tf) => (
+            <button
+              key={tf}
+              onClick={() => setTimeframe(tf)}
+              className={`px-2 py-1 rounded text-sm font-medium transition-colors ${
+                timeframe === tf
+                  ? 'bg-blue-100 text-blue-700'
+                  : 'text-gray-600 hover:bg-gray-100'
+              }`}
+            >
+              {timeframeLabels[tf]}
+            </button>
+          ))}
+        </div>
+        
+        {/* Budget Calculation Display - Updated to prevent overflow */}
+        <div className="flex items-center flex-wrap gap-2 mt-1">
+          <span className="text-2xl font-bold text-green-600">
+            {formatCurrency(currentTimeframe.budget)}
+          </span>
+          <span className="text-xl">-</span>
+          <span className="text-2xl font-bold text-red-600">
+            {formatCurrency(currentTimeframe.spent)}
+          </span>
+          <span className="text-xl">=</span>
+          <span className={`text-2xl font-bold ${
+            currentTimeframe.remaining >= 0 ? 'text-green-600' : 'text-red-600'
+          }`}>
+            {formatCurrency(Math.abs(currentTimeframe.remaining))}
+          </span>
+        </div>
 
           {/* Frequency and Schedule Info */}
           <p className="text-sm text-gray-600 capitalize mt-2">
