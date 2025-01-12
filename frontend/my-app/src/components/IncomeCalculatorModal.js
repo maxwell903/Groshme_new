@@ -4,6 +4,8 @@ import { X } from 'lucide-react';
 const IncomeCalculatorModal = ({ isOpen, onClose, onSubmit }) => {
   const [amount, setAmount] = useState('');
   const [frequency, setFrequency] = useState('hourly');
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [error, setError] = useState(null);
 
   const calculations = useMemo(() => {
     const baseAmount = parseFloat(amount) || 0;
@@ -80,6 +82,9 @@ const IncomeCalculatorModal = ({ isOpen, onClose, onSubmit }) => {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    setError(null);
+    setIsSubmitting(true);
+
     try {
       const response = await fetch('/api/real-salary', {
         method: 'POST',
@@ -93,17 +98,25 @@ const IncomeCalculatorModal = ({ isOpen, onClose, onSubmit }) => {
       });
 
       if (!response.ok) {
-        throw new Error('Failed to save salary');
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Failed to save salary');
       }
 
       const data = await response.json();
+      
+      // Call the parent's onSubmit with the full response data
       onSubmit(data.salary);
+      
+      // Close the modal
       onClose();
     } catch (error) {
       console.error('Error saving salary:', error);
-      // You might want to show an error message to the user here
+      setError(error.message);
+    } finally {
+      setIsSubmitting(false);
     }
   };
+
   if (!isOpen) return null;
 
   return (
@@ -117,6 +130,11 @@ const IncomeCalculatorModal = ({ isOpen, onClose, onSubmit }) => {
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-4">
+        {error && (
+            <div className="bg-red-50 text-red-600 p-3 rounded-md text-sm">
+              {error}
+            </div>
+          )}
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">
               Amount
@@ -187,14 +205,16 @@ const IncomeCalculatorModal = ({ isOpen, onClose, onSubmit }) => {
               type="button"
               onClick={onClose}
               className="px-4 py-2 text-gray-600 hover:text-gray-800"
+              disabled={isSubmitting}
             >
               Cancel
             </button>
             <button
               type="submit"
-              className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700"
+              className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:bg-blue-300"
+              disabled={isSubmitting}
             >
-              Add Income
+               {isSubmitting ? 'Saving...' : 'Add Income'}
             </button>
           </div>
         </form>
