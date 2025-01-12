@@ -9,7 +9,7 @@ const ProfitLossCard = ({ summaryData }) => {
   
     const daily = {
       budget: weekly / 7, // Business days only
-      spent: totalSpent / (4.33/7)
+      spent: totalSpent / (4.33*7)
     };
     daily.remaining = daily.budget - daily.spent;
 
