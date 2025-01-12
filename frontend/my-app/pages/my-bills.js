@@ -431,7 +431,6 @@ const calculateByFrequency = (amount, frequency) => {
 
 
 
-
 const BudgetEntry = ({ 
   entry, 
   onEdit, 
@@ -442,51 +441,67 @@ const BudgetEntry = ({
 }) => {
   const [showTransactionModal, setShowTransactionModal] = useState(false);
   const [showOneTimeIncomeModal, setShowOneTimeIncomeModal] = useState(false);
-  const [timeframe, setTimeframe] = useState('monthly');
+  const [timeframe, setTimeframe] = useState('monthly');  // Add timeframe state
 
-  // Calculate combined totals including child budgets
+  // Calculate combined totals including child budgets with timeframe support
   const totals = useMemo(() => {
-    const calculateAmountByFrequency = (amount, frequency) => {
+    const calculateAmountByFrequency = (amount, frequency, targetTimeframe) => {
       const baseAmount = parseFloat(amount);
+      // First convert to monthly as base
+      let monthlyAmount;
       switch (frequency) {
         case 'weekly':
-          return {
-            periodic: baseAmount,
-            monthly: baseAmount * 52 / 12,
-            yearly: baseAmount * 52
-          };
+          monthlyAmount = baseAmount * 52 / 12;
+          break;
         case 'biweekly':
-          return {
-            periodic: baseAmount,
-            monthly: baseAmount * 26 / 12,
-            yearly: baseAmount * 26
-          };
+          monthlyAmount = baseAmount * 26 / 12;
+          break;
         case 'monthly':
-          return {
-            periodic: baseAmount,
-            monthly: baseAmount,
-            yearly: baseAmount * 12
-          };
+          monthlyAmount = baseAmount;
+          break;
         case 'yearly':
-          return {
-            periodic: baseAmount / 12, // Show monthly amount for periodic
-            monthly: baseAmount / 12,
-            yearly: baseAmount
-          };
+          monthlyAmount = baseAmount / 12;
+          break;
         default:
-          return { periodic: 0, monthly: 0, yearly: 0 };
+          monthlyAmount = 0;
+      }
+
+      // Then convert monthly to target timeframe
+      switch (targetTimeframe) {
+        case 'daily':
+          return monthlyAmount / 30;  // Approximate days per month
+        case 'weekly':
+          return monthlyAmount * 12 / 52;
+        case 'monthly':
+          return monthlyAmount;
+        case 'yearly':
+          return monthlyAmount * 12;
+        default:
+          return monthlyAmount;
       }
     };
   
-    let totalBudget = calculateAmountByFrequency(entry.amount, entry.frequency).monthly;
+    let totalBudget = calculateAmountByFrequency(entry.amount, entry.frequency, timeframe);
     let totalSpent = entry.total_spent || 0;
+    
+    // Adjust spent amount based on timeframe
+    switch (timeframe) {
+      case 'daily':
+        totalSpent = totalSpent / 30;  // Approximate per day
+        break;
+      case 'weekly':
+        totalSpent = totalSpent * 12 / 52;  // Convert monthly to weekly
+        break;
+      case 'yearly':
+        totalSpent = totalSpent * 12;  // Convert monthly to yearly
+        break;
+      // 'monthly' is our base case, no adjustment needed
+    }
     
     // Add totals from child budgets if any exist
     if (entry.children && entry.children.length > 0) {
       entry.children.forEach(child => {
-        // Convert child amount to monthly for consistent comparison
-        const childAmount = calculateAmountByFrequency(child.amount, child.frequency).monthly;
-        totalBudget += childAmount;
+        totalBudget += calculateAmountByFrequency(child.amount, child.frequency, timeframe);
       });
     }
     
@@ -495,7 +510,7 @@ const BudgetEntry = ({
       spent: totalSpent,
       remaining: totalBudget - totalSpent
     };
-  }, [entry]);
+  }, [entry, timeframe]);
 
   const handleTransactionUpdate = async (updates) => {
     try {
@@ -506,17 +521,15 @@ const BudgetEntry = ({
       onTransactionsUpdate();
     } catch (error) {
       console.error('Error updating transactions:', error);
-      // Handle error state if needed
     }
   };
 
-  // Format numbers for display
   const formatCurrency = (amount) => {
     return new Intl.NumberFormat('en-US', {
       style: 'currency',
       currency: 'USD',
       minimumFractionDigits: 0,
-    maximumFractionDigits: 0
+      maximumFractionDigits: 0
     }).format(amount);
   };
 
@@ -529,8 +542,14 @@ const BudgetEntry = ({
       onTransactionsUpdate();
     } catch (error) {
       console.error('Error adding one-time income:', error);
-      // Handle error state if needed
     }
+  };
+
+  const timeframeLabels = {
+    daily: 'Daily',
+    weekly: 'Weekly',
+    monthly: 'Monthly',
+    yearly: 'Yearly'
   };
 
   return (
@@ -540,19 +559,27 @@ const BudgetEntry = ({
         <div className="w-full sm:w-auto mb-4 sm:mb-0">
           <h3 className="text-lg font-semibold">
             {entry.title}
-
-
- 
             {entry.is_subaccount && 
               <span className="ml-2 text-sm text-blue-600">(Subaccount)</span>
-              
-
-
             }
-            
           </h3>
 
-          
+          {/* Timeframe Selection */}
+          <div className="flex gap-2 mt-2 mb-3">
+            {Object.entries(timeframeLabels).map(([tf, label]) => (
+              <button
+                key={tf}
+                onClick={() => setTimeframe(tf)}
+                className={`px-3 py-1 rounded text-sm font-medium transition-colors ${
+                  timeframe === tf
+                    ? 'bg-blue-100 text-blue-700'
+                    : 'text-gray-600 hover:bg-gray-100'
+                }`}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
           
           {/* Budget Calculation Display */}
           <div className="flex items-center gap-2 mt-1">
@@ -570,10 +597,27 @@ const BudgetEntry = ({
               {formatCurrency(totals.remaining)}
             </span>
           </div>
-               {/* Action Buttons */}
+
+          {/* Frequency and Schedule Info */}
+          <p className="text-sm text-gray-600 capitalize mt-2">
+            {entry.frequency} {entry.is_recurring && '(Recurring)'}
+          </p>
+          {entry.is_recurring && entry.next_payment_date && (
+            <div className="text-sm text-gray-600 mt-2">
+              <div className="flex items-center gap-2">
+                <Clock size={16} />
+                <span>Next: {new Date(entry.next_payment_date).toLocaleDateString()}</span>
+              </div>
+              <div className="mt-1">
+                {new Date(entry.start_date).toLocaleDateString()} - 
+                {new Date(entry.end_date).toLocaleDateString()}
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* Action Buttons */}
         <div className="space-x-2">
-         
-         
           <button
             onClick={() => onEdit(entry)}
             className="text-blue-600 hover:text-blue-800"
@@ -587,28 +631,6 @@ const BudgetEntry = ({
             Delete
           </button>
         </div>
-      
-
-          {/* Frequency and Schedule Info */}
-          <p className="text-sm text-gray-600 capitalize">
-            {entry.frequency} {entry.is_recurring && '(Recurring)'}
-          </p>
-          {entry.is_recurring && entry.next_payment_date && (
-            <div className="text-sm text-gray-600 mt-2">
-              <div className="flex items-center gap-2">
-                <Calendar size={16} />
-                <span>Next: {new Date(entry.next_payment_date).toLocaleDateString()}</span>
-              </div>
-              <div className="mt-1">
-                {new Date(entry.start_date).toLocaleDateString()} - 
-                {new Date(entry.end_date).toLocaleDateString()}
-              </div>
-            </div>
-          )}
-          
-        </div>
-
-       
       </div>
       
       {/* Transaction History */}
@@ -671,7 +693,9 @@ const BudgetEntry = ({
                 <div key={child.id} className="flex justify-between text-sm items-center">
                   <span>{child.title}</span>
                   <span className="font-medium">
-                    {formatCurrency(child.amount)}
+                    {formatCurrency(
+                      calculateAmountByFrequency(child.amount, child.frequency, timeframe)
+                    )}
                   </span>
                 </div>
               ))}
@@ -706,7 +730,6 @@ const BudgetEntry = ({
     </div>
   );
 };
-
 
 
 export default function MyBills() {
