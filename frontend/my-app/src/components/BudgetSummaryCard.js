@@ -3,9 +3,7 @@ import { Clock, Plus } from 'lucide-react';
 import IncomeCalculatorModal from './IncomeCalculatorModal';
 import ProfitLossCard from './ProfitLossCard';
 
-const AverageIncomeCard = ({ averageIncome, isLoading }) => {
-  const [timeframe, setTimeframe] = useState('monthly');
-
+const AverageIncomeCard = ({ averageIncome, summaryData, isLoading, timeframe, onTimeframeChange }) => {
   const formatCurrency = (amount) => {
     return new Intl.NumberFormat('en-US', {
       style: 'currency',
@@ -22,18 +20,39 @@ const AverageIncomeCard = ({ averageIncome, isLoading }) => {
     yearly: 'Yearly'
   };
 
+  const getTimeframeAmount = (baseAmount) => {
+    switch (timeframe) {
+      case 'daily':
+        return baseAmount / 365;
+      case 'weekly':
+        return baseAmount / 52;
+      case 'monthly':
+        return baseAmount / 12;
+      case 'yearly':
+        return baseAmount;
+      default:
+        return baseAmount;
+    }
+  };
+
+  const projectedSavings = averageIncome ? 
+    getTimeframeAmount(averageIncome.yearly - summaryData.yearly) : 0;
+  
+  const actualSavings = averageIncome ? 
+    getTimeframeAmount(averageIncome.yearly - summaryData.totalSpent) : 0;
+
   return (
     <div className="bg-purple-50 p-4 rounded-lg">
       <div className="flex items-center gap-2 text-purple-600 mb-4">
         <Clock size={20} />
-        <span className="font-medium">Average Income</span>
+        <span className="font-medium">Projected & Actual Savings</span>
       </div>
 
       <div className="flex gap-2 mb-4">
         {Object.keys(timeframeLabels).map((tf) => (
           <button
             key={tf}
-            onClick={() => setTimeframe(tf)}
+            onClick={() => onTimeframeChange(tf)}
             className={`px-3 py-1 rounded text-sm font-medium transition-colors ${
               timeframe === tf
                 ? 'bg-purple-200 text-purple-700'
@@ -50,28 +69,62 @@ const AverageIncomeCard = ({ averageIncome, isLoading }) => {
           Loading income data...
         </div>
       ) : averageIncome ? (
-        <div className="space-y-4">
-          <div className="flex justify-between items-center">
-            <span className="text-sm text-purple-700">Budget:</span>
-            <span className="font-semibold text-lg text-purple-700">
-              {formatCurrency(averageIncome[timeframe])}
-            </span>
+        <div className="space-y-6">
+          <div className="space-y-3">
+            <h3 className="font-semibold text-purple-800">Projected Savings</h3>
+            <div className="space-y-2">
+              <div className="flex justify-between items-center">
+                <span className="text-sm text-purple-700">Salary:</span>
+                <span className="font-semibold text-purple-700">
+                  {formatCurrency(getTimeframeAmount(averageIncome.yearly))}
+                </span>
+              </div>
+              <div className="flex justify-between items-center">
+                <span className="text-sm text-purple-700">- Budget:</span>
+                <span className="font-semibold text-red-600">
+                  {formatCurrency(getTimeframeAmount(summaryData.yearly))}
+                </span>
+              </div>
+              <div className="pt-2 border-t border-purple-200">
+                <div className="flex justify-between items-center">
+                  <span className="text-sm font-medium text-purple-700">= Projected:</span>
+                  <span className={`font-bold text-lg ${projectedSavings >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                    {formatCurrency(Math.abs(projectedSavings))}
+                    <span className="text-sm ml-1">
+                      {projectedSavings >= 0 ? '(Saving)' : '(Deficit)'}
+                    </span>
+                  </span>
+                </div>
+              </div>
+            </div>
           </div>
-          
-          <div className="flex justify-between items-center">
-            <span className="text-sm text-purple-700">Spent:</span>
-            <span className="font-semibold text-lg text-red-600">
-              {formatCurrency(averageIncome[timeframe] * 0.75)} {/* Example spent amount */}
-            </span>
-          </div>
-          
-          <div className="pt-4 border-t border-purple-200">
-            <div className="flex justify-between items-center">
-              <span className="text-sm font-medium text-purple-700">Remaining:</span>
-              <span className="font-bold text-xl text-green-600">
-                {formatCurrency(averageIncome[timeframe] * 0.25)} {/* Example remaining */}
-                <span className="text-sm ml-1">(Under)</span>
-              </span>
+
+          <div className="space-y-3">
+            <h3 className="font-semibold text-purple-800">Actual Savings</h3>
+            <div className="space-y-2">
+              <div className="flex justify-between items-center">
+                <span className="text-sm text-purple-700">Salary:</span>
+                <span className="font-semibold text-purple-700">
+                  {formatCurrency(getTimeframeAmount(averageIncome.yearly))}
+                </span>
+              </div>
+              <div className="flex justify-between items-center">
+                <span className="text-sm text-purple-700">- Amount Spent:</span>
+                <span className="font-semibold text-red-600">
+                  {formatCurrency(getTimeframeAmount(summaryData.totalSpent))}
+                </span>
+              </div>
+              <div className="pt-2 border-t border-purple-200">
+                <div className="flex justify-between items-center">
+                  <span className="text-sm font-medium text-purple-700">= Actual:</span>
+                  <span className={`font-bold text-lg ${actualSavings >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                    {formatCurrency(Math.abs(actualSavings))}
+                    <span className="text-sm ml-1">
+                      {actualSavings >= 0 ? '(Saving)' : '(Deficit)'}
+                    </span>
+                  </span>
+                </div>
+              </div>
             </div>
           </div>
         </div>
@@ -83,6 +136,7 @@ const AverageIncomeCard = ({ averageIncome, isLoading }) => {
     </div>
   );
 };
+
 
 const BudgetSummaryCard = ({ entries }) => {
   const [showIncomeModal, setShowIncomeModal] = useState(false);
