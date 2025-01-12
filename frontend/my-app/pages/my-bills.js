@@ -444,39 +444,25 @@ const BudgetEntry = ({
   const [showOneTimeIncomeModal, setShowOneTimeIncomeModal] = useState(false);
   const [timeframe, setTimeframe] = useState('monthly');
 
-  const formatDate = (dateString) => {
-    if (!dateString) {
+  const formatDate = (dateInput) => {
+    if (!dateInput) {
       return 'No date';
     }
 
-    // Try different parsing approaches
-    let date;
+    // Handle both Date objects and date strings
+    let date = dateInput instanceof Date ? dateInput : new Date(dateInput);
     
-    // Try direct parsing
-    date = new Date(dateString);
-    
-    // If invalid, try splitting the string (in case it's in format like "2024-01-12")
-    if (isNaN(date.getTime()) && dateString.includes('-')) {
-      const [year, month, day] = dateString.split('-').map(num => parseInt(num, 10));
-      date = new Date(year, month - 1, day); // month is 0-based in Date constructor
-    }
-    
-    // If still invalid, try with explicit timezone
+    // Check if the date is valid
     if (isNaN(date.getTime())) {
-      date = new Date(dateString + 'T00:00:00Z');
+      console.error('Invalid date:', dateInput);
+      return 'Invalid date';
     }
     
-    // If all parsing attempts failed
-    if (isNaN(date.getTime())) {
-      console.error('Invalid date:', dateString);
-      return dateString; // Return original string instead of "Date error"
-    }
-    
-    // Format the date
+    // Format the date as MM/DD/YYYY
     return new Intl.DateTimeFormat('en-US', {
       year: 'numeric',
-      month: 'short',
-      day: 'numeric'
+      month: '2-digit',
+      day: '2-digit'
     }).format(date);
   };
 
