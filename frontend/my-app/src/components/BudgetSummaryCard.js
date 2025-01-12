@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useEffect } from 'react';
+import React, { useState, useMemo } from 'react';
 import { Clock, Plus } from 'lucide-react';
 import IncomeCalculatorModal from './IncomeCalculatorModal';
 import ProfitLossCard from './ProfitLossCard';
@@ -31,16 +31,68 @@ const BudgetSummaryCard = ({ entries }) => {
     }
   };
 
-  const handleIncomeSubmit = async (salary) => {
-    setSalaryData(salary);
-    try {
-      const response = await fetch('/api/real-salary/calculate');
-      const result = await response.json();
-      setSalaryCalculations(result.calculations);
-    } catch (error) {
-      console.error('Error fetching salary calculations:', error);
-    }
-  };
+  const summaryData = useMemo(() => {
+    let totalBudget = 0;
+    let totalSpent = 0;
+    let weeklyTotal = 0;
+    let monthlyTotal = 0;
+    let yearlyTotal = 0;
+
+    const processEntry = (entry) => {
+      const amount = parseFloat(entry.amount) || 0;
+      
+      // Calculate total spent from transactions
+      let entrySpent = 0;
+      if (entry.transactions) {
+        entrySpent = entry.transactions.reduce((sum, transaction) => 
+          sum + (parseFloat(transaction.amount) || 0), 0);
+      }
+      
+      totalSpent += entrySpent;
+
+      switch (entry.frequency) {
+        case 'weekly':
+          weeklyTotal += amount;
+          monthlyTotal += amount * 52 / 12;
+          yearlyTotal += amount * 52;
+          totalBudget += amount * 52;
+          break;
+        case 'biweekly':
+          weeklyTotal += amount / 2;
+          monthlyTotal += amount * 26 / 12;
+          yearlyTotal += amount * 26;
+          totalBudget += amount * 26;
+          break;
+        case 'monthly':
+          weeklyTotal += amount;
+          monthlyTotal += amount;
+          yearlyTotal += amount * 12;
+          totalBudget += amount * 12;
+          break;
+        case 'yearly':
+          weeklyTotal += amount / 52;
+          monthlyTotal += amount / 12;
+          yearlyTotal += amount;
+          totalBudget += amount;
+          break;
+      }
+
+      if (entry.children && entry.children.length > 0) {
+        entry.children.forEach(processEntry);
+      }
+    };
+
+    entries.forEach(processEntry);
+
+    return {
+      totalBudget: yearlyTotal,
+      totalSpent,
+      remaining: yearlyTotal - totalSpent,
+      weekly: weeklyTotal,
+      monthly: monthlyTotal,
+      yearly: yearlyTotal
+    };
+  }, [entries]);
 
   const formatCurrency = (amount) => {
     return new Intl.NumberFormat('en-US', {
@@ -49,6 +101,10 @@ const BudgetSummaryCard = ({ entries }) => {
       minimumFractionDigits: 0,
       maximumFractionDigits: 0
     }).format(amount);
+  };
+
+  const handleIncomeSubmit = (calculations) => {
+    console.log('Income calculations:', calculations);
   };
 
   return (
@@ -70,52 +126,29 @@ const BudgetSummaryCard = ({ entries }) => {
         <div className="bg-purple-50 p-4 rounded-lg">
           <div className="flex items-center gap-2 text-purple-600 mb-2">
             <Clock size={20} />
-            <span className="font-medium">Real Salary Income</span>
+            <span className="font-medium">Average Income</span>
           </div>
-          {salaryData ? (
-            <>
-              <div className="mb-3 text-sm text-purple-700">
-                <span>Current Salary: </span>
-                <span className="font-semibold">
-                  {formatCurrency(salaryData.amount)} / {salaryData.frequency}
-                </span>
-              </div>
-              {salaryCalculations && (
-                <div className="space-y-1">
-                  <div className="flex justify-between text-sm text-purple-700">
-                    <span>Hourly:</span>
-                    <span className="font-semibold">{formatCurrency(salaryCalculations.hourly)}</span>
-                  </div>
-                  <div className="flex justify-between text-sm text-purple-700">
-                    <span>Daily:</span>
-                    <span className="font-semibold">{formatCurrency(salaryCalculations.daily)}</span>
-                  </div>
-                  <div className="flex justify-between text-sm text-purple-700">
-                    <span>Weekly:</span>
-                    <span className="font-semibold">{formatCurrency(salaryCalculations.weekly)}</span>
-                  </div>
-                  <div className="flex justify-between text-sm text-purple-700">
-                    <span>Biweekly:</span>
-                    <span className="font-semibold">{formatCurrency(salaryCalculations.biweekly)}</span>
-                  </div>
-                  <div className="flex justify-between text-sm text-purple-700">
-                    <span>Monthly:</span>
-                    <span className="font-semibold">{formatCurrency(salaryCalculations.monthly)}</span>
-                  </div>
-                  <div className="flex justify-between text-sm text-purple-700">
-                    <span>Yearly:</span>
-                    <span className="font-semibold">{formatCurrency(salaryCalculations.yearly)}</span>
-                  </div>
-                </div>
-              )}
-            </>
-          ) : (
-            <div className="text-sm text-purple-700">
-              No salary information set. Click "Add Income" to set your salary.
+          <div className="space-y-1">
+            <div className="flex justify-between text-sm text-purple-700">
+              <span>Daily:</span>
+              <span className="font-semibold">{formatCurrency(summaryData.weekly / 7)}</span>
             </div>
-          )}
+            <div className="flex justify-between text-sm text-purple-700">
+              <span>Weekly:</span>
+              <span className="font-semibold">{formatCurrency(summaryData.weekly)}</span>
+            </div>
+            <div className="flex justify-between text-sm text-purple-700">
+              <span>Monthly:</span>
+              <span className="font-semibold">{formatCurrency(summaryData.monthly)}</span>
+            </div>
+            <div className="flex justify-between text-sm text-purple-700">
+              <span>Yearly:</span>
+              <span className="font-semibold">{formatCurrency(summaryData.yearly)}</span>
+            </div>
+          </div>
         </div>
       </div>
+      
 
       <IncomeCalculatorModal
         isOpen={showIncomeModal}
