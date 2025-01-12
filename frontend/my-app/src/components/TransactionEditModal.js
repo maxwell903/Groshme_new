@@ -30,6 +30,29 @@ const TransactionEditModal = ({ isOpen, onClose, transactions = [], onSave }) =>
     });
   };
 
+  const formatDate = (dateString) => {
+    // First try parsing as ISO string
+    let date = new Date(dateString);
+    
+    // If invalid, try parsing with explicit timezone
+    if (isNaN(date.getTime())) {
+      date = new Date(dateString + 'T00:00:00Z');
+    }
+    
+    // If still invalid, return placeholder
+    if (isNaN(date.getTime())) {
+      console.error('Invalid date:', dateString);
+      return 'Date error';
+    }
+    
+    // Format the date
+    return date.toLocaleDateString('en-US', {
+      year: 'numeric',
+      month: 'short',
+      day: 'numeric'
+    });
+  };
+
   const handleSave = () => {
     const updates = {
       toDelete: Array.from(selectedTransactions),
@@ -37,36 +60,6 @@ const TransactionEditModal = ({ isOpen, onClose, transactions = [], onSave }) =>
       titleUpdates: editedTitles
     };
     onSave(updates);
-  };
-
-  const SafeDateDisplay = ({ dateString }) => {
-    const formatDate = (dateStr) => {
-      if (!dateStr) return 'N/A';
-      
-      try {
-        // First try parsing as ISO string
-        let date = new Date(dateStr);
-        
-        // Check if date is valid
-        if (isNaN(date.getTime())) {
-          // If invalid, try parsing different formats
-          // Add more parsing attempts here if needed
-          return 'Invalid Date';
-        }
-        
-        // Return formatted date
-        return date.toLocaleDateString('en-US', {
-          year: 'numeric',
-          month: 'short',
-          day: 'numeric'
-        });
-      } catch (error) {
-        console.error('Error parsing date:', error);
-        return 'Invalid Date';
-      }
-    };
-  
-    return <span>{formatDate(dateString)}</span>;
   };
 
   if (!isOpen) return null;
@@ -95,7 +88,7 @@ const TransactionEditModal = ({ isOpen, onClose, transactions = [], onSave }) =>
                 />
                 <div className="flex-1 grid grid-cols-3 gap-4">
                   <div className="text-sm text-gray-600">
-                    {new Date(transaction.transaction_date).toLocaleDateString()}
+                    {formatDate(transaction.transaction_date)}
                   </div>
                   {transaction.is_one_time && (
                     <input

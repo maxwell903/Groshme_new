@@ -444,6 +444,29 @@ const BudgetEntry = ({
   const [showOneTimeIncomeModal, setShowOneTimeIncomeModal] = useState(false);
   const [timeframe, setTimeframe] = useState('monthly');
 
+  const formatDate = (dateString) => {
+    // First try parsing as ISO string
+    let date = new Date(dateString);
+    
+    // If invalid, try parsing with explicit timezone
+    if (isNaN(date.getTime())) {
+      date = new Date(dateString + 'T00:00:00Z');
+    }
+    
+    // If still invalid, return placeholder
+    if (isNaN(date.getTime())) {
+      console.error('Invalid date:', dateString);
+      return 'Date error';
+    }
+    
+    // Format the date
+    return date.toLocaleDateString('en-US', {
+      year: 'numeric',
+      month: 'short',
+      day: 'numeric'
+    });
+  };
+
   const getMonthlyAmount = (amount, frequency) => {
     switch (frequency) {
       case 'weekly':
@@ -566,7 +589,6 @@ const BudgetEntry = ({
             }
           </h3>
 
-          {/* Timeframe Selector */}
           <div className="flex gap-2 mt-2 mb-3">
             {Object.keys(timeframeLabels).map((tf) => (
               <button
@@ -583,7 +605,6 @@ const BudgetEntry = ({
             ))}
           </div>
           
-          {/* Budget Calculation Display */}
           <div className="flex items-center gap-2 mt-1">
             <span className="text-2xl font-bold text-green-600">
               {formatCurrency(currentTimeframe.budget)}
@@ -597,11 +618,9 @@ const BudgetEntry = ({
               currentTimeframe.remaining >= 0 ? 'text-green-600' : 'text-red-600'
             }`}>
               {formatCurrency(Math.abs(currentTimeframe.remaining))}
-              
             </span>
           </div>
 
-          {/* Frequency and Schedule Info */}
           <p className="text-sm text-gray-600 capitalize mt-2">
             {entry.frequency} {entry.is_recurring && '(Recurring)'}
           </p>
@@ -609,18 +628,16 @@ const BudgetEntry = ({
             <div className="text-sm text-gray-600 mt-2">
               <div className="flex items-center gap-2">
                 <Calendar size={16} />
-                <span>Next: {new Date(entry.next_payment_date).toLocaleDateString()}</span>
+                <span>Next: {formatDate(entry.next_payment_date)}</span>
               </div>
               <div className="mt-1">
-                {new Date(entry.start_date).toLocaleDateString()} - 
-                {new Date(entry.end_date).toLocaleDateString()}
+                {formatDate(entry.start_date)} - {formatDate(entry.end_date)}
               </div>
             </div>
           )}
         </div>
 
-        {/* Action Buttons */}
-        <div className="flex gap-1 shrink-0"> {/* Added shrink-0 */}
+        <div className="flex gap-1 shrink-0">
           <button
             onClick={() => onEdit(entry)}
             className="text-blue-600 hover:text-blue-800"
@@ -636,7 +653,6 @@ const BudgetEntry = ({
         </div>
       </div>
       
-      {/* Transaction History */}
       <div className="mt-4 border-t pt-4">
         <div className="flex justify-between items-center mb-2">
           <h4 className="text-sm font-semibold">Transaction History</h4>
@@ -658,13 +674,12 @@ const BudgetEntry = ({
           </div>
         </div>
 
-        {/* Transactions List */}
         <div className="space-y-2">
           {entry.transactions?.map(transaction => (
             <div key={transaction.id} className="flex justify-between text-sm items-center">
               <div className="flex items-center gap-2 flex-1">
                 <span className="whitespace-nowrap">
-                  {new Date(transaction.transaction_date).toLocaleDateString()}
+                  {formatDate(transaction.transaction_date)}
                 </span>
                 <span className="text-gray-600 truncate">
                   {transaction.is_one_time ? 
@@ -687,7 +702,6 @@ const BudgetEntry = ({
           ))}
         </div>
 
-        {/* Child Budgets Section */}
         {entry.children && entry.children.length > 0 && (
           <div className="mt-4 border-t pt-4">
             <h4 className="text-sm font-semibold mb-2">Subaccounts</h4>
@@ -709,7 +723,6 @@ const BudgetEntry = ({
         )}
       </div>
 
-      {/* Modals */}
       {showTransactionModal && (
         <TransactionEditModal
           isOpen={showTransactionModal}
@@ -849,37 +862,6 @@ export default function MyBills() {
     }));
     setShowModal(true);
   };
-
-  const SafeDateDisplay = ({ dateString }) => {
-    const formatDate = (dateStr) => {
-      if (!dateStr) return 'N/A';
-      
-      try {
-        // First try parsing as ISO string
-        let date = new Date(dateStr);
-        
-        // Check if date is valid
-        if (isNaN(date.getTime())) {
-          // If invalid, try parsing different formats
-          // Add more parsing attempts here if needed
-          return 'Invalid Date';
-        }
-        
-        // Return formatted date
-        return date.toLocaleDateString('en-US', {
-          year: 'numeric',
-          month: 'short',
-          day: 'numeric'
-        });
-      } catch (error) {
-        console.error('Error parsing date:', error);
-        return 'Invalid Date';
-      }
-    };
-  
-    return <span>{formatDate(dateString)}</span>;
-  };
-  
 
   return (
     <div className="min-h-screen bg-gray-50 p-4">
