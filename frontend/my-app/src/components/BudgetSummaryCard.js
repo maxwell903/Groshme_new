@@ -143,6 +143,7 @@ const BudgetSummaryCard = ({ entries }) => {
   const [realSalary, setRealSalary] = useState(null);
   const [averageIncome, setAverageIncome] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [timeframe, setTimeframe] = useState('monthly');
 
   useEffect(() => {
     const fetchRealSalary = async () => {
@@ -259,10 +260,17 @@ const BudgetSummaryCard = ({ entries }) => {
       </div>
       
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        <ProfitLossCard summaryData={summaryData} />
+        <ProfitLossCard 
+          summaryData={summaryData} 
+          selectedTimeframe={timeframe}
+          onTimeframeChange={setTimeframe}
+        />
         <AverageIncomeCard 
           averageIncome={averageIncome}
+          summaryData={summaryData}
           isLoading={isLoading}
+          timeframe={timeframe}
+          onTimeframeChange={setTimeframe}
         />
       </div>
 
