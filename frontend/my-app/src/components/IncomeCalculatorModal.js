@@ -96,21 +96,23 @@ const IncomeCalculatorModal = ({ isOpen, onClose, onSubmit }) => {
     setIsSubmitting(true);
 
     try {
-      const response = await fetch('/api/real-salary', {
+      // First, clear any existing salary
+      await fetch('https://groshmebeta-05487aa160b2.herokuapp.com/api/real-salary', {
+        method: 'DELETE',
+      });
+
+      // Then add the new salary
+      const response = await fetch('https://groshmebeta-05487aa160b2.herokuapp.com/api/real-salary', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
+          'Accept': 'application/json'
         },
         body: JSON.stringify({
           amount: parseFloat(amount),
-          frequency
+          frequency: frequency
         }),
       });
-
-      const contentType = response.headers.get('content-type');
-      if (!contentType || !contentType.includes('application/json')) {
-        throw new Error('Invalid server response format');
-      }
 
       const data = await response.json();
       
