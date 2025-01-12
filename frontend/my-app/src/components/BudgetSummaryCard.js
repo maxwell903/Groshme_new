@@ -123,6 +123,7 @@ const BudgetSummaryCard = ({ entries }) => {
           </div>
         </div>
       </div>
+      
 
       <IncomeCalculatorModal
         isOpen={showIncomeModal}
