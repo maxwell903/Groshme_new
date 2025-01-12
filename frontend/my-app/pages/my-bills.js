@@ -621,21 +621,21 @@ const BudgetEntry = ({
 
         {/* Action Buttons */}
         {/* Action Buttons */}
-<div className="flex justify-end gap-2 w-full">
-  <button
-    onClick={() => onEdit(entry)}
-    className="text-blue-600 hover:text-blue-800"
-  >
-    Edit
-  </button>
-  <button
-    onClick={() => onDelete(entry.id)}
-    className="text-red-600 hover:text-red-800"
-  >
-    Delete
-  </button>
-</div>
-</div>
+        <div className="flex gap-2 shrink-0"> {/* Added shrink-0 */}
+          <button
+            onClick={() => onEdit(entry)}
+            className="text-blue-600 hover:text-blue-800"
+          >
+            Edit
+          </button>
+          <button
+            onClick={() => onDelete(entry.id)}
+            className="text-red-600 hover:text-red-800"
+          >
+            Delete
+          </button>
+        </div>
+      </div>
       
       {/* Transaction History */}
       <div className="mt-4 border-t pt-4">
