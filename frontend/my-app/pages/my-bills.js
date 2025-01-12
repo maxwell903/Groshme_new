@@ -442,59 +442,88 @@ const BudgetEntry = ({
 }) => {
   const [showTransactionModal, setShowTransactionModal] = useState(false);
   const [showOneTimeIncomeModal, setShowOneTimeIncomeModal] = useState(false);
+  const [timeframe, setTimeframe] = useState('monthly');
 
   // Calculate combined totals including child budgets
-  const totals = useMemo(() => {
-    const calculateAmountByFrequency = (amount, frequency) => {
+  const calculations = useMemo(() => {
+    const calculateAmountByFrequency = (amount, frequency, targetTimeframe) => {
       const baseAmount = parseFloat(amount);
+      let yearlyAmount = 0;
+      
+      // First convert to yearly amount
       switch (frequency) {
         case 'weekly':
-          return {
-            periodic: baseAmount,
-            monthly: baseAmount * 52 / 12,
-            yearly: baseAmount * 52
-          };
+          yearlyAmount = baseAmount * 52;
+          break;
         case 'biweekly':
-          return {
-            periodic: baseAmount,
-            monthly: baseAmount * 26 / 12,
-            yearly: baseAmount * 26
-          };
+          yearlyAmount = baseAmount * 26;
+          break;
         case 'monthly':
-          return {
-            periodic: baseAmount,
-            monthly: baseAmount,
-            yearly: baseAmount * 12
-          };
+          yearlyAmount = baseAmount * 12;
+          break;
         case 'yearly':
-          return {
-            periodic: baseAmount / 12, // Show monthly amount for periodic
-            monthly: baseAmount / 12,
-            yearly: baseAmount
-          };
+          yearlyAmount = baseAmount;
+          break;
         default:
-          return { periodic: 0, monthly: 0, yearly: 0 };
+          yearlyAmount = 0;
+      }
+
+      // Then convert yearly amount to target timeframe
+      switch (targetTimeframe) {
+        case 'daily':
+          return yearlyAmount / 365;
+        case 'weekly':
+          return yearlyAmount / 52;
+        case 'monthly':
+          return yearlyAmount / 12;
+        case 'yearly':
+          return yearlyAmount;
+        default:
+          return yearlyAmount;
       }
     };
-  
-    let totalBudget = calculateAmountByFrequency(entry.amount, entry.frequency).monthly;
-    let totalSpent = entry.total_spent || 0;
-    
-    // Add totals from child budgets if any exist
-    if (entry.children && entry.children.length > 0) {
-      entry.children.forEach(child => {
-        // Convert child amount to monthly for consistent comparison
-        const childAmount = calculateAmountByFrequency(child.amount, child.frequency).monthly;
-        totalBudget += childAmount;
-      });
-    }
-    
-    return {
-      budget: totalBudget,
-      spent: totalSpent,
-      remaining: totalBudget - totalSpent
-    };
+
+    // Calculate budget and spent amounts for each timeframe
+    const timeframes = ['daily', 'weekly', 'monthly', 'yearly'];
+    const results = {};
+
+    timeframes.forEach(tf => {
+      let totalBudget = calculateAmountByFrequency(entry.amount, entry.frequency, tf);
+      let totalSpent = entry.total_spent || 0;
+
+      // Add totals from child budgets
+      if (entry.children && entry.children.length > 0) {
+        entry.children.forEach(child => {
+          totalBudget += calculateAmountByFrequency(child.amount, child.frequency, tf);
+        });
+      }
+
+      // Adjust spent amount based on timeframe
+      switch (tf) {
+        case 'daily':
+          totalSpent = totalSpent / 30; // Assuming monthly spent amount
+          break;
+        case 'weekly':
+          totalSpent = totalSpent * 12 / 52; // Convert monthly to weekly
+          break;
+        case 'monthly':
+          totalSpent = totalSpent;
+          break;
+        case 'yearly':
+          totalSpent = totalSpent * 12;
+          break;
+      }
+
+      results[tf] = {
+        budget: totalBudget,
+        spent: totalSpent,
+        remaining: totalBudget - totalSpent
+      };
+    });
+
+    return results;
   }, [entry]);
+
 
   const handleTransactionUpdate = async (updates) => {
     try {
@@ -532,6 +561,13 @@ const BudgetEntry = ({
     }
   };
 
+  const timeframeLabels = {
+    daily: 'Daily',
+    weekly: 'Weekly',
+    monthly: 'Monthly',
+    yearly: 'Yearly'
+  };
+
   return (
     <div className={`bg-white p-4 rounded-lg shadow-md hover:shadow-lg transition-shadow
       ${entry.is_subaccount ? `ml-${level * 2} border-l-4 border-blue-500` : ''}`}>
@@ -551,7 +587,22 @@ const BudgetEntry = ({
             
           </h3>
 
-          
+          {/* Timeframe Selection */}
+          <div className="flex gap-2 mt-2 mb-4">
+            {Object.entries(timeframeLabels).map(([tf, label]) => (
+              <button
+                key={tf}
+                onClick={() => setTimeframe(tf)}
+                className={`px-3 py-1 rounded text-sm font-medium transition-colors ${
+                  timeframe === tf
+                    ? 'bg-blue-100 text-blue-700'
+                    : 'text-gray-600 hover:bg-gray-100'
+                }`}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
           
           {/* Budget Calculation Display */}
           <div className="flex items-center gap-2 mt-1">
