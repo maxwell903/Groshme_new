@@ -19,7 +19,7 @@ const ProfitLossCard = ({ summaryData }) => {
       weekly: {
         budget: monthly / 4.33,
         spent: totalSpent / 4.33,
-        remaining: weekly - (totalSpent / 4.33)
+        remaining: monthly / 4.33 - (totalSpent / 4.33)
       },
       monthly: {
         budget: monthly,
