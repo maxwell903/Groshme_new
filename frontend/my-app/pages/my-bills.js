@@ -430,6 +430,8 @@ const calculateByFrequency = (amount, frequency) => {
 
 
 
+
+
 const BudgetEntry = ({ 
   entry, 
   onEdit, 
@@ -442,103 +444,93 @@ const BudgetEntry = ({
   const [showOneTimeIncomeModal, setShowOneTimeIncomeModal] = useState(false);
   const [timeframe, setTimeframe] = useState('monthly');
 
-  // Calculate all timeframe values based on monthly amount
-  const calculations = useMemo(() => {
-    const calculateTimeframes = (monthlyAmount) => {
-      return {
-        daily: monthlyAmount / 30,
-        weekly: monthlyAmount * 12 / 52,
-        monthly: monthlyAmount,
-        yearly: monthlyAmount * 12
-      };
-    };
-
-    // Convert entry amount to monthly based on frequency
-    const getMonthlyBase = (amount, frequency) => {
+  // Calculate combined totals including child budgets
+  const totals = useMemo(() => {
+    const calculateAmountByFrequency = (amount, frequency) => {
+      const baseAmount = parseFloat(amount);
       switch (frequency) {
         case 'weekly':
-          return amount * 52 / 12;
+          return {
+            periodic: baseAmount,
+            monthly: baseAmount * 52 / 12,
+            yearly: baseAmount * 52
+          };
         case 'biweekly':
-          return amount * 26 / 12;
+          return {
+            periodic: baseAmount,
+            monthly: baseAmount * 26 / 12,
+            yearly: baseAmount * 26
+          };
         case 'monthly':
-          return amount;
+          return {
+            periodic: baseAmount,
+            monthly: baseAmount,
+            yearly: baseAmount * 12
+          };
         case 'yearly':
-          return amount / 12;
+          return {
+            periodic: baseAmount / 12, // Show monthly amount for periodic
+            monthly: baseAmount / 12,
+            yearly: baseAmount
+          };
         default:
-          return amount;
+          return { periodic: 0, monthly: 0, yearly: 0 };
       }
     };
-
-    let totalMonthly = getMonthlyBase(entry.amount, entry.frequency);
+  
+    let totalBudget = calculateAmountByFrequency(entry.amount, entry.frequency).monthly;
+    let totalSpent = entry.total_spent || 0;
     
-    // Add child budgets if any exist
+    // Add totals from child budgets if any exist
     if (entry.children && entry.children.length > 0) {
       entry.children.forEach(child => {
-        totalMonthly += getMonthlyBase(child.amount, child.frequency);
+        // Convert child amount to monthly for consistent comparison
+        const childAmount = calculateAmountByFrequency(child.amount, child.frequency).monthly;
+        totalBudget += childAmount;
       });
     }
-
-    // Calculate spent amounts
-    const monthlySpent = entry.total_spent || 0;
-    const timeframeSpent = {
-      daily: monthlySpent / 30,
-      weekly: monthlySpent * 12 / 52,
-      monthly: monthlySpent,
-      yearly: monthlySpent * 12
-    };
-
-    const budgetsByTimeframe = calculateTimeframes(totalMonthly);
+    
     return {
-      budget: budgetsByTimeframe[timeframe],
-      spent: timeframeSpent[timeframe],
-      remaining: budgetsByTimeframe[timeframe] - timeframeSpent[timeframe]
+      budget: totalBudget,
+      spent: totalSpent,
+      remaining: totalBudget - totalSpent
     };
-  }, [entry, timeframe]);
-
-  const formatCurrency = (amount) => {
-    return new Intl.NumberFormat('en-US', {
-      style: 'currency',
-      currency: 'USD',
-      minimumFractionDigits: 0,
-      maximumFractionDigits: 0
-    }).format(amount);
-  };
+  }, [entry]);
 
   const handleTransactionUpdate = async (updates) => {
     try {
-      await fetch(`/api/income-entries/${entry.id}/transactions`, {
+      await fetchApi(`/api/income-entries/${entry.id}/transactions`, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json'
-        },
         body: JSON.stringify(updates)
       });
       onTransactionsUpdate();
     } catch (error) {
       console.error('Error updating transactions:', error);
+      // Handle error state if needed
     }
+  };
+
+  // Format numbers for display
+  const formatCurrency = (amount) => {
+    return new Intl.NumberFormat('en-US', {
+      style: 'currency',
+      currency: 'USD',
+      minimumFractionDigits: 0,
+    maximumFractionDigits: 0
+    }).format(amount);
   };
 
   const handleOneTimeIncomeSubmit = async (incomeData) => {
     try {
-      await fetch(`/api/income-entries/${entry.id}/one-time`, {
+      await fetchApi(`/api/income-entries/${entry.id}/one-time`, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json'
-        },
         body: JSON.stringify(incomeData)
       });
       onTransactionsUpdate();
     } catch (error) {
       console.error('Error adding one-time income:', error);
+      // Handle error state if needed
     }
-  };
-
-  const timeframeLabels = {
-    daily: 'Daily',
-    weekly: 'Weekly',
-    monthly: 'Monthly',
-    yearly: 'Yearly'
   };
 
   return (
@@ -548,65 +540,40 @@ const BudgetEntry = ({
         <div className="w-full sm:w-auto mb-4 sm:mb-0">
           <h3 className="text-lg font-semibold">
             {entry.title}
+
+
+ 
             {entry.is_subaccount && 
               <span className="ml-2 text-sm text-blue-600">(Subaccount)</span>
+              
+
+
             }
+            
           </h3>
 
-          {/* Timeframe Selection */}
-          <div className="flex gap-2 mt-2 mb-3">
-            {Object.keys(timeframeLabels).map((tf) => (
-              <button
-                key={tf}
-                onClick={() => setTimeframe(tf)}
-                className={`px-3 py-1 rounded text-sm font-medium transition-colors ${
-                  timeframe === tf
-                    ? 'bg-blue-100 text-blue-700'
-                    : 'text-gray-600 hover:bg-gray-100'
-                }`}
-              >
-                {timeframeLabels[tf]}
-              </button>
-            ))}
-          </div>
+          
           
           {/* Budget Calculation Display */}
           <div className="flex items-center gap-2 mt-1">
             <span className="text-2xl font-bold text-green-600">
-              {formatCurrency(calculations.budget)}
+              {formatCurrency(totals.budget)}
             </span>
             <span className="text-xl">-</span>
             <span className="text-2xl font-bold text-red-600">
-              {formatCurrency(calculations.spent)}
+              {formatCurrency(totals.spent)}
             </span>
             <span className="text-xl">=</span>
             <span className={`text-2xl font-bold ${
-              calculations.remaining >= 0 ? 'text-green-600' : 'text-red-600'
+              totals.remaining >= 0 ? 'text-green-600' : 'text-red-600'
             }`}>
-              {formatCurrency(calculations.remaining)}
+              {formatCurrency(totals.remaining)}
             </span>
           </div>
-
-          {/* Frequency and Schedule Info */}
-          <p className="text-sm text-gray-600 capitalize mt-2">
-            {entry.frequency} {entry.is_recurring && '(Recurring)'}
-          </p>
-          {entry.is_recurring && entry.next_payment_date && (
-            <div className="text-sm text-gray-600 mt-2">
-              <div className="flex items-center gap-2">
-                <Clock size={16} />
-                <span>Next: {new Date(entry.next_payment_date).toLocaleDateString()}</span>
-              </div>
-              <div className="mt-1">
-                {new Date(entry.start_date).toLocaleDateString()} - 
-                {new Date(entry.end_date).toLocaleDateString()}
-              </div>
-            </div>
-          )}
-        </div>
-
-        {/* Action Buttons */}
+               {/* Action Buttons */}
         <div className="space-x-2">
+         
+         
           <button
             onClick={() => onEdit(entry)}
             className="text-blue-600 hover:text-blue-800"
@@ -620,6 +587,28 @@ const BudgetEntry = ({
             Delete
           </button>
         </div>
+      
+
+          {/* Frequency and Schedule Info */}
+          <p className="text-sm text-gray-600 capitalize">
+            {entry.frequency} {entry.is_recurring && '(Recurring)'}
+          </p>
+          {entry.is_recurring && entry.next_payment_date && (
+            <div className="text-sm text-gray-600 mt-2">
+              <div className="flex items-center gap-2">
+                <Calendar size={16} />
+                <span>Next: {new Date(entry.next_payment_date).toLocaleDateString()}</span>
+              </div>
+              <div className="mt-1">
+                {new Date(entry.start_date).toLocaleDateString()} - 
+                {new Date(entry.end_date).toLocaleDateString()}
+              </div>
+            </div>
+          )}
+          
+        </div>
+
+       
       </div>
       
       {/* Transaction History */}
@@ -697,7 +686,10 @@ const BudgetEntry = ({
           isOpen={showTransactionModal}
           onClose={() => setShowTransactionModal(false)}
           transactions={entry.transactions}
-          onSave={handleTransactionUpdate}
+          onSave={async (updates) => {
+            await handleTransactionUpdate(updates);
+            setShowTransactionModal(false);
+          }}
         />
       )}
       
@@ -705,14 +697,15 @@ const BudgetEntry = ({
         <OneTimeIncomeModal
           isOpen={showOneTimeIncomeModal}
           onClose={() => setShowOneTimeIncomeModal(false)}
-          onSubmit={handleOneTimeIncomeSubmit}
+          onSubmit={async (incomeData) => {
+            await handleOneTimeIncomeSubmit(incomeData);
+            setShowOneTimeIncomeModal(false);
+          }}
         />
       )}
     </div>
   );
 };
-
-
 
 
 
