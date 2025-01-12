@@ -9,8 +9,8 @@ const ProfitLossCard = ({ summaryData }) => {
     
     // Calculate daily values (assuming average month length)
     const daily = {
-      budget: weekly / 5, // Business days only
-      spent: totalSpent / 260, // 52 weeks * 5 business days
+      budget: weekly / 7, // Business days only
+      spent: totalSpent / 12, // 52 weeks * 5 business days
     };
     daily.remaining = daily.budget - daily.spent;
 
