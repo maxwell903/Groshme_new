@@ -445,9 +445,7 @@ const BudgetEntry = ({
   const [timeframe, setTimeframe] = useState('monthly');
 
   const formatDate = (dateInput) => {
-    if (!dateInput) {
-      return 'No date';
-    }
+    
 
     // Handle both Date objects and date strings
     let date = dateInput instanceof Date ? dateInput : new Date(dateInput);
