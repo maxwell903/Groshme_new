@@ -1,29 +1,9 @@
-import React, { useState, useMemo, useEffect } from 'react';
+import React, { useState, useMemo } from 'react';
 import { X } from 'lucide-react';
 
-const IncomeCalculatorModal = ({ isOpen, onClose, onSubmit, initialData }) => {
+const IncomeCalculatorModal = ({ isOpen, onClose, onSubmit }) => {
   const [amount, setAmount] = useState('');
   const [frequency, setFrequency] = useState('hourly');
-
-  // Initialize form with saved data if available
-  useEffect(() => {
-    if (initialData) {
-      // Determine the frequency and amount based on the saved calculations
-      let initialFrequency = 'hourly';
-      let initialAmount = initialData.hourly;
-
-      // Find the frequency with the cleanest (whole) number
-      Object.entries(initialData).forEach(([freq, value]) => {
-        if (Number.isInteger(value) && value > 0) {
-          initialFrequency = freq;
-          initialAmount = value;
-        }
-      });
-
-      setFrequency(initialFrequency);
-      setAmount(initialAmount.toString());
-    }
-  }, [initialData]);
 
   const calculations = useMemo(() => {
     const baseAmount = parseFloat(amount) || 0;
@@ -81,7 +61,7 @@ const IncomeCalculatorModal = ({ isOpen, onClose, onSubmit, initialData }) => {
         break;
     }
 
-    // Round all values to nearest whole number
+    // Round all values
     Object.keys(calculations).forEach(key => {
       calculations[key] = Math.round(calculations[key]);
     });
@@ -101,6 +81,7 @@ const IncomeCalculatorModal = ({ isOpen, onClose, onSubmit, initialData }) => {
   const handleSubmit = (e) => {
     e.preventDefault();
     onSubmit(calculations);
+    onClose();
   };
 
   if (!isOpen) return null;
@@ -109,9 +90,7 @@ const IncomeCalculatorModal = ({ isOpen, onClose, onSubmit, initialData }) => {
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
       <div className="bg-white p-6 rounded-lg shadow-xl w-full max-w-md">
         <div className="flex justify-between items-center mb-4">
-          <h2 className="text-xl font-semibold">
-            {initialData ? 'Edit Income' : 'Calculate Income'}
-          </h2>
+          <h2 className="text-xl font-semibold">Calculate Income</h2>
           <button onClick={onClose} className="text-gray-500 hover:text-gray-700">
             <X size={24} />
           </button>
@@ -195,7 +174,7 @@ const IncomeCalculatorModal = ({ isOpen, onClose, onSubmit, initialData }) => {
               type="submit"
               className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700"
             >
-              {initialData ? 'Update' : 'Save'} Calculations
+              Add Income
             </button>
           </div>
         </form>
