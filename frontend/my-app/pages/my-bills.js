@@ -445,26 +445,39 @@ const BudgetEntry = ({
   const [timeframe, setTimeframe] = useState('monthly');
 
   const formatDate = (dateString) => {
-    // First try parsing as ISO string
-    let date = new Date(dateString);
+    if (!dateString) {
+      return 'No date';
+    }
+
+    // Try different parsing approaches
+    let date;
     
-    // If invalid, try parsing with explicit timezone
+    // Try direct parsing
+    date = new Date(dateString);
+    
+    // If invalid, try splitting the string (in case it's in format like "2024-01-12")
+    if (isNaN(date.getTime()) && dateString.includes('-')) {
+      const [year, month, day] = dateString.split('-').map(num => parseInt(num, 10));
+      date = new Date(year, month - 1, day); // month is 0-based in Date constructor
+    }
+    
+    // If still invalid, try with explicit timezone
     if (isNaN(date.getTime())) {
       date = new Date(dateString + 'T00:00:00Z');
     }
     
-    // If still invalid, return placeholder
+    // If all parsing attempts failed
     if (isNaN(date.getTime())) {
       console.error('Invalid date:', dateString);
-      return 'Date error';
+      return dateString; // Return original string instead of "Date error"
     }
     
     // Format the date
-    return date.toLocaleDateString('en-US', {
+    return new Intl.DateTimeFormat('en-US', {
       year: 'numeric',
       month: 'short',
       day: 'numeric'
-    });
+    }).format(date);
   };
 
   const getMonthlyAmount = (amount, frequency) => {
