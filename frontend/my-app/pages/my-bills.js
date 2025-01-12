@@ -664,7 +664,7 @@ const BudgetEntry = ({
             <div key={transaction.id} className="flex justify-between text-sm items-center">
               <div className="flex items-center gap-2 flex-1">
                 <span className="whitespace-nowrap">
-                  {new Date(transaction.transaction_date).toLocaleDateString()}
+                <SafeDateDisplay dateString={transaction.transaction_date} />
                 </span>
                 <span className="text-gray-600 truncate">
                   {transaction.is_one_time ? 
@@ -849,6 +849,37 @@ export default function MyBills() {
     }));
     setShowModal(true);
   };
+
+  const SafeDateDisplay = ({ dateString }) => {
+    const formatDate = (dateStr) => {
+      if (!dateStr) return 'N/A';
+      
+      try {
+        // First try parsing as ISO string
+        let date = new Date(dateStr);
+        
+        // Check if date is valid
+        if (isNaN(date.getTime())) {
+          // If invalid, try parsing different formats
+          // Add more parsing attempts here if needed
+          return 'Invalid Date';
+        }
+        
+        // Return formatted date
+        return date.toLocaleDateString('en-US', {
+          year: 'numeric',
+          month: 'short',
+          day: 'numeric'
+        });
+      } catch (error) {
+        console.error('Error parsing date:', error);
+        return 'Invalid Date';
+      }
+    };
+  
+    return <span>{formatDate(dateString)}</span>;
+  };
+  
 
   return (
     <div className="min-h-screen bg-gray-50 p-4">
