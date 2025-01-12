@@ -13,13 +13,13 @@ const BudgetSummaryCard = ({ entries }) => {
   useEffect(() => {
     const fetchRealSalary = async () => {
       try {
-        const response = await fetch('/api/real-salary');
+        const response = await fetch('https://groshmebeta-05487aa160b2.herokuapp.com/api/real-salary');
         if (response.ok) {
           const data = await response.json();
           if (data.salary) {
             setRealSalary(data.salary);
             // After getting salary, fetch calculations
-            const calcResponse = await fetch('/api/real-salary/calculate');
+            const calcResponse = await fetch('https://groshmebeta-05487aa160b2.herokuapp.com/api/real-salary/calculate');
             if (calcResponse.ok) {
               const calcData = await calcResponse.json();
               setAverageIncome(calcData.calculations);
@@ -113,7 +113,7 @@ const BudgetSummaryCard = ({ entries }) => {
       setRealSalary(salaryData);
       
       // Fetch new calculations after updating salary
-      const calcResponse = await fetch('/api/real-salary/calculate');
+      const calcResponse = await fetch('https://groshmebeta-05487aa160b2.herokuapp.com/api/real-salary/calculate');
       if (calcResponse.ok) {
         const calcData = await calcResponse.json();
         setAverageIncome(calcData.calculations);
