@@ -1,10 +1,40 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { Clock, Plus } from 'lucide-react';
 import IncomeCalculatorModal from './IncomeCalculatorModal';
 import ProfitLossCard from './ProfitLossCard';
 
 const BudgetSummaryCard = ({ entries }) => {
   const [showIncomeModal, setShowIncomeModal] = useState(false);
+  const [realSalary, setRealSalary] = useState(null);
+  const [averageIncome, setAverageIncome] = useState(null);
+  const [isLoading, setIsLoading] = useState(true);
+
+  // Fetch real salary data on component mount
+  useEffect(() => {
+    const fetchRealSalary = async () => {
+      try {
+        const response = await fetch('/api/real-salary');
+        if (response.ok) {
+          const data = await response.json();
+          if (data.salary) {
+            setRealSalary(data.salary);
+            // After getting salary, fetch calculations
+            const calcResponse = await fetch('/api/real-salary/calculate');
+            if (calcResponse.ok) {
+              const calcData = await calcResponse.json();
+              setAverageIncome(calcData.calculations);
+            }
+          }
+        }
+      } catch (error) {
+        console.error('Error fetching salary data:', error);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    fetchRealSalary();
+  }, []);
 
   const summaryData = useMemo(() => {
     let totalBudget = 0;
@@ -16,7 +46,6 @@ const BudgetSummaryCard = ({ entries }) => {
     const processEntry = (entry) => {
       const amount = parseFloat(entry.amount) || 0;
       
-      // Calculate total spent from transactions
       let entrySpent = 0;
       if (entry.transactions) {
         entrySpent = entry.transactions.reduce((sum, transaction) => 
@@ -78,8 +107,23 @@ const BudgetSummaryCard = ({ entries }) => {
     }).format(amount);
   };
 
-  const handleIncomeSubmit = (calculations) => {
-    console.log('Income calculations:', calculations);
+  const handleIncomeSubmit = async (salaryData) => {
+    try {
+      // Update local state with the new salary data
+      setRealSalary(salaryData);
+      
+      // Fetch new calculations after updating salary
+      const calcResponse = await fetch('/api/real-salary/calculate');
+      if (calcResponse.ok) {
+        const calcData = await calcResponse.json();
+        setAverageIncome(calcData.calculations);
+      }
+      
+      // Close the modal
+      setShowIncomeModal(false);
+    } catch (error) {
+      console.error('Error updating salary calculations:', error);
+    }
   };
 
   return (
@@ -103,27 +147,36 @@ const BudgetSummaryCard = ({ entries }) => {
             <Clock size={20} />
             <span className="font-medium">Average Income</span>
           </div>
-          <div className="space-y-1">
-            <div className="flex justify-between text-sm text-purple-700">
-              <span>Daily:</span>
-              <span className="font-semibold">{formatCurrency(summaryData.weekly / 7)}</span>
+          {isLoading ? (
+            <div className="text-center text-gray-500 py-4">
+              Loading income data...
             </div>
-            <div className="flex justify-between text-sm text-purple-700">
-              <span>Weekly:</span>
-              <span className="font-semibold">{formatCurrency(summaryData.weekly)}</span>
+          ) : averageIncome ? (
+            <div className="space-y-1">
+              <div className="flex justify-between text-sm text-purple-700">
+                <span>Daily:</span>
+                <span className="font-semibold">{formatCurrency(averageIncome.daily)}</span>
+              </div>
+              <div className="flex justify-between text-sm text-purple-700">
+                <span>Weekly:</span>
+                <span className="font-semibold">{formatCurrency(averageIncome.weekly)}</span>
+              </div>
+              <div className="flex justify-between text-sm text-purple-700">
+                <span>Monthly:</span>
+                <span className="font-semibold">{formatCurrency(averageIncome.monthly)}</span>
+              </div>
+              <div className="flex justify-between text-sm text-purple-700">
+                <span>Yearly:</span>
+                <span className="font-semibold">{formatCurrency(averageIncome.yearly)}</span>
+              </div>
             </div>
-            <div className="flex justify-between text-sm text-purple-700">
-              <span>Monthly:</span>
-              <span className="font-semibold">{formatCurrency(summaryData.monthly)}</span>
+          ) : (
+            <div className="text-center text-gray-500 py-4">
+              No salary information available
             </div>
-            <div className="flex justify-between text-sm text-purple-700">
-              <span>Yearly:</span>
-              <span className="font-semibold">{formatCurrency(summaryData.yearly)}</span>
-            </div>
-          </div>
+          )}
         </div>
       </div>
-      
 
       <IncomeCalculatorModal
         isOpen={showIncomeModal}
