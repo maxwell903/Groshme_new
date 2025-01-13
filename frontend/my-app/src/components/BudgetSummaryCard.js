@@ -30,15 +30,15 @@ const AverageIncomeCard = ({ averageIncome, summaryData, isLoading, timeframe, o
     
     // Calculate for each timeframe following ProfitLossCard logic
     const daily = {
-      budget: monthly / (4.33 * 7), // Monthly to daily (business days)
+      budget: averageIncome.daily, // Use direct daily value from API
       spent: totalSpent / (4.33 * 7),
     };
     daily.remaining = daily.budget - daily.spent;
 
     const weekly = {
-      budget: monthly / 4.33, // Monthly to weekly
+      budget: averageIncome.weekly, // Use direct weekly value from API
       spent: totalSpent / 4.33,
-      remaining: (monthly / 4.33) - (totalSpent / 4.33)
+      remaining: averageIncome.weekly - (totalSpent / 4.33)
     };
 
     const monthlyCalc = {
