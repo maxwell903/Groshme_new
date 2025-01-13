@@ -1,6 +1,6 @@
 // pages/my-bills.js
 import { useState, useEffect, useMemo } from 'react';
-
+import { useRouter } from 'next/router';
 import { fetchApi } from '@/utils/api';
 import { Plus, X, Calendar, DollarSign, RefreshCw, Edit2, History } from 'lucide-react';
 import TransactionEditModal from '@/components/TransactionEditModal';
@@ -742,6 +742,7 @@ export default function MyBills() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
   const [editingEntry, setEditingEntry] = useState(null);
+  const router = useRouter();
   const [summary, setSummary] = useState({
     weekly: 0,
     monthly: 0,
