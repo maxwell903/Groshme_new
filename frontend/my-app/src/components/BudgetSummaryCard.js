@@ -2,7 +2,9 @@ import React, { useState, useMemo, useEffect } from 'react';
 import { Clock, Plus } from 'lucide-react';
 import IncomeCalculatorModal from './IncomeCalculatorModal';
 import ProfitLossCard from './ProfitLossCard';
+import IncomeTable from './IncomeTable';
 
+<Route path="/income-table" element={<IncomeTable entries={entries} />} />
 
 const AverageIncomeCard = ({ averageIncome, summaryData, isLoading, timeframe, onTimeframeChange }) => {
   const formatCurrency = (amount) => {
@@ -288,16 +290,25 @@ const BudgetSummaryCard = ({ entries }) => {
 
   return (
     <div className="bg-white rounded-lg shadow-md p-6 mb-6">
-      <div className="flex justify-between items-center mb-4">
-        <h2 className="text-xl font-semibold">Budget Summary</h2>
+       <div className="flex justify-between items-center mb-4">
+      <h2 className="text-xl font-semibold">Budget Summary</h2>
+      <div className="flex items-center gap-2">
+        <Link
+          to="/income-table"
+          className="flex items-center gap-2 px-3 py-1 bg-gray-600 text-white rounded-md hover:bg-gray-700 text-sm"
+        >
+          <Table2 size={16} />
+          View Details
+        </Link>
         <button
-          onClick={() => setShowIncomeModal(true)}
+          onClick={onAddIncomeClick}
           className="flex items-center gap-2 px-3 py-1 bg-blue-600 text-white rounded-md hover:bg-blue-700 text-sm"
         >
           <Plus size={16} />
           Add Income
         </button>
       </div>
+    </div>
       
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         <ProfitLossCard 
