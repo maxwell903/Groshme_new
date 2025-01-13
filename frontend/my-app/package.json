@@ -22,6 +22,7 @@
     "lodash": "^4.17.21",
     "lucide-react": "latest",
     "next": "latest",
+    "next-seo": "^6.6.0",
     "react": "latest",
     "react-dom": "latest",
     "tailwind-merge": "^2.5.5",
