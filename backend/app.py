@@ -245,6 +245,244 @@ def upgrade():
                          ['parent_id'], ['id'])
     
 
+# Add these routes to your app.py file
+
+@app.route('/api/budget-register', methods=['POST'])
+def save_to_register():
+    try:
+        data = request.json
+        engine = create_engine(db_url, poolclass=NullPool)
+        
+        with engine.connect() as connection:
+            with connection.begin():
+                # First create the register entry
+                register_result = connection.execute(
+                    text("""
+                        INSERT INTO budget_register (
+                            name, from_date, to_date, 
+                            total_budgeted, total_spent, total_saved
+                        )
+                        SELECT 
+                            :name,
+                            :from_date::date,
+                            :to_date::date,
+                            COALESCE(SUM(CASE WHEN ie.is_subaccount = false THEN ie.amount ELSE 0 END), 0),
+                            COALESCE(SUM(ph.amount), 0),
+                            COALESCE(SUM(CASE WHEN ie.is_subaccount = false THEN ie.amount ELSE 0 END) - SUM(ph.amount), 0)
+                        FROM income_entries ie
+                        LEFT JOIN payments_history ph ON ie.id = ph.income_entry_id
+                        WHERE ph.payment_date BETWEEN :from_date::date AND :to_date::date
+                        OR ph.payment_date IS NULL
+                        RETURNING id, total_budgeted, total_spent, total_saved
+                    """),
+                    {
+                        "name": data['name'],
+                        "from_date": data['from_date'],
+                        "to_date": data['to_date']
+                    }
+                )
+                
+                register = register_result.fetchone()
+                register_id = register.id
+                
+                # Save all budget entries
+                connection.execute(
+                    text("""
+                        INSERT INTO budget_register_entries (
+                            register_id, original_entry_id, title, amount, 
+                            frequency, is_recurring, is_subaccount, parent_entry_id,
+                            total_spent, total_saved
+                        )
+                        SELECT 
+                            :register_id,
+                            ie.id,
+                            ie.title,
+                            ie.amount,
+                            ie.frequency,
+                            ie.is_recurring,
+                            ie.is_subaccount,
+                            ie.parent_id,
+                            COALESCE(SUM(ph.amount), 0) as total_spent,
+                            ie.amount - COALESCE(SUM(ph.amount), 0) as total_saved
+                        FROM income_entries ie
+                        LEFT JOIN payments_history ph ON ie.id = ph.income_entry_id
+                        AND ph.payment_date BETWEEN :from_date::date AND :to_date::date
+                        GROUP BY ie.id, ie.title, ie.amount, ie.frequency,
+                                ie.is_recurring, ie.is_subaccount, ie.parent_id
+                    """),
+                    {
+                        "register_id": register_id,
+                        "from_date": data['from_date'],
+                        "to_date": data['to_date']
+                    }
+                )
+                
+                # Save all transactions
+                connection.execute(
+                    text("""
+                        INSERT INTO budget_register_transactions (
+                            register_entry_id, amount, payment_date,
+                            title, is_one_time, original_transaction_id
+                        )
+                        SELECT 
+                            bre.id,
+                            ph.amount,
+                            ph.payment_date,
+                            ph.title,
+                            ph.is_one_time,
+                            ph.id
+                        FROM payments_history ph
+                        JOIN income_entries ie ON ph.income_entry_id = ie.id
+                        JOIN budget_register_entries bre ON ie.id = bre.original_entry_id
+                        WHERE bre.register_id = :register_id
+                        AND ph.payment_date BETWEEN :from_date::date AND :to_date::date
+                    """),
+                    {
+                        "register_id": register_id,
+                        "from_date": data['from_date'],
+                        "to_date": data['to_date']
+                    }
+                )
+                
+                # Optionally clear transactions within the date range
+                if data.get('clear_transactions', False):
+                    connection.execute(
+                        text("""
+                            DELETE FROM payments_history
+                            WHERE payment_date BETWEEN :from_date::date AND :to_date::date
+                        """),
+                        {
+                            "from_date": data['from_date'],
+                            "to_date": data['to_date']
+                        }
+                    )
+                
+                return jsonify({
+                    'message': 'Budget saved to register successfully',
+                    'register': {
+                        'id': str(register_id),
+                        'total_budgeted': float(register.total_budgeted),
+                        'total_spent': float(register.total_spent),
+                        'total_saved': float(register.total_saved)
+                    }
+                }), 201
+
+    except Exception as e:
+        print(f"Error saving budget to register: {str(e)}")
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/api/budget-register', methods=['GET'])
+def get_budget_registers():
+    try:
+        engine = create_engine(db_url, poolclass=NullPool)
+        
+        with engine.connect() as connection:
+            result = connection.execute(text("""
+                SELECT 
+                    id, name, from_date, to_date, created_at,
+                    total_budgeted, total_spent, total_saved
+                FROM budget_register
+                ORDER BY from_date DESC
+            """))
+            
+            registers = [{
+                'id': str(row.id),
+                'name': row.name,
+                'from_date': row.from_date.isoformat(),
+                'to_date': row.to_date.isoformat(),
+                'created_at': row.created_at.isoformat(),
+                'total_budgeted': float(row.total_budgeted),
+                'total_spent': float(row.total_spent),
+                'total_saved': float(row.total_saved)
+            } for row in result]
+            
+            return jsonify({'registers': registers})
+            
+    except Exception as e:
+        print(f"Error fetching budget registers: {str(e)}")
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/api/budget-register/<uuid:register_id>', methods=['GET'])
+def get_budget_register_details(register_id):
+    try:
+        engine = create_engine(db_url, poolclass=NullPool)
+        
+        with engine.connect() as connection:
+            # Get register details
+            register_result = connection.execute(
+                text("""
+                    SELECT *
+                    FROM budget_register
+                    WHERE id = :register_id
+                """),
+                {"register_id": register_id}
+            ).fetchone()
+            
+            if not register_result:
+                return jsonify({'error': 'Register not found'}), 404
+            
+            # Get entries with their transactions
+            entries_result = connection.execute(text("""
+                WITH EntryTransactions AS (
+                    SELECT 
+                        bre.id as entry_id,
+                        json_agg(
+                            json_build_object(
+                                'id', brt.id,
+                                'amount', brt.amount,
+                                'payment_date', brt.payment_date,
+                                'title', brt.title,
+                                'is_one_time', brt.is_one_time
+                            )
+                        ) FILTER (WHERE brt.id IS NOT NULL) as transactions
+                    FROM budget_register_entries bre
+                    LEFT JOIN budget_register_transactions brt ON bre.id = brt.register_entry_id
+                    WHERE bre.register_id = :register_id
+                    GROUP BY bre.id
+                )
+                SELECT 
+                    bre.*,
+                    et.transactions
+                FROM budget_register_entries bre
+                LEFT JOIN EntryTransactions et ON bre.id = et.entry_id
+                WHERE bre.register_id = :register_id
+                ORDER BY bre.is_subaccount, bre.title
+            """), {"register_id": register_id})
+            
+            entries = []
+            for row in entries_result:
+                entry_data = {
+                    'id': str(row.id),
+                    'title': row.title,
+                    'amount': float(row.amount),
+                    'frequency': row.frequency,
+                    'is_recurring': row.is_recurring,
+                    'is_subaccount': row.is_subaccount,
+                    'parent_entry_id': str(row.parent_entry_id) if row.parent_entry_id else None,
+                    'total_spent': float(row.total_spent),
+                    'total_saved': float(row.total_saved),
+                    'transactions': row.transactions if row.transactions else []
+                }
+                entries.append(entry_data)
+            
+            register_data = {
+                'id': str(register_result.id),
+                'name': register_result.name,
+                'from_date': register_result.from_date.isoformat(),
+                'to_date': register_result.to_date.isoformat(),
+                'created_at': register_result.created_at.isoformat(),
+                'total_budgeted': float(register_result.total_budgeted),
+                'total_spent': float(register_result.total_spent),
+                'total_saved': float(register_result.total_saved),
+                'entries': entries
+            }
+            
+            return jsonify(register_data)
+            
+    except Exception as e:
+        print(f"Error fetching budget register details: {str(e)}")
+        return jsonify({'error': str(e)}), 500
+
 @app.route('/api/real-salary', methods=['GET'])
 def get_real_salary():
     try:
