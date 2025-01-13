@@ -3,6 +3,7 @@ import { Clock, Plus } from 'lucide-react';
 import IncomeCalculatorModal from './IncomeCalculatorModal';
 import ProfitLossCard from './ProfitLossCard';
 
+
 const AverageIncomeCard = ({ averageIncome, summaryData, isLoading, timeframe, onTimeframeChange }) => {
   const formatCurrency = (amount) => {
     return new Intl.NumberFormat('en-US', {
@@ -20,26 +21,47 @@ const AverageIncomeCard = ({ averageIncome, summaryData, isLoading, timeframe, o
     yearly: 'Yearly'
   };
 
-  const getTimeframeAmount = (baseAmount) => {
-    switch (timeframe) {
-      case 'daily':
-        return baseAmount / (4.33 * 7);
-      case 'weekly':
-        return baseAmount / 4.33;
-      case 'monthly':
-        return baseAmount;
-      case 'yearly':
-        return baseAmount * 12;
-      default:
-        return baseAmount;
-    }
-  };
+  const calculations = React.useMemo(() => {
+    if (!averageIncome) return null;
 
-  const projectedSavings = averageIncome ? 
-    getTimeframeAmount(averageIncome.yearly - summaryData.yearly) : 0;
-  
-  const actualSavings = averageIncome ? 
-    getTimeframeAmount(averageIncome.yearly - summaryData.totalSpent) : 0;
+    const monthly = averageIncome.monthly;
+    const totalSpent = summaryData.totalSpent || 0;
+    const monthlyBudget = summaryData.monthly || 0;
+    
+    // Calculate for each timeframe following ProfitLossCard logic
+    const daily = {
+      budget: monthly / (4.33 * 7), // Monthly to daily (business days)
+      spent: totalSpent / (4.33 * 7),
+    };
+    daily.remaining = daily.budget - daily.spent;
+
+    const weekly = {
+      budget: monthly / 4.33, // Monthly to weekly
+      spent: totalSpent / 4.33,
+      remaining: (monthly / 4.33) - (totalSpent / 4.33)
+    };
+
+    const monthlyCalc = {
+      budget: monthly,
+      spent: totalSpent,
+      remaining: monthly - totalSpent
+    };
+
+    const yearly = {
+      budget: monthly * 12,
+      spent: totalSpent * 12,
+      remaining: (monthly * 12) - (totalSpent * 12)
+    };
+
+    return {
+      daily,
+      weekly,
+      monthly: monthlyCalc,
+      yearly
+    };
+  }, [averageIncome, summaryData]);
+
+  const currentTimeframe = calculations?.[timeframe];
 
   return (
     <div className="bg-purple-50 p-4 rounded-lg">
@@ -68,7 +90,7 @@ const AverageIncomeCard = ({ averageIncome, summaryData, isLoading, timeframe, o
         <div className="text-center text-gray-500 py-4">
           Loading income data...
         </div>
-      ) : averageIncome ? (
+      ) : currentTimeframe ? (
         <div className="space-y-6">
           <div className="space-y-3">
             <h3 className="font-semibold text-purple-800">Projected Savings</h3>
@@ -76,22 +98,28 @@ const AverageIncomeCard = ({ averageIncome, summaryData, isLoading, timeframe, o
               <div className="flex justify-between items-center">
                 <span className="text-sm text-purple-700">Salary:</span>
                 <span className="font-semibold text-purple-700">
-                  {formatCurrency(getTimeframeAmount(averageIncome.yearly))}
+                  {formatCurrency(currentTimeframe.budget)}
                 </span>
               </div>
               <div className="flex justify-between items-center">
                 <span className="text-sm text-purple-700">- Budget:</span>
                 <span className="font-semibold text-red-600">
-                  {formatCurrency(getTimeframeAmount(summaryData.yearly))}
+                  {formatCurrency(summaryData[timeframe] || 0)}
                 </span>
               </div>
               <div className="pt-2 border-t border-purple-200">
                 <div className="flex justify-between items-center">
                   <span className="text-sm font-medium text-purple-700">= Projected:</span>
-                  <span className={`font-bold text-lg ${projectedSavings >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                    {formatCurrency(Math.abs(projectedSavings))}
+                  <span className={`font-bold text-lg ${
+                    currentTimeframe.budget - (summaryData[timeframe] || 0) >= 0 
+                      ? 'text-green-600' 
+                      : 'text-red-600'
+                  }`}>
+                    {formatCurrency(Math.abs(currentTimeframe.budget - (summaryData[timeframe] || 0)))}
                     <span className="text-sm ml-1">
-                      {projectedSavings >= 0 ? '(Saving)' : '(Deficit)'}
+                      {currentTimeframe.budget - (summaryData[timeframe] || 0) >= 0 
+                        ? '(Saving)' 
+                        : '(Deficit)'}
                     </span>
                   </span>
                 </div>
@@ -105,22 +133,26 @@ const AverageIncomeCard = ({ averageIncome, summaryData, isLoading, timeframe, o
               <div className="flex justify-between items-center">
                 <span className="text-sm text-purple-700">Salary:</span>
                 <span className="font-semibold text-purple-700">
-                  {formatCurrency(getTimeframeAmount(averageIncome.yearly))}
+                  {formatCurrency(currentTimeframe.budget)}
                 </span>
               </div>
               <div className="flex justify-between items-center">
                 <span className="text-sm text-purple-700">- Amount Spent:</span>
                 <span className="font-semibold text-red-600">
-                  {formatCurrency(getTimeframeAmount(summaryData.totalSpent))}
+                  {formatCurrency(currentTimeframe.spent)}
                 </span>
               </div>
               <div className="pt-2 border-t border-purple-200">
                 <div className="flex justify-between items-center">
                   <span className="text-sm font-medium text-purple-700">= Actual:</span>
-                  <span className={`font-bold text-lg ${actualSavings >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                    {formatCurrency(Math.abs(actualSavings))}
+                  <span className={`font-bold text-lg ${
+                    currentTimeframe.remaining >= 0 
+                      ? 'text-green-600' 
+                      : 'text-red-600'
+                  }`}>
+                    {formatCurrency(Math.abs(currentTimeframe.remaining))}
                     <span className="text-sm ml-1">
-                      {actualSavings >= 0 ? '(Saving)' : '(Deficit)'}
+                      {currentTimeframe.remaining >= 0 ? '(Saving)' : '(Deficit)'}
                     </span>
                   </span>
                 </div>
