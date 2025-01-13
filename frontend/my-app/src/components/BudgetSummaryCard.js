@@ -2,9 +2,7 @@ import React, { useState, useMemo, useEffect } from 'react';
 import { Clock, Plus } from 'lucide-react';
 import IncomeCalculatorModal from './IncomeCalculatorModal';
 import ProfitLossCard from './ProfitLossCard';
-import IncomeTable from './components/IncomeTable';
 
-<Route path="/income-table" element={<IncomeTable entries={entries} />} />
 
 const AverageIncomeCard = ({ averageIncome, summaryData, isLoading, timeframe, onTimeframeChange }) => {
   const formatCurrency = (amount) => {
