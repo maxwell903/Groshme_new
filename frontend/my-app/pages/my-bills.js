@@ -6,6 +6,7 @@ import { Plus, X, Calendar, DollarSign, RefreshCw, Edit2, History } from 'lucide
 import TransactionEditModal from '@/components/TransactionEditModal';
 import OneTimeIncomeModal from '@/components/OneTimeIncomeModal';
 import BudgetSummaryCard from '@/components/BudgetSummaryCard';
+import BudgetSaveModal from '@/components/BudgetSaveModal';
 
 
 
@@ -743,6 +744,7 @@ export default function MyBills() {
   const [error, setError] = useState(null);
   const [editingEntry, setEditingEntry] = useState(null);
   const router = useRouter();
+  const [showBudgetSaveModal, setShowBudgetSaveModal] = useState(false);
   const [summary, setSummary] = useState({
     weekly: 0,
     monthly: 0,
@@ -856,6 +858,13 @@ export default function MyBills() {
     <h1 className="text-2xl font-bold">Budget Management</h1>
     <div className="flex items-center gap-4">
     <button
+    onClick={() => setShowBudgetSaveModal(true)}
+    className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700"
+  >
+    <Save size={20} />
+    Reset Budget Period
+  </button>
+    <button
       onClick={() => router.push('/budget-register')}
       className="flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 transition-colors shadow-sm"
     >
@@ -932,6 +941,13 @@ export default function MyBills() {
           </div>
           )}
         </div>
+        {showBudgetSaveModal && (
+    <BudgetSaveModal
+      isOpen={showBudgetSaveModal}
+      onClose={() => setShowBudgetSaveModal(false)}
+      entries={entries}
+    />
+  )}
         
 
         {/* Add/Edit Income Modal */}
