@@ -856,7 +856,7 @@ export default function MyBills() {
     <div className="flex items-center gap-4">
     <button
       onClick={() => router.push('/budget-register')}
-      className="flex items-center gap-2 px-4 py-2 bg-purple-600 text-white rounded-md hover:bg-purple-700 transition-colors shadow-sm"
+      className="flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 transition-colors shadow-sm"
     >
       <History size={18} />
       <span>View Budget History</span>
