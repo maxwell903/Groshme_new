@@ -250,7 +250,7 @@ def upgrade():
 def save_to_register():
     try:
         data = request.json
-        print("Received budget register data:", data)  # Detailed logging
+        print("Received budget register data:", data)  # Debug logging
         
         engine = create_engine(db_url, poolclass=NullPool)
         
@@ -264,7 +264,7 @@ def save_to_register():
                         COALESCE(SUM(CASE WHEN ie.is_subaccount = false THEN ie.amount ELSE 0 END) - SUM(ph.amount), 0) as total_saved
                     FROM income_entries ie
                     LEFT JOIN payments_history ph ON ie.id = ph.income_entry_id
-                    WHERE (ph.payment_date BETWEEN :from_date AND :to_date)
+                    WHERE (ph.payment_date >= :from_date AND ph.payment_date <= :to_date)
                        OR ph.payment_date IS NULL
                 """)
                 
@@ -275,20 +275,26 @@ def save_to_register():
                         "from_date": data['from_date'],
                         "to_date": data['to_date']
                     }
-                )
+                ).fetchone()
                 
-                totals = totals_result.fetchone()
-                print("Calculated Budget Totals:", dict(totals))
+                totals = {
+                    'total_budgeted': float(totals_result.total_budgeted or 0),
+                    'total_spent': float(totals_result.total_spent or 0),
+                    'total_saved': float(totals_result.total_saved or 0)
+                }
+                print("Calculated Budget Totals:", totals)
                 
                 # Insert register entry
                 register_result = connection.execute(
                     text("""
                         INSERT INTO budget_register (
                             name, from_date, to_date, 
-                            total_budgeted, total_spent, total_saved
+                            total_budgeted, total_spent, total_saved,
+                            created_at
                         ) VALUES (
                             :name, :from_date, :to_date, 
-                            :total_budgeted, :total_spent, :total_saved
+                            :total_budgeted, :total_spent, :total_saved,
+                            CURRENT_TIMESTAMP
                         )
                         RETURNING id
                     """),
@@ -296,14 +302,13 @@ def save_to_register():
                         "name": data['name'],
                         "from_date": data['from_date'],
                         "to_date": data['to_date'],
-                        "total_budgeted": totals.total_budgeted,
-                        "total_spent": totals.total_spent,
-                        "total_saved": totals.total_saved
+                        "total_budgeted": totals['total_budgeted'],
+                        "total_spent": totals['total_spent'],
+                        "total_saved": totals['total_saved']
                     }
                 )
                 
-                register = register_result.fetchone()
-                register_id = register.id
+                register_id = register_result.fetchone().id
                 print(f"Created budget register with ID: {register_id}")
                 
                 # Save budget entries
@@ -337,13 +342,7 @@ def save_to_register():
                         "from_date": data['from_date'],
                         "to_date": data['to_date']
                     }
-                )
-                
-                # Fetch and print budget entries
-                budget_entries = entries_result.fetchall()
-                print("Created Budget Entries:")
-                for entry in budget_entries:
-                    print(f"Entry ID: {entry.id}, Title: {entry.title}, Amount: {entry.amount}, Spent: {entry.total_spent}")
+                ).fetchall()
                 
                 # Save transactions
                 transactions_result = connection.execute(
@@ -364,22 +363,16 @@ def save_to_register():
                         JOIN budget_register_entries bre ON ie.id = bre.original_entry_id
                         WHERE bre.register_id = :register_id
                         AND ph.payment_date BETWEEN :from_date AND :to_date
-                        RETURNING id, register_entry_id, amount
+                        RETURNING id, amount, payment_date
                     """),
                     {
                         "register_id": register_id,
                         "from_date": data['from_date'],
                         "to_date": data['to_date']
                     }
-                )
+                ).fetchall()
                 
-                # Fetch and print transactions
-                transactions = transactions_result.fetchall()
-                print("Created Transactions:")
-                for transaction in transactions:
-                    print(f"Transaction ID: {transaction.id}, Register Entry ID: {transaction.register_entry_id}, Amount: {transaction.amount}")
-                
-                # Optionally clear transactions within the date range
+                # Optionally clear transactions if requested
                 if data.get('clear_transactions', False):
                     connection.execute(
                         text("""
@@ -396,9 +389,9 @@ def save_to_register():
                     'message': 'Budget saved to register successfully',
                     'register': {
                         'id': str(register_id),
-                        'total_budgeted': float(totals.total_budgeted),
-                        'total_spent': float(totals.total_spent),
-                        'total_saved': float(totals.total_saved)
+                        'total_budgeted': totals['total_budgeted'],
+                        'total_spent': totals['total_spent'],
+                        'total_saved': totals['total_saved']
                     }
                 }), 201
 
