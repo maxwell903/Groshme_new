@@ -1,34 +1,37 @@
-// components/ui/Card.js
 import React from 'react';
 
-export const Card = ({ children, className }) => {
-  return (
-    <div className={`bg-white rounded-lg shadow-md ${className}`}>
-      {children}
-    </div>
-  );
-};
+export const Card = ({ children, className = '', ...props }) => (
+  <div 
+    className={`border rounded-lg shadow-sm p-4 bg-white ${className}`} 
+    {...props}
+  >
+    {children}
+  </div>
+);
 
-export const CardHeader = ({ children, className }) => {
-  return (
-    <div className={`px-4 py-3 border-b ${className}`}>
-      {children}
-    </div>
-  );
-};
+export const CardHeader = ({ children, className = '', ...props }) => (
+  <div 
+    className={`border-b pb-2 mb-2 ${className}`} 
+    {...props}
+  >
+    {children}
+  </div>
+);
 
-export const CardTitle = ({ children, className }) => {
-  return (
-    <h3 className={`text-lg font-semibold ${className}`}>
-      {children}
-    </h3>
-  );
-};
+export const CardTitle = ({ children, className = '', ...props }) => (
+  <h3 
+    className={`text-lg font-semibold text-gray-800 ${className}`} 
+    {...props}
+  >
+    {children}
+  </h3>
+);
 
-export const CardContent = ({ children, className }) => {
-  return (
-    <div className={`p-4 ${className}`}>
-      {children}
-    </div>
-  );
-};
+export const CardContent = ({ children, className = '', ...props }) => (
+  <div 
+    className={`${className}`} 
+    {...props}
+  >
+    {children}
+  </div>
+);
