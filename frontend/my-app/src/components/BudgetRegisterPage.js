@@ -28,10 +28,21 @@ const BudgetRegisterPage = () => {
   const fetchRegisters = async () => {
     try {
       const response = await fetch('/api/budget-register');
+      console.log('Response status:', response.status);
+      
+      if (!response.ok) {
+        const errorData = await response.json();
+        console.error('Server error:', errorData);
+        throw new Error(errorData.error || 'Failed to fetch registers');
+      }
+      
       const data = await response.json();
+      console.log('Received budget registers:', data);
       setRegisters(data.registers);
     } catch (error) {
       console.error('Error fetching registers:', error);
+      // Optionally set an error state to show to the user
+      // setError(error.message);
     } finally {
       setLoading(false);
     }
