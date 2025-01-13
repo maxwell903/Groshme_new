@@ -206,19 +206,7 @@ const AddIncomeModal = ({ isOpen, onClose, onSubmit, initialData = null, entries
             </select>
           </div>
 
-          {/* Recurring Toggle */}
-          <div className="flex items-center gap-2">
-            <input
-              type="checkbox"
-              checked={formData.is_recurring}
-              onChange={(e) => setFormData({ ...formData, is_recurring: e.target.checked })}
-              id="recurring"
-              className="rounded border-gray-300"
-            />
-            <label htmlFor="recurring" className="text-sm font-medium text-gray-700">
-              Recurring Payment
-            </label>
-          </div>
+          
 
           {/* Date Fields (shown only when recurring is checked) */}
           {formData.is_recurring && (
