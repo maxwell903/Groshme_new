@@ -28,30 +28,38 @@ const AverageIncomeCard = ({ averageIncome, summaryData, isLoading, timeframe, o
     const totalSpent = summaryData.totalSpent || 0;
     const monthlyBudget = summaryData.monthly || 0;
     
-    // Calculate for each timeframe following ProfitLossCard logic
+    // Calculate for each timeframe
     const daily = {
-      budget: monthly / (7 * 4.33), // Use direct daily value from API
+      income: monthly / (7 * 4.33),
+      budget: monthlyBudget / 30,
       spent: totalSpent / (4.33 * 7),
     };
-    daily.remaining = daily.budget - daily.spent;
+    daily.projectedSaving = daily.income - daily.budget;
+    daily.actualSaving = daily.income - daily.spent;
 
     const weekly = {
-      budget: averageIncome.weekly, // Use direct weekly value from API
+      income: averageIncome.weekly,
+      budget: monthlyBudget * 12 / 52,
       spent: totalSpent / 4.33,
-      remaining: averageIncome.weekly - (totalSpent / 4.33)
     };
+    weekly.projectedSaving = weekly.income - weekly.budget;
+    weekly.actualSaving = weekly.income - weekly.spent;
 
     const monthlyCalc = {
-      budget: monthly,
+      income: monthly,
+      budget: monthlyBudget,
       spent: totalSpent,
-      remaining: monthly - totalSpent
     };
+    monthlyCalc.projectedSaving = monthlyCalc.income - monthlyCalc.budget;
+    monthlyCalc.actualSaving = monthlyCalc.income - monthlyCalc.spent;
 
     const yearly = {
-      budget: monthly * 12,
+      income: monthly * 12,
+      budget: monthlyBudget * 12,
       spent: totalSpent * 12,
-      remaining: (monthly * 12) - (totalSpent * 12)
     };
+    yearly.projectedSaving = yearly.income - yearly.budget;
+    yearly.actualSaving = yearly.income - yearly.spent;
 
     return {
       daily,
@@ -98,29 +106,26 @@ const AverageIncomeCard = ({ averageIncome, summaryData, isLoading, timeframe, o
               <div className="flex justify-between items-center">
                 <span className="text-sm text-purple-700">Salary:</span>
                 <span className="font-semibold text-purple-700">
-                  {formatCurrency(currentTimeframe.budget)}
+                  {formatCurrency(currentTimeframe.income)}
                 </span>
               </div>
               <div className="flex justify-between items-center">
                 <span className="text-sm text-purple-700">- Budget:</span>
                 <span className="font-semibold text-red-600">
-                  {formatCurrency(timeframe === 'daily' ? summaryData.monthly / 30 :
-                    timeframe === 'weekly' ? summaryData.monthly * 12 / 52 :
-                    timeframe === 'monthly' ? summaryData.monthly :
-                    summaryData.yearly || 0)}
+                  {formatCurrency(currentTimeframe.budget)}
                 </span>
               </div>
               <div className="pt-2 border-t border-purple-200">
                 <div className="flex justify-between items-center">
                   <span className="text-sm font-medium text-purple-700">= Projected:</span>
                   <span className={`font-bold text-lg ${
-                    currentTimeframe.budget - (summaryData[timeframe] || 0) >= 0 
+                    currentTimeframe.projectedSaving >= 0 
                       ? 'text-green-600' 
                       : 'text-red-600'
                   }`}>
-                    {formatCurrency(Math.abs(currentTimeframe.budget - (summaryData[timeframe] || 0)))}
+                    {formatCurrency(Math.abs(currentTimeframe.projectedSaving))}
                     <span className="text-sm ml-1">
-                      {currentTimeframe.budget - (summaryData[timeframe] || 0) >= 0 
+                      {currentTimeframe.projectedSaving >= 0 
                         ? '(Saving)' 
                         : '(Deficit)'}
                     </span>
@@ -136,7 +141,7 @@ const AverageIncomeCard = ({ averageIncome, summaryData, isLoading, timeframe, o
               <div className="flex justify-between items-center">
                 <span className="text-sm text-purple-700">Salary:</span>
                 <span className="font-semibold text-purple-700">
-                  {formatCurrency(currentTimeframe.budget)}
+                  {formatCurrency(currentTimeframe.income)}
                 </span>
               </div>
               <div className="flex justify-between items-center">
@@ -149,13 +154,13 @@ const AverageIncomeCard = ({ averageIncome, summaryData, isLoading, timeframe, o
                 <div className="flex justify-between items-center">
                   <span className="text-sm font-medium text-purple-700">= Actual:</span>
                   <span className={`font-bold text-lg ${
-                    currentTimeframe.remaining >= 0 
+                    currentTimeframe.actualSaving >= 0 
                       ? 'text-green-600' 
                       : 'text-red-600'
                   }`}>
-                    {formatCurrency(Math.abs(currentTimeframe.remaining))}
+                    {formatCurrency(Math.abs(currentTimeframe.actualSaving))}
                     <span className="text-sm ml-1">
-                      {currentTimeframe.remaining >= 0 ? '(Saving)' : '(Deficit)'}
+                      {currentTimeframe.actualSaving >= 0 ? '(Saving)' : '(Deficit)'}
                     </span>
                   </span>
                 </div>
