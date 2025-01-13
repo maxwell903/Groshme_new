@@ -104,7 +104,10 @@ const AverageIncomeCard = ({ averageIncome, summaryData, isLoading, timeframe, o
               <div className="flex justify-between items-center">
                 <span className="text-sm text-purple-700">- Budget:</span>
                 <span className="font-semibold text-red-600">
-                  {formatCurrency(summaryData[timeframe] || 0)}
+                  {formatCurrency(timeframe === 'daily' ? summaryData.monthly / 30 :
+                    timeframe === 'weekly' ? summaryData.monthly * 12 / 52 :
+                    timeframe === 'monthly' ? summaryData.monthly :
+                    summaryData.yearly || 0)}
                 </span>
               </div>
               <div className="pt-2 border-t border-purple-200">
