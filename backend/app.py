@@ -246,7 +246,6 @@ def upgrade():
     
 
 # Add these routes to your app.py file
-
 @app.route('/api/budget-register', methods=['POST'])
 def save_to_register():
     try:
@@ -258,21 +257,28 @@ def save_to_register():
                 # First create the register entry
                 register_result = connection.execute(
                     text("""
+                        WITH BudgetTotals AS (
+                            SELECT 
+                                COALESCE(SUM(CASE WHEN ie.is_subaccount = false THEN ie.amount ELSE 0 END), 0) as total_budgeted,
+                                COALESCE(SUM(ph.amount), 0) as total_spent,
+                                COALESCE(SUM(CASE WHEN ie.is_subaccount = false THEN ie.amount ELSE 0 END) - SUM(ph.amount), 0) as total_saved
+                            FROM income_entries ie
+                            LEFT JOIN payments_history ph ON ie.id = ph.income_entry_id
+                            WHERE (ph.payment_date BETWEEN :from_date AND :to_date)
+                               OR ph.payment_date IS NULL
+                        )
                         INSERT INTO budget_register (
                             name, from_date, to_date, 
                             total_budgeted, total_spent, total_saved
                         )
                         SELECT 
                             :name,
-                            :from_date::date,
-                            :to_date::date,
-                            COALESCE(SUM(CASE WHEN ie.is_subaccount = false THEN ie.amount ELSE 0 END), 0),
-                            COALESCE(SUM(ph.amount), 0),
-                            COALESCE(SUM(CASE WHEN ie.is_subaccount = false THEN ie.amount ELSE 0 END) - SUM(ph.amount), 0)
-                        FROM income_entries ie
-                        LEFT JOIN payments_history ph ON ie.id = ph.income_entry_id
-                        WHERE ph.payment_date BETWEEN :from_date::date AND :to_date::date
-                        OR ph.payment_date IS NULL
+                            :from_date,
+                            :to_date,
+                            total_budgeted,
+                            total_spent,
+                            total_saved
+                        FROM BudgetTotals
                         RETURNING id, total_budgeted, total_spent, total_saved
                     """),
                     {
@@ -306,7 +312,7 @@ def save_to_register():
                             ie.amount - COALESCE(SUM(ph.amount), 0) as total_saved
                         FROM income_entries ie
                         LEFT JOIN payments_history ph ON ie.id = ph.income_entry_id
-                        AND ph.payment_date BETWEEN :from_date::date AND :to_date::date
+                        AND ph.payment_date BETWEEN :from_date AND :to_date
                         GROUP BY ie.id, ie.title, ie.amount, ie.frequency,
                                 ie.is_recurring, ie.is_subaccount, ie.parent_id
                     """),
@@ -335,7 +341,7 @@ def save_to_register():
                         JOIN income_entries ie ON ph.income_entry_id = ie.id
                         JOIN budget_register_entries bre ON ie.id = bre.original_entry_id
                         WHERE bre.register_id = :register_id
-                        AND ph.payment_date BETWEEN :from_date::date AND :to_date::date
+                        AND ph.payment_date BETWEEN :from_date AND :to_date
                     """),
                     {
                         "register_id": register_id,
@@ -349,7 +355,7 @@ def save_to_register():
                     connection.execute(
                         text("""
                             DELETE FROM payments_history
-                            WHERE payment_date BETWEEN :from_date::date AND :to_date::date
+                            WHERE payment_date BETWEEN :from_date AND :to_date
                         """),
                         {
                             "from_date": data['from_date'],
@@ -370,6 +376,7 @@ def save_to_register():
     except Exception as e:
         print(f"Error saving budget to register: {str(e)}")
         return jsonify({'error': str(e)}), 500
+
 
 @app.route('/api/budget-register', methods=['GET'])
 def get_budget_registers():
