@@ -691,20 +691,38 @@ const BudgetEntry = ({
         {entry.children && entry.children.length > 0 && (
           <div className="mt-4 border-t pt-4">
             <h4 className="text-sm font-semibold mb-2">Subaccounts</h4>
-            <div className="space-y-2">
-              {entry.children.map(child => (
-                <div key={child.id} className="flex justify-between text-sm items-center">
-                  <span>{child.title}</span>
-                  <span className="font-medium">
-                    {formatCurrency(
-                      calculations[timeframe].budget / 
-                      (getMonthlyAmount(entry.amount, entry.frequency) / 
-                       getMonthlyAmount(child.amount, child.frequency))
-                    )}
-                  </span>
-                </div>
-              ))}
-            </div>
+            
+{entry.children && entry.children.length > 0 && (
+  <div className="space-y-2">
+    {entry.children.map(child => {
+      // Calculate child amount based on timeframe
+      const childAmount = (() => {
+        const monthlyAmount = getMonthlyAmount(child.amount, child.frequency);
+        switch(timeframe) {
+          case 'daily':
+            return monthlyAmount / (4.33 *7);
+          case 'weekly':
+            return monthlyAmount * 12 / 52;
+          case 'monthly':
+            return monthlyAmount;
+          case 'yearly':
+            return monthlyAmount * 12;
+          default:
+            return monthlyAmount;
+        }
+      })();
+
+      return (
+        <div key={child.id} className="flex justify-between text-sm items-center">
+          <span>{child.title}</span>
+          <span className="font-medium">
+            {formatCurrency(childAmount)}
+          </span>
+        </div>
+      );
+    })}
+  </div>
+)}
           </div>
         )}
       </div>
