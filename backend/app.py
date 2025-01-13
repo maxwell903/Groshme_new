@@ -250,49 +250,64 @@ def upgrade():
 def save_to_register():
     try:
         data = request.json
+        print("Received budget register data:", data)  # Detailed logging
+        
         engine = create_engine(db_url, poolclass=NullPool)
         
         with engine.connect() as connection:
             with connection.begin():
-                # First create the register entry
-                register_result = connection.execute(
-                    text("""
-                        WITH BudgetTotals AS (
-                            SELECT 
-                                COALESCE(SUM(CASE WHEN ie.is_subaccount = false THEN ie.amount ELSE 0 END), 0) as total_budgeted,
-                                COALESCE(SUM(ph.amount), 0) as total_spent,
-                                COALESCE(SUM(CASE WHEN ie.is_subaccount = false THEN ie.amount ELSE 0 END) - SUM(ph.amount), 0) as total_saved
-                            FROM income_entries ie
-                            LEFT JOIN payments_history ph ON ie.id = ph.income_entry_id
-                            WHERE (ph.payment_date BETWEEN :from_date AND :to_date)
-                               OR ph.payment_date IS NULL
-                        )
-                        INSERT INTO budget_register (
-                            name, from_date, to_date, 
-                            total_budgeted, total_spent, total_saved
-                        )
-                        SELECT 
-                            :name,
-                            :from_date,
-                            :to_date,
-                            total_budgeted,
-                            total_spent,
-                            total_saved
-                        FROM BudgetTotals
-                        RETURNING id, total_budgeted, total_spent, total_saved
-                    """),
+                # First, debug print to see what data we're working with
+                budget_totals_query = text("""
+                    SELECT 
+                        COALESCE(SUM(CASE WHEN ie.is_subaccount = false THEN ie.amount ELSE 0 END), 0) as total_budgeted,
+                        COALESCE(SUM(ph.amount), 0) as total_spent,
+                        COALESCE(SUM(CASE WHEN ie.is_subaccount = false THEN ie.amount ELSE 0 END) - SUM(ph.amount), 0) as total_saved
+                    FROM income_entries ie
+                    LEFT JOIN payments_history ph ON ie.id = ph.income_entry_id
+                    WHERE (ph.payment_date BETWEEN :from_date AND :to_date)
+                       OR ph.payment_date IS NULL
+                """)
+                
+                # Execute and print budget totals
+                totals_result = connection.execute(
+                    budget_totals_query,
                     {
-                        "name": data['name'],
                         "from_date": data['from_date'],
                         "to_date": data['to_date']
                     }
                 )
                 
+                totals = totals_result.fetchone()
+                print("Calculated Budget Totals:", dict(totals))
+                
+                # Insert register entry
+                register_result = connection.execute(
+                    text("""
+                        INSERT INTO budget_register (
+                            name, from_date, to_date, 
+                            total_budgeted, total_spent, total_saved
+                        ) VALUES (
+                            :name, :from_date, :to_date, 
+                            :total_budgeted, :total_spent, :total_saved
+                        )
+                        RETURNING id
+                    """),
+                    {
+                        "name": data['name'],
+                        "from_date": data['from_date'],
+                        "to_date": data['to_date'],
+                        "total_budgeted": totals.total_budgeted,
+                        "total_spent": totals.total_spent,
+                        "total_saved": totals.total_saved
+                    }
+                )
+                
                 register = register_result.fetchone()
                 register_id = register.id
+                print(f"Created budget register with ID: {register_id}")
                 
-                # Save all budget entries
-                connection.execute(
+                # Save budget entries
+                entries_result = connection.execute(
                     text("""
                         INSERT INTO budget_register_entries (
                             register_id, original_entry_id, title, amount, 
@@ -315,6 +330,7 @@ def save_to_register():
                         AND ph.payment_date BETWEEN :from_date AND :to_date
                         GROUP BY ie.id, ie.title, ie.amount, ie.frequency,
                                 ie.is_recurring, ie.is_subaccount, ie.parent_id
+                        RETURNING id, title, amount, total_spent
                     """),
                     {
                         "register_id": register_id,
@@ -323,8 +339,14 @@ def save_to_register():
                     }
                 )
                 
-                # Save all transactions
-                connection.execute(
+                # Fetch and print budget entries
+                budget_entries = entries_result.fetchall()
+                print("Created Budget Entries:")
+                for entry in budget_entries:
+                    print(f"Entry ID: {entry.id}, Title: {entry.title}, Amount: {entry.amount}, Spent: {entry.total_spent}")
+                
+                # Save transactions
+                transactions_result = connection.execute(
                     text("""
                         INSERT INTO budget_register_transactions (
                             register_entry_id, amount, payment_date,
@@ -342,6 +364,7 @@ def save_to_register():
                         JOIN budget_register_entries bre ON ie.id = bre.original_entry_id
                         WHERE bre.register_id = :register_id
                         AND ph.payment_date BETWEEN :from_date AND :to_date
+                        RETURNING id, register_entry_id, amount
                     """),
                     {
                         "register_id": register_id,
@@ -349,6 +372,12 @@ def save_to_register():
                         "to_date": data['to_date']
                     }
                 )
+                
+                # Fetch and print transactions
+                transactions = transactions_result.fetchall()
+                print("Created Transactions:")
+                for transaction in transactions:
+                    print(f"Transaction ID: {transaction.id}, Register Entry ID: {transaction.register_entry_id}, Amount: {transaction.amount}")
                 
                 # Optionally clear transactions within the date range
                 if data.get('clear_transactions', False):
@@ -367,46 +396,131 @@ def save_to_register():
                     'message': 'Budget saved to register successfully',
                     'register': {
                         'id': str(register_id),
-                        'total_budgeted': float(register.total_budgeted),
-                        'total_spent': float(register.total_spent),
-                        'total_saved': float(register.total_saved)
+                        'total_budgeted': float(totals.total_budgeted),
+                        'total_spent': float(totals.total_spent),
+                        'total_saved': float(totals.total_saved)
                     }
                 }), 201
 
     except Exception as e:
         print(f"Error saving budget to register: {str(e)}")
+        import traceback
+        traceback.print_exc()  # This will print the full stack trace
         return jsonify({'error': str(e)}), 500
 
 
 @app.route('/api/budget-register', methods=['GET'])
 def get_budget_registers():
     try:
-        engine = create_engine(db_url, poolclass=NullPool)
+        # Use print for Heroku logs
+        print("Starting get_budget_registers function")
         
+        # Create engine with explicit connection parameters
+        engine = create_engine(
+            'postgresql://postgres.bvgnlxznztqggtqswovg:RecipeFinder123!@aws-0-us-east-2.pooler.supabase.com:5432/postgres', 
+            poolclass=NullPool
+        )
+        
+        # Explicitly open a connection
         with engine.connect() as connection:
-            result = connection.execute(text("""
+            # Print connection details for debugging
+            print(f"Connection established: {connection}")
+            
+            # Explicitly use text() with connection
+            query = text("""
                 SELECT 
-                    id, name, from_date, to_date, created_at,
-                    total_budgeted, total_spent, total_saved
+                    id, 
+                    name, 
+                    from_date, 
+                    to_date, 
+                    created_at,
+                    COALESCE(total_budgeted, 0) as total_budgeted,
+                    COALESCE(total_spent, 0) as total_spent,
+                    COALESCE(total_saved, 0) as total_saved
                 FROM budget_register
-                ORDER BY from_date DESC
-            """))
+                ORDER BY created_at DESC
+            """)
             
-            registers = [{
-                'id': str(row.id),
-                'name': row.name,
-                'from_date': row.from_date.isoformat(),
-                'to_date': row.to_date.isoformat(),
-                'created_at': row.created_at.isoformat(),
-                'total_budgeted': float(row.total_budgeted),
-                'total_spent': float(row.total_spent),
-                'total_saved': float(row.total_saved)
-            } for row in result]
+            # Execute the query
+            result = connection.execute(query)
             
+            # Fetch all results
+            rows = result.fetchall()
+            
+            # Print number of rows for debugging
+            print(f"Number of budget registers found: {len(rows)}")
+            
+            # Convert results to list of dictionaries
+            registers = []
+            for row in rows:
+                try:
+                    register = {
+                        'id': str(row.id),
+                        'name': row.name,
+                        'from_date': row.from_date.isoformat() if row.from_date else None,
+                        'to_date': row.to_date.isoformat() if row.to_date else None,
+                        'created_at': row.created_at.isoformat() if row.created_at else None,
+                        'total_budgeted': float(row.total_budgeted),
+                        'total_spent': float(row.total_spent),
+                        'total_saved': float(row.total_saved)
+                    }
+                    registers.append(register)
+                except Exception as row_error:
+                    print(f"Error processing row: {row_error}")
+                    print(f"Problematic row: {dict(row)}")
+            
+            # Return the registers
             return jsonify({'registers': registers})
             
     except Exception as e:
-        print(f"Error fetching budget registers: {str(e)}")
+        # More detailed error logging
+        print(f"FULL ERROR in get_budget_registers: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        
+        return jsonify({
+            'error': 'Failed to fetch budget registers',
+            'details': str(e)
+        }), 500
+    
+@app.route('/api/budget-register/diagnostic', methods=['GET'])
+def diagnostic_budget_register():
+    try:
+        engine = create_engine(
+            'postgresql://postgres.bvgnlxznztqggtqswovg:RecipeFinder123!@aws-0-us-east-2.pooler.supabase.com:5432/postgres', 
+            poolclass=NullPool
+        )
+        
+        with engine.connect() as connection:
+            # Check table existence
+            table_exists = connection.execute(text("""
+                SELECT EXISTS (
+                   SELECT FROM information_schema.tables 
+                   WHERE table_schema = 'public'
+                   AND table_name = 'budget_register'
+                );
+            """)).scalar()
+            
+            # Get column information
+            columns_query = text("""
+                SELECT column_name, data_type 
+                FROM information_schema.columns 
+                WHERE table_name = 'budget_register';
+            """)
+            columns = connection.execute(columns_query).fetchall()
+            
+            # Count records
+            count = connection.execute(text("SELECT COUNT(*) FROM budget_register")).scalar()
+            
+            return jsonify({
+                'table_exists': table_exists,
+                'columns': [{'name': col.column_name, 'type': col.data_type} for col in columns],
+                'record_count': count
+            })
+    except Exception as e:
+        print(f"Diagnostic error: {str(e)}")
+        import traceback
+        traceback.print_exc()
         return jsonify({'error': str(e)}), 500
 
 @app.route('/api/budget-register/<uuid:register_id>', methods=['GET'])
