@@ -206,7 +206,7 @@ const AddIncomeModal = ({ isOpen, onClose, onSubmit, initialData = null, entries
             </select>
           </div>
 
-          
+        
 
           {/* Date Fields (shown only when recurring is checked) */}
           {formData.is_recurring && (
