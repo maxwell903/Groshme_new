@@ -90,7 +90,7 @@ const ProfitLossCard = ({ summaryData }) => {
 
         <div className="border-t pt-4">
           <div className="flex items-center justify-between text-xl">
-            <span className="font-medium">Remaining:</span>
+            <span className="font-medium">Budget Remaining:</span>
             <span className={`font-bold ${
               calculations[timeframe].remaining >= 0 
                 ? 'text-green-600' 
