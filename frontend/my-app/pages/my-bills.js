@@ -2,7 +2,7 @@
 import { useState, useEffect, useMemo } from 'react';
 
 import { fetchApi } from '@/utils/api';
-import { Plus, X, Calendar, DollarSign, RefreshCw, Edit2 } from 'lucide-react';
+import { Plus, X, Calendar, DollarSign, RefreshCw, Edit2, History } from 'lucide-react';
 import TransactionEditModal from '@/components/TransactionEditModal';
 import OneTimeIncomeModal from '@/components/OneTimeIncomeModal';
 import BudgetSummaryCard from '@/components/BudgetSummaryCard';
