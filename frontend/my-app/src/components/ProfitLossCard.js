@@ -2,7 +2,7 @@ import React, { useState, useMemo } from 'react';
 import { DollarSign, ArrowRight } from 'lucide-react';
 
 const ProfitLossCard = ({ summaryData }) => {
-  const [timeframe, setTimeframe] = useState('yearly');
+  const [timeframe, setTimeframe] = useState('monthly');
 
   const calculations = useMemo(() => {
     const { weekly, monthly, yearly, totalSpent } = summaryData;
