@@ -1,3 +1,5 @@
+
+
 import React, { useState, useEffect, useMemo } from 'react';
 import { Card, CardHeader, CardTitle, CardContent } from './ui/cards';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, AreaChart, Area } from 'recharts';
@@ -9,17 +11,34 @@ const BudgetHistoryStats = ({ currentBudgetData }) => {
   const [budgetRegisters, setBudgetRegisters] = useState([]);
   const [loading, setLoading] = useState(true);
   const [selectedTimeframe, setSelectedTimeframe] = useState('6m');
+  const [error, setError] = useState(null);
 
   useEffect(() => {
     const fetchBudgetHistory = async () => {
       try {
-        const response = await fetch('/api/budget-register');
+        const response = await fetch('https://groshmebeta-05487aa160b2.herokuapp.com/api/budget-register', {
+          method: 'GET',
+          headers: {
+            'Content-Type': 'application/json',
+            'Accept': 'application/json'
+          },
+        });
+
+        if (!response.ok) {
+          throw new Error('Failed to fetch budget history');
+        }
+
         const data = await response.json();
+        if (!data.registers) {
+          throw new Error('Invalid data format received');
+        }
+
         setBudgetRegisters(data.registers.sort((a, b) => 
           new Date(b.from_date) - new Date(a.from_date)
         ));
       } catch (error) {
         console.error('Error fetching budget history:', error);
+        setError(error.message);
       } finally {
         setLoading(false);
       }
@@ -36,6 +55,8 @@ const BudgetHistoryStats = ({ currentBudgetData }) => {
   };
 
   const getFilteredRegisters = () => {
+    if (!budgetRegisters.length) return [];
+    
     const months = timeframeFilters[selectedTimeframe];
     const cutoffDate = new Date();
     cutoffDate.setMonth(cutoffDate.getMonth() - months);
@@ -59,31 +80,34 @@ const BudgetHistoryStats = ({ currentBudgetData }) => {
       ((latest.total_saved - previous.total_saved) / previous.total_saved) * 100 : 0;
 
     // Calculate averages
-    const avgSpending = _.meanBy(filteredRegisters, 'total_spent');
-    const avgSavings = _.meanBy(filteredRegisters, 'total_saved');
-    const avgBudget = _.meanBy(filteredRegisters, 'total_budgeted');
+    const avgSpending = _.meanBy(filteredRegisters, 'total_spent') || 0;
+    const avgSavings = _.meanBy(filteredRegisters, 'total_saved') || 0;
+    const avgBudget = _.meanBy(filteredRegisters, 'total_budgeted') || 0;
 
     // Calculate spending patterns
     const spendingData = filteredRegisters.map(register => ({
-      date: new Date(register.from_date).toLocaleDateString('en-US', { month: 'short', year: 'numeric' }),
-      spent: register.total_spent,
-      saved: register.total_saved,
-      budgeted: register.total_budgeted
+      date: new Date(register.from_date).toLocaleDateString('en-US', { 
+        month: 'short', 
+        year: 'numeric' 
+      }),
+      spent: register.total_spent || 0,
+      saved: register.total_saved || 0,
+      budgeted: register.total_budgeted || 0
     })).reverse();
 
     // Calculate best and worst months
-    const bestSavingsMonth = _.maxBy(filteredRegisters, 'total_saved');
-    const worstSavingsMonth = _.minBy(filteredRegisters, 'total_saved');
+    const bestSavingsMonth = _.maxBy(filteredRegisters, 'total_saved') || latest;
+    const worstSavingsMonth = _.minBy(filteredRegisters, 'total_saved') || latest;
 
     return {
       current: {
-        spent: latest.total_spent,
-        saved: latest.total_saved,
-        budgeted: latest.total_budgeted
+        spent: latest.total_spent || 0,
+        saved: latest.total_saved || 0,
+        budgeted: latest.total_budgeted || 0
       },
       trends: {
-        spending: spendingTrend,
-        savings: savingsTrend
+        spending: spendingTrend || 0,
+        savings: savingsTrend || 0
       },
       averages: {
         spending: avgSpending,
@@ -104,8 +128,20 @@ const BudgetHistoryStats = ({ currentBudgetData }) => {
       currency: 'USD',
       minimumFractionDigits: 0,
       maximumFractionDigits: 0
-    }).format(amount);
+    }).format(amount || 0);
   };
+
+  if (error) {
+    return (
+      <Card className="w-full bg-white shadow-lg">
+        <CardContent className="p-6">
+          <div className="flex items-center justify-center h-48 text-red-600">
+            {error}
+          </div>
+        </CardContent>
+      </Card>
+    );
+  }
 
   if (loading || !statistics) {
     return (
@@ -118,6 +154,7 @@ const BudgetHistoryStats = ({ currentBudgetData }) => {
       </Card>
     );
   }
+
 
   return (
     <Card className="w-full bg-white shadow-lg">

@@ -258,15 +258,37 @@ def save_to_register():
             with connection.begin():
                 # First, debug print to see what data we're working with
                 budget_totals_query = text("""
-                    SELECT 
-                        COALESCE(SUM(CASE WHEN ie.is_subaccount = false THEN ie.amount ELSE 0 END), 0) as total_budgeted,
-                        COALESCE(SUM(ph.amount), 0) as total_spent,
-                        COALESCE(SUM(CASE WHEN ie.is_subaccount = false THEN ie.amount ELSE 0 END) - SUM(ph.amount), 0) as total_saved
-                    FROM income_entries ie
-                    LEFT JOIN payments_history ph ON ie.id = ph.income_entry_id
-                    WHERE (ph.payment_date >= :from_date AND ph.payment_date <= :to_date)
-                       OR ph.payment_date IS NULL
-                """)
+    SELECT 
+        COALESCE(SUM(
+            CASE 
+                WHEN ie.is_subaccount = false THEN 
+                    CASE ie.frequency
+                        WHEN 'monthly' THEN ie.amount
+                        WHEN 'weekly' THEN ie.amount * (52.0/12.0)
+                        WHEN 'biweekly' THEN ie.amount * (26.0/12.0)
+                        WHEN 'yearly' THEN ie.amount / 12.0
+                    END
+                ELSE 0 
+            END
+        ), 0) as total_budgeted,
+        COALESCE(SUM(ph.amount), 0) as total_spent,
+        COALESCE(SUM(
+            CASE 
+                WHEN ie.is_subaccount = false THEN 
+                    CASE ie.frequency
+                        WHEN 'monthly' THEN ie.amount
+                        WHEN 'weekly' THEN ie.amount * (52.0/12.0)
+                        WHEN 'biweekly' THEN ie.amount * (26.0/12.0)
+                        WHEN 'yearly' THEN ie.amount / 12.0
+                    END
+                ELSE 0 
+            END
+        ) - SUM(ph.amount), 0) as total_saved
+    FROM income_entries ie
+    LEFT JOIN payments_history ph ON ie.id = ph.income_entry_id
+    WHERE (ph.payment_date >= :from_date AND ph.payment_date <= :to_date)
+       OR ph.payment_date IS NULL
+""")
                 
                 # Execute and print budget totals
                 totals_result = connection.execute(

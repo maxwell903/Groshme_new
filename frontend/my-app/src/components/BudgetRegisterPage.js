@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Card, CardHeader, CardTitle, CardContent } from './ui/cards'
+import { Card, CardHeader, CardTitle, CardContent } from './ui/cards';
 import { 
   Calendar, 
   ChevronRight, 
@@ -27,7 +27,7 @@ const BudgetRegisterPage = () => {
 
   const fetchRegisters = async () => {
     try {
-      const response = await fetch('/api/budget-register');
+      const response = await fetch('https://groshmebeta-05487aa160b2.herokuapp.com/api/budget-register');
       console.log('Response status:', response.status);
       
       if (!response.ok) {
@@ -41,8 +41,6 @@ const BudgetRegisterPage = () => {
       setRegisters(data.registers);
     } catch (error) {
       console.error('Error fetching registers:', error);
-      // Optionally set an error state to show to the user
-      // setError(error.message);
     } finally {
       setLoading(false);
     }
@@ -187,7 +185,6 @@ const BudgetRegisterPage = () => {
   );
 };
 
-// Detailed Budget Register View Component
 const BudgetRegisterDetail = ({ register, onClose }) => {
   const [expandedEntries, setExpandedEntries] = useState(new Set());
   const [loading, setLoading] = useState(true);
@@ -199,7 +196,7 @@ const BudgetRegisterDetail = ({ register, onClose }) => {
 
   const fetchRegisterDetails = async () => {
     try {
-      const response = await fetch(`/api/budget-register/${register.id}`);
+      const response = await fetch(`https://groshmebeta-05487aa160b2.herokuapp.com/api/budget-register/${register.id}`);
       const data = await response.json();
       setDetails(data);
     } catch (error) {
