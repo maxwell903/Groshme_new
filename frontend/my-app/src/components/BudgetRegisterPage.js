@@ -8,7 +8,8 @@ import {
   ArrowDownRight,
   X,
   Filter,
-  Search
+  Search,
+  Trash2
 } from 'lucide-react';
 import BudgetHistoryStats from './BudgetHistoryStats';
 
@@ -20,6 +21,13 @@ const BudgetRegisterPage = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [sortBy, setSortBy] = useState('date'); // 'date', 'savings', 'spending'
   const [sortOrder, setSortOrder] = useState('desc');
+
+  
+  const handleRegisterDelete = () => {
+    // Refresh the list after deletion
+    fetchRegisters();
+    setSelectedRegister(null);
+  };
 
   useEffect(() => {
     fetchRegisters();
@@ -45,6 +53,9 @@ const BudgetRegisterPage = () => {
       setLoading(false);
     }
   };
+
+  
+  
 
   const formatCurrency = (amount) => {
     return new Intl.NumberFormat('en-US', {
@@ -100,11 +111,11 @@ const BudgetRegisterPage = () => {
     <div className="min-h-screen bg-gray-50 p-6">
       <div className="max-w-7xl mx-auto space-y-6">
         <BudgetHistoryStats />
-        
         {selectedRegister ? (
           <BudgetRegisterDetail 
             register={selectedRegister} 
-            onClose={() => setSelectedRegister(null)} 
+            onClose={() => setSelectedRegister(null)}
+            onDelete={handleRegisterDelete}
           />
         ) : (
           <Card className="bg-white shadow-lg">
@@ -183,13 +194,14 @@ const BudgetRegisterPage = () => {
       </div>
     </div>
   );
-};
+}
 
-const BudgetRegisterDetail = ({ register, onClose }) => {
+const BudgetRegisterDetail = ({ register, onClose, onDelete }) => {
+
   const [expandedEntries, setExpandedEntries] = useState(new Set());
   const [loading, setLoading] = useState(true);
   const [details, setDetails] = useState(null);
-
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   useEffect(() => {
     fetchRegisterDetails();
   }, [register.id]);
@@ -266,23 +278,74 @@ const BudgetRegisterDetail = ({ register, onClose }) => {
     );
   };
 
+  const handleDelete = async () => {
+    if (!showDeleteConfirm) {
+      setShowDeleteConfirm(true);
+      return;
+    }
+
+    try {
+      const response = await fetch(
+        `https://groshmebeta-05487aa160b2.herokuapp.com/api/budget-register/${register.id}`,
+        { method: 'DELETE' }
+      );
+
+      if (!response.ok) {
+        throw new Error('Failed to delete budget register');
+      }
+
+      onDelete();
+      onClose();
+    } catch (error) {
+      console.error('Error deleting register:', error);
+      alert('Failed to delete budget register. Please try again.');
+    }
+  };
+
   return (
     <Card className="bg-white shadow-lg">
       <CardHeader className="border-b">
         <div className="flex items-center justify-between">
           <div>
-            <CardTitle className="text-xl font-semibold">{details.name}</CardTitle>
+            <CardTitle className="text-xl font-semibold">{details?.name}</CardTitle>
             <div className="text-sm text-gray-500 mt-1 flex items-center gap-1">
               <Calendar className="h-4 w-4" />
-              {formatDate(details.from_date)} - {formatDate(details.to_date)}
+              {formatDate(details?.from_date)} - {formatDate(details?.to_date)}
             </div>
           </div>
-          <button
-            onClick={onClose}
-            className="p-2 hover:bg-gray-100 rounded-full transition-colors"
-          >
-            <X className="h-5 w-5 text-gray-500" />
-          </button>
+          <div className="flex items-center gap-2">
+            {showDeleteConfirm ? (
+              <div className="flex items-center gap-2">
+                <span className="text-sm text-red-600">Are you sure?</span>
+                <button
+                  onClick={() => handleDelete()}
+                  className="px-3 py-1 bg-red-600 text-white rounded-md hover:bg-red-700 text-sm"
+                >
+                  Yes, Delete
+                </button>
+                <button
+                  onClick={() => setShowDeleteConfirm(false)}
+                  className="px-3 py-1 bg-gray-200 text-gray-600 rounded-md hover:bg-gray-300 text-sm"
+                >
+                  Cancel
+                </button>
+              </div>
+            ) : (
+              <button
+                onClick={() => handleDelete()}
+                className="p-2 hover:bg-red-100 rounded-full transition-colors text-red-600"
+                title="Delete Budget Register"
+              >
+                <Trash2 className="h-5 w-5" />
+              </button>
+            )}
+            <button
+              onClick={onClose}
+              className="p-2 hover:bg-gray-100 rounded-full transition-colors"
+            >
+              <X className="h-5 w-5 text-gray-500" />
+            </button>
+          </div>
         </div>
       </CardHeader>
       <CardContent className="p-6">

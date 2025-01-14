@@ -245,6 +245,54 @@ def upgrade():
                          ['parent_id'], ['id'])
     
 
+@app.route('/api/budget-register/<uuid:register_id>', methods=['DELETE'])
+def delete_budget_register(register_id):
+    try:
+        engine = create_engine(db_url, poolclass=NullPool)
+        
+        with engine.connect() as connection:
+            with connection.begin():
+                # Delete related transactions first
+                connection.execute(
+                    text("""
+                        DELETE FROM budget_register_transactions
+                        WHERE register_entry_id IN (
+                            SELECT id FROM budget_register_entries 
+                            WHERE register_id = :register_id
+                        )
+                    """),
+                    {"register_id": register_id}
+                )
+                
+                # Delete register entries
+                connection.execute(
+                    text("""
+                        DELETE FROM budget_register_entries
+                        WHERE register_id = :register_id
+                    """),
+                    {"register_id": register_id}
+                )
+                
+                # Finally delete the register itself
+                result = connection.execute(
+                    text("""
+                        DELETE FROM budget_register
+                        WHERE id = :register_id
+                        RETURNING id
+                    """),
+                    {"register_id": register_id}
+                )
+                
+                if not result.rowcount:
+                    return jsonify({'error': 'Budget register not found'}), 404
+
+            return jsonify({'message': 'Budget register deleted successfully'})
+            
+    except Exception as e:
+        print(f"Error deleting budget register: {str(e)}")
+        return jsonify({'error': str(e)}), 500
+    
+
 # Add these routes to your app.py file
 @app.route('/api/budget-register', methods=['POST'])
 def save_to_register():
