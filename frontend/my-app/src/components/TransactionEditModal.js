@@ -61,6 +61,8 @@ const TransactionEditModal = ({ isOpen, onClose, transactions = [], onSave }) =>
     };
     onSave(updates);
   };
+  
+  
 
   if (!isOpen) return null;
 

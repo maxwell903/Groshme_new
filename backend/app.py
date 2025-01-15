@@ -5173,9 +5173,8 @@ def update_transactions(entry_id):
         
         with engine.connect() as connection:
             with connection.begin():
-                # Handle deletions with proper UUID casting
+                # Handle deletions - only delete from payments_history
                 if data.get('toDelete'):
-                    # Convert array of strings to array of UUIDs using unnest and casting
                     connection.execute(
                         text("""
                             DELETE FROM payments_history
@@ -5190,7 +5189,7 @@ def update_transactions(entry_id):
                         }
                     )
                 
-                # Handle amount updates
+                # Handle amount updates - only update payments_history
                 for transaction_id, new_amount in data.get('amountUpdates', {}).items():
                     connection.execute(
                         text("""
@@ -5206,7 +5205,7 @@ def update_transactions(entry_id):
                         }
                     )
                 
-                # Handle title updates
+                # Handle title updates - only update payments_history
                 for transaction_id, new_title in data.get('titleUpdates', {}).items():
                     connection.execute(
                         text("""
@@ -5237,7 +5236,7 @@ def update_transactions(entry_id):
             )
             
             updated_transactions = [{
-                'id': str(row.id),  # Convert UUID to string
+                'id': str(row.id),
                 'amount': float(row.amount),
                 'transaction_date': row.transaction_date.isoformat(),
                 'title': row.title,
