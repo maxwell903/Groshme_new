@@ -293,7 +293,6 @@ def delete_budget_register(register_id):
         return jsonify({'error': str(e)}), 500
     
 
-# Add these routes to your app.py file
 @app.route('/api/budget-register', methods=['POST'])
 def save_to_register():
     try:
@@ -304,65 +303,67 @@ def save_to_register():
         
         with engine.connect() as connection:
             with connection.begin():
-                # First, debug print to see what data we're working with
-                # Update the budget_totals_query in save_to_register route
+                # First, calculate budget totals with updated spent amounts
                 budget_totals_query = text("""
-    WITH RECURSIVE BudgetHierarchy AS (
-        -- Get all parent accounts (non-subaccounts)
-        SELECT 
-            id,
-            amount,
-            frequency,
-            ARRAY[]::uuid[] as path,
-            0 as level
-        FROM income_entries
-        WHERE is_subaccount = false
-        
-        UNION ALL
-        
-        -- Get all child accounts
-        SELECT 
-            c.id,
-            c.amount,
-            c.frequency,
-            path || c.parent_id,
-            h.level + 1
-        FROM income_entries c
-        JOIN BudgetHierarchy h ON c.parent_id = h.id
-    ),
-    -- Calculate monthly amounts for each account in hierarchy
-    MonthlyAmounts AS (
-        SELECT 
-            id,
-            CASE frequency
-                WHEN 'monthly' THEN amount
-                WHEN 'weekly' THEN amount * (52.0/12.0)
-                WHEN 'biweekly' THEN amount * (26.0/12.0)
-                WHEN 'yearly' THEN amount / 12.0
-            END as monthly_amount
-        FROM BudgetHierarchy
-    ),
-    -- Calculate spent amounts for the date range
-    SpentAmounts AS (
-        SELECT 
-            income_entry_id,
-            COALESCE(SUM(amount), 0) as total_spent
-        FROM payments_history
-        WHERE payment_date >= :from_date 
-        AND payment_date <= :to_date
-        GROUP BY income_entry_id
-    )
-    SELECT 
-        -- Total budgeted is sum of all monthly amounts
-        COALESCE(SUM(m.monthly_amount), 0) as total_budgeted,
-        -- Total spent is only from transactions within date range
-        COALESCE(SUM(s.total_spent), 0) as total_spent,
-        -- Total saved is the difference
-        COALESCE(SUM(m.monthly_amount), 0) - COALESCE(SUM(s.total_spent), 0) as total_saved
-    FROM MonthlyAmounts m
-    LEFT JOIN SpentAmounts s ON m.id = s.income_entry_id
-""")       
-                # Execute and print budget totals
+                    WITH RECURSIVE BudgetHierarchy AS (
+                        -- Get all parent accounts (non-subaccounts)
+                        SELECT 
+                            id,
+                            amount,
+                            frequency,
+                            ARRAY[]::uuid[] as path,
+                            0 as level
+                        FROM income_entries
+                        WHERE is_subaccount = false
+                        
+                        UNION ALL
+                        
+                        -- Get all child accounts
+                        SELECT 
+                            c.id,
+                            c.amount,
+                            c.frequency,
+                            path || c.parent_id,
+                            h.level + 1
+                        FROM income_entries c
+                        JOIN BudgetHierarchy h ON c.parent_id = h.id
+                    ),
+                    -- Calculate monthly amounts for each account in hierarchy
+                    MonthlyAmounts AS (
+                        SELECT 
+                            id,
+                            CASE frequency
+                                WHEN 'monthly' THEN amount
+                                WHEN 'weekly' THEN amount * (52.0/12.0)
+                                WHEN 'biweekly' THEN amount * (26.0/12.0)
+                                WHEN 'yearly' THEN amount / 12.0
+                            END as monthly_amount
+                        FROM BudgetHierarchy
+                    ),
+                    -- Calculate spent amounts including recurring transactions
+                    SpentAmounts AS (
+                        SELECT 
+                            income_entry_id,
+                            COALESCE(SUM(
+                                CASE 
+                                    -- Include recurring transactions regardless of date
+                                    WHEN NOT is_one_time THEN amount
+                                    -- Include one-time transactions within date range
+                                    WHEN payment_date BETWEEN :from_date AND :to_date THEN amount
+                                    ELSE 0
+                                END
+                            ), 0) as total_spent
+                        FROM payments_history
+                        GROUP BY income_entry_id
+                    )
+                    SELECT 
+                        COALESCE(SUM(m.monthly_amount), 0) as total_budgeted,
+                        COALESCE(SUM(s.total_spent), 0) as total_spent,
+                        COALESCE(SUM(m.monthly_amount), 0) - COALESCE(SUM(s.total_spent), 0) as total_saved
+                    FROM MonthlyAmounts m
+                    LEFT JOIN SpentAmounts s ON m.id = s.income_entry_id
+                """)
+                
                 totals_result = connection.execute(
                     budget_totals_query,
                     {
@@ -378,7 +379,7 @@ def save_to_register():
                 }
                 print("Calculated Budget Totals:", totals)
                 
-                # Insert register entry
+                # Create the budget register entry
                 register_result = connection.execute(
                     text("""
                         INSERT INTO budget_register (
@@ -405,7 +406,7 @@ def save_to_register():
                 register_id = register_result.fetchone().id
                 print(f"Created budget register with ID: {register_id}")
                 
-                # Save budget entries
+                # Save budget entries with updated spent calculation
                 entries_result = connection.execute(
                     text("""
                         INSERT INTO budget_register_entries (
@@ -422,11 +423,22 @@ def save_to_register():
                             ie.is_recurring,
                             ie.is_subaccount,
                             ie.parent_id,
-                            COALESCE(SUM(ph.amount), 0) as total_spent,
-                            ie.amount - COALESCE(SUM(ph.amount), 0) as total_saved
+                            COALESCE(SUM(
+                                CASE 
+                                    WHEN NOT ph.is_one_time THEN ph.amount
+                                    WHEN ph.payment_date BETWEEN :from_date AND :to_date THEN ph.amount
+                                    ELSE 0
+                                END
+                            ), 0) as total_spent,
+                            ie.amount - COALESCE(SUM(
+                                CASE 
+                                    WHEN NOT ph.is_one_time THEN ph.amount
+                                    WHEN ph.payment_date BETWEEN :from_date AND :to_date THEN ph.amount
+                                    ELSE 0
+                                END
+                            ), 0) as total_saved
                         FROM income_entries ie
                         LEFT JOIN payments_history ph ON ie.id = ph.income_entry_id
-                        AND ph.payment_date BETWEEN :from_date AND :to_date
                         GROUP BY ie.id, ie.title, ie.amount, ie.frequency,
                                 ie.is_recurring, ie.is_subaccount, ie.parent_id
                         RETURNING id, title, amount, total_spent
@@ -438,7 +450,7 @@ def save_to_register():
                     }
                 ).fetchall()
                 
-                # Save transactions
+                # Save transactions including all recurring ones
                 transactions_result = connection.execute(
                     text("""
                         INSERT INTO budget_register_transactions (
@@ -456,7 +468,12 @@ def save_to_register():
                         JOIN income_entries ie ON ph.income_entry_id = ie.id
                         JOIN budget_register_entries bre ON ie.id = bre.original_entry_id
                         WHERE bre.register_id = :register_id
-                        AND ph.payment_date BETWEEN :from_date AND :to_date
+                        AND (
+                            -- Include ALL recurring transactions
+                            NOT ph.is_one_time
+                            -- OR include one-time transactions within date range
+                            OR (ph.is_one_time AND ph.payment_date BETWEEN :from_date AND :to_date)
+                        )
                         RETURNING id, amount, payment_date
                     """),
                     {
@@ -466,12 +483,13 @@ def save_to_register():
                     }
                 ).fetchall()
                 
-                # Optionally clear transactions if requested
+                # Handle transaction clearing if requested
                 if data.get('clear_transactions', False):
                     connection.execute(
                         text("""
                             DELETE FROM payments_history
                             WHERE payment_date BETWEEN :from_date AND :to_date
+                            AND is_one_time = true
                         """),
                         {
                             "from_date": data['from_date'],
@@ -492,7 +510,7 @@ def save_to_register():
     except Exception as e:
         print(f"Error saving budget to register: {str(e)}")
         import traceback
-        traceback.print_exc()  # This will print the full stack trace
+        traceback.print_exc()
         return jsonify({'error': str(e)}), 500
 
 
@@ -5212,6 +5230,21 @@ def update_transactions(entry_id):
                             "entry_id": str(entry_id)
                         }
                     )
+
+                for transaction_id, is_recurring in data.get('recurringUpdates', {}).items():
+                    connection.execute(
+                    text("""
+                    UPDATE payments_history
+                    SET is_one_time = NOT :is_recurring
+                    WHERE id = uuid(:transaction_id)
+                    AND income_entry_id = :entry_id
+                    """),
+                {
+                    "is_recurring": is_recurring,
+                    "transaction_id": transaction_id,
+                    "entry_id": str(entry_id)
+                }
+            )
                 
                 # Handle amount updates
                 for transaction_id, new_amount in data.get('amountUpdates', {}).items():

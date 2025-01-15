@@ -661,32 +661,39 @@ const BudgetEntry = ({
         </div>
 
         <div className="space-y-2">
-          {entry.transactions?.map(transaction => (
-            <div key={transaction.id} className="flex justify-between text-sm items-center">
-              <div className="flex items-center gap-2 flex-1">
-                <span className="whitespace-nowrap">
-                  {formatDate(transaction.payment_date)}
-                </span>
-                <span className="text-gray-600 truncate">
-                  {transaction.is_one_time ? 
-                    ` - ${transaction.title || 'One-time payment'}` : 
-                    ''
-                  }
-                </span>
-              </div>
-              <div className="flex items-center gap-2 ml-4">
-                <span className="font-medium whitespace-nowrap">
-                  {formatCurrency(transaction.amount)}
-                </span>
-                {transaction.is_one_time && (
-                  <span className="text-xs bg-blue-100 text-blue-800 px-2 py-0.5 rounded-full whitespace-nowrap">
-                    One-time
-                  </span>
-                )}
-              </div>
-            </div>
-          ))}
+    {entry.transactions?.map(transaction => (
+      <div key={transaction.id} className="flex justify-between text-sm items-center">
+        <div className="flex items-center gap-2 flex-1 min-w-0">
+          {/* Date */}
+          <span className="whitespace-nowrap">
+            {formatDate(transaction.payment_date)}
+          </span>
+          {/* Title */}
+          {transaction.title && (
+            <span className="text-gray-600 truncate">
+              {` - ${transaction.title}`}
+            </span>
+          )}
         </div>
+        <div className="flex items-center gap-2 ml-4 whitespace-nowrap">
+          {/* Amount */}
+          <span className="font-medium">
+            {formatCurrency(transaction.amount)}
+          </span>
+          {/* Transaction Type Badge */}
+          <span
+            className={`text-xs px-2 py-0.5 rounded-full ${
+              transaction.is_one_time
+                ? 'bg-blue-100 text-blue-800'
+                : 'bg-orange-100 text-orange-800'
+            }`}
+          >
+            {transaction.is_one_time ? 'One-time' : 'Recurring'}
+          </span>
+        </div>
+      </div>
+    ))}
+  </div>
 
         {entry.children && entry.children.length > 0 && (
           <div className="mt-4 border-t pt-4">

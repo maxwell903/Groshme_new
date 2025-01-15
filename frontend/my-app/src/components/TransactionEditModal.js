@@ -6,6 +6,7 @@ const TransactionEditModal = ({ isOpen, onClose, transactions = [], onSave }) =>
   const [editedAmounts, setEditedAmounts] = useState({});
   const [editedTitles, setEditedTitles] = useState({});
   const [editedDates, setEditedDates] = useState({});
+  const [editedRecurring, setEditedRecurring] = useState({});
 
   const handleCheckboxChange = (transactionId) => {
     const newSelected = new Set(selectedTransactions);
@@ -38,22 +39,10 @@ const TransactionEditModal = ({ isOpen, onClose, transactions = [], onSave }) =>
     });
   };
 
-  const formatDate = (dateString) => {
-    let date = new Date(dateString);
-    
-    if (isNaN(date.getTime())) {
-      date = new Date(dateString + 'T00:00:00Z');
-    }
-    
-    if (isNaN(date.getTime())) {
-      console.error('Invalid date:', dateString);
-      return 'Date error';
-    }
-    
-    return date.toLocaleDateString('en-US', {
-      year: 'numeric',
-      month: 'short',
-      day: 'numeric'
+  const handleRecurringToggle = (transactionId, currentValue) => {
+    setEditedRecurring({
+      ...editedRecurring,
+      [transactionId]: !currentValue
     });
   };
 
@@ -62,7 +51,8 @@ const TransactionEditModal = ({ isOpen, onClose, transactions = [], onSave }) =>
       toDelete: Array.from(selectedTransactions),
       amountUpdates: editedAmounts,
       titleUpdates: editedTitles,
-      dateUpdates: editedDates
+      dateUpdates: editedDates,
+      recurringUpdates: editedRecurring
     };
     onSave(updates);
   };
@@ -83,25 +73,29 @@ const TransactionEditModal = ({ isOpen, onClose, transactions = [], onSave }) =>
           {transactions.length === 0 ? (
             <p className="text-gray-500 text-center py-4">No transactions to display</p>
           ) : (
-            transactions.map((transaction) => (
-              <div key={transaction.id} className="flex items-center gap-4 py-2 border-b">
-                <input
-                  type="checkbox"
-                  checked={selectedTransactions.has(transaction.id)}
-                  onChange={() => handleCheckboxChange(transaction.id)}
-                  className="rounded border-gray-300"
-                />
-                <div className="flex-1 grid grid-cols-4 gap-4">
-                  {/* Date Input */}
+            transactions.map((transaction) => {
+              const isRecurring = editedRecurring.hasOwnProperty(transaction.id) 
+                ? editedRecurring[transaction.id] 
+                : !transaction.is_one_time;
+
+              return (
+                <div key={transaction.id} className="flex items-center gap-4 py-2 border-b">
                   <input
-                    type="date"
-                    value={editedDates[transaction.id] ?? transaction.payment_date?.split('T')[0] ?? ''}
-                    onChange={(e) => handleDateChange(transaction.id, e.target.value)}
-                    className="border rounded-md p-2 text-sm"
+                    type="checkbox"
+                    checked={selectedTransactions.has(transaction.id)}
+                    onChange={() => handleCheckboxChange(transaction.id)}
+                    className="rounded border-gray-300"
                   />
-                  
-                  {/* Title Input (for one-time transactions) */}
-                  {transaction.is_one_time && (
+                  <div className="flex-1 grid grid-cols-5 gap-4">
+                    {/* Date Input */}
+                    <input
+                      type="date"
+                      value={editedDates[transaction.id] ?? transaction.payment_date?.split('T')[0] ?? ''}
+                      onChange={(e) => handleDateChange(transaction.id, e.target.value)}
+                      className="border rounded-md p-2 text-sm"
+                    />
+                    
+                    {/* Title Input */}
                     <input
                       type="text"
                       value={editedTitles[transaction.id] ?? transaction.title ?? ''}
@@ -109,29 +103,34 @@ const TransactionEditModal = ({ isOpen, onClose, transactions = [], onSave }) =>
                       className="border rounded-md p-2 text-sm"
                       placeholder="Transaction title"
                     />
-                  )}
-                  
-                  {/* Amount Input */}
-                  <div className="relative">
-                    <span className="absolute left-3 top-2 text-gray-500">$</span>
-                    <input
-                      type="number"
-                      value={editedAmounts[transaction.id] ?? transaction.amount}
-                      onChange={(e) => handleAmountChange(transaction.id, e.target.value)}
-                      className="w-full border rounded-md p-2 pl-8"
-                      step="0.01"
-                    />
-                  </div>
+                    
+                    {/* Amount Input */}
+                    <div className="relative">
+                      <span className="absolute left-3 top-2 text-gray-500">$</span>
+                      <input
+                        type="number"
+                        value={editedAmounts[transaction.id] ?? transaction.amount}
+                        onChange={(e) => handleAmountChange(transaction.id, e.target.value)}
+                        className="w-full border rounded-md p-2 pl-8"
+                        step="0.01"
+                      />
+                    </div>
 
-                  {/* Transaction Type Badge */}
-                  {transaction.is_one_time && (
-                    <span className="text-xs bg-blue-100 text-blue-800 px-2 py-1 rounded-full self-center whitespace-nowrap">
-                      One-time
-                    </span>
-                  )}
+                    {/* Recurring Toggle */}
+                    <button
+                      onClick={() => handleRecurringToggle(transaction.id, isRecurring)}
+                      className={`text-xs px-2 py-1 rounded-full self-center whitespace-nowrap ${
+                        isRecurring 
+                          ? 'bg-orange-100 text-orange-800'
+                          : 'bg-blue-100 text-blue-800'
+                      }`}
+                    >
+                      {isRecurring ? 'Recurring' : 'One-time'}
+                    </button>
+                  </div>
                 </div>
-              </div>
-            ))
+              );
+            })
           )}
         </div>
 
@@ -148,7 +147,8 @@ const TransactionEditModal = ({ isOpen, onClose, transactions = [], onSave }) =>
             disabled={selectedTransactions.size === 0 && 
                      Object.keys(editedAmounts).length === 0 &&
                      Object.keys(editedTitles).length === 0 &&
-                     Object.keys(editedDates).length === 0}
+                     Object.keys(editedDates).length === 0 &&
+                     Object.keys(editedRecurring).length === 0}
           >
             {selectedTransactions.size > 0 ? `Delete Selected (${selectedTransactions.size})` : 'Save Changes'}
           </button>
