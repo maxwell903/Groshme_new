@@ -5173,7 +5173,7 @@ def update_transactions(entry_id):
         
         with engine.connect() as connection:
             with connection.begin():
-                # Handle deletions - only delete from payments_history
+                # Handle deletions
                 if data.get('toDelete'):
                     connection.execute(
                         text("""
@@ -5189,7 +5189,7 @@ def update_transactions(entry_id):
                         }
                     )
                 
-                # Handle amount updates - only update payments_history
+                # Handle amount updates
                 for transaction_id, new_amount in data.get('amountUpdates', {}).items():
                     connection.execute(
                         text("""
@@ -5205,7 +5205,7 @@ def update_transactions(entry_id):
                         }
                     )
                 
-                # Handle title updates - only update payments_history
+                # Handle title updates
                 for transaction_id, new_title in data.get('titleUpdates', {}).items():
                     connection.execute(
                         text("""
@@ -5221,12 +5221,28 @@ def update_transactions(entry_id):
                             "entry_id": str(entry_id)
                         }
                     )
+
+                # Handle date updates
+                for transaction_id, new_date in data.get('dateUpdates', {}).items():
+                    connection.execute(
+                        text("""
+                            UPDATE payments_history
+                            SET payment_date = :payment_date
+                            WHERE id = uuid(:transaction_id)
+                            AND income_entry_id = :entry_id
+                        """),
+                        {
+                            "payment_date": new_date,
+                            "transaction_id": transaction_id,
+                            "entry_id": str(entry_id)
+                        }
+                    )
             
             # Fetch updated transactions
             result = connection.execute(
                 text("""
                     SELECT 
-                        id, amount, payment_date as transaction_date,
+                        id, amount, payment_date,
                         title, is_one_time, created_at
                     FROM payments_history
                     WHERE income_entry_id = :entry_id
@@ -5238,10 +5254,10 @@ def update_transactions(entry_id):
             updated_transactions = [{
                 'id': str(row.id),
                 'amount': float(row.amount),
-                'transaction_date': row.transaction_date.isoformat(),
+                'payment_date': row.payment_date.isoformat() if row.payment_date else None,
                 'title': row.title,
                 'is_one_time': row.is_one_time,
-                'created_at': row.created_at.isoformat()
+                'created_at': row.created_at.isoformat() if row.created_at else None
             } for row in result]
             
             return jsonify({

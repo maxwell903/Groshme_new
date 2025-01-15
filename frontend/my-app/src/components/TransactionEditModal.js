@@ -5,6 +5,7 @@ const TransactionEditModal = ({ isOpen, onClose, transactions = [], onSave }) =>
   const [selectedTransactions, setSelectedTransactions] = useState(new Set());
   const [editedAmounts, setEditedAmounts] = useState({});
   const [editedTitles, setEditedTitles] = useState({});
+  const [editedDates, setEditedDates] = useState({});
 
   const handleCheckboxChange = (transactionId) => {
     const newSelected = new Set(selectedTransactions);
@@ -30,22 +31,25 @@ const TransactionEditModal = ({ isOpen, onClose, transactions = [], onSave }) =>
     });
   };
 
+  const handleDateChange = (transactionId, newDate) => {
+    setEditedDates({
+      ...editedDates,
+      [transactionId]: newDate
+    });
+  };
+
   const formatDate = (dateString) => {
-    // First try parsing as ISO string
     let date = new Date(dateString);
     
-    // If invalid, try parsing with explicit timezone
     if (isNaN(date.getTime())) {
       date = new Date(dateString + 'T00:00:00Z');
     }
     
-    // If still invalid, return placeholder
     if (isNaN(date.getTime())) {
       console.error('Invalid date:', dateString);
       return 'Date error';
     }
     
-    // Format the date
     return date.toLocaleDateString('en-US', {
       year: 'numeric',
       month: 'short',
@@ -57,12 +61,11 @@ const TransactionEditModal = ({ isOpen, onClose, transactions = [], onSave }) =>
     const updates = {
       toDelete: Array.from(selectedTransactions),
       amountUpdates: editedAmounts,
-      titleUpdates: editedTitles
+      titleUpdates: editedTitles,
+      dateUpdates: editedDates
     };
     onSave(updates);
   };
-  
-  
 
   if (!isOpen) return null;
 
@@ -88,10 +91,16 @@ const TransactionEditModal = ({ isOpen, onClose, transactions = [], onSave }) =>
                   onChange={() => handleCheckboxChange(transaction.id)}
                   className="rounded border-gray-300"
                 />
-                <div className="flex-1 grid grid-cols-3 gap-4">
-                  <div className="text-sm text-gray-600">
-                    {formatDate(transaction.payment_date)}
-                  </div>
+                <div className="flex-1 grid grid-cols-4 gap-4">
+                  {/* Date Input */}
+                  <input
+                    type="date"
+                    value={editedDates[transaction.id] ?? transaction.payment_date?.split('T')[0] ?? ''}
+                    onChange={(e) => handleDateChange(transaction.id, e.target.value)}
+                    className="border rounded-md p-2 text-sm"
+                  />
+                  
+                  {/* Title Input (for one-time transactions) */}
                   {transaction.is_one_time && (
                     <input
                       type="text"
@@ -101,6 +110,8 @@ const TransactionEditModal = ({ isOpen, onClose, transactions = [], onSave }) =>
                       placeholder="Transaction title"
                     />
                   )}
+                  
+                  {/* Amount Input */}
                   <div className="relative">
                     <span className="absolute left-3 top-2 text-gray-500">$</span>
                     <input
@@ -111,6 +122,13 @@ const TransactionEditModal = ({ isOpen, onClose, transactions = [], onSave }) =>
                       step="0.01"
                     />
                   </div>
+
+                  {/* Transaction Type Badge */}
+                  {transaction.is_one_time && (
+                    <span className="text-xs bg-blue-100 text-blue-800 px-2 py-1 rounded-full self-center whitespace-nowrap">
+                      One-time
+                    </span>
+                  )}
                 </div>
               </div>
             ))
@@ -129,7 +147,8 @@ const TransactionEditModal = ({ isOpen, onClose, transactions = [], onSave }) =>
             className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:bg-gray-300"
             disabled={selectedTransactions.size === 0 && 
                      Object.keys(editedAmounts).length === 0 &&
-                     Object.keys(editedTitles).length === 0}
+                     Object.keys(editedTitles).length === 0 &&
+                     Object.keys(editedDates).length === 0}
           >
             {selectedTransactions.size > 0 ? `Delete Selected (${selectedTransactions.size})` : 'Save Changes'}
           </button>
