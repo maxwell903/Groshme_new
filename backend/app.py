@@ -305,39 +305,63 @@ def save_to_register():
         with engine.connect() as connection:
             with connection.begin():
                 # First, debug print to see what data we're working with
+                # Update the budget_totals_query in save_to_register route
                 budget_totals_query = text("""
+    WITH RECURSIVE BudgetHierarchy AS (
+        -- Get all parent accounts (non-subaccounts)
+        SELECT 
+            id,
+            amount,
+            frequency,
+            ARRAY[]::uuid[] as path,
+            0 as level
+        FROM income_entries
+        WHERE is_subaccount = false
+        
+        UNION ALL
+        
+        -- Get all child accounts
+        SELECT 
+            c.id,
+            c.amount,
+            c.frequency,
+            path || c.parent_id,
+            h.level + 1
+        FROM income_entries c
+        JOIN BudgetHierarchy h ON c.parent_id = h.id
+    ),
+    -- Calculate monthly amounts for each account in hierarchy
+    MonthlyAmounts AS (
+        SELECT 
+            id,
+            CASE frequency
+                WHEN 'monthly' THEN amount
+                WHEN 'weekly' THEN amount * (52.0/12.0)
+                WHEN 'biweekly' THEN amount * (26.0/12.0)
+                WHEN 'yearly' THEN amount / 12.0
+            END as monthly_amount
+        FROM BudgetHierarchy
+    ),
+    -- Calculate spent amounts for the date range
+    SpentAmounts AS (
+        SELECT 
+            income_entry_id,
+            COALESCE(SUM(amount), 0) as total_spent
+        FROM payments_history
+        WHERE payment_date >= :from_date 
+        AND payment_date <= :to_date
+        GROUP BY income_entry_id
+    )
     SELECT 
-        COALESCE(SUM(
-            CASE 
-                WHEN ie.is_subaccount = false THEN 
-                    CASE ie.frequency
-                        WHEN 'monthly' THEN ie.amount
-                        WHEN 'weekly' THEN ie.amount * (52.0/12.0)
-                        WHEN 'biweekly' THEN ie.amount * (26.0/12.0)
-                        WHEN 'yearly' THEN ie.amount / 12.0
-                    END
-                ELSE 0 
-            END
-        ), 0) as total_budgeted,
-        COALESCE(SUM(ph.amount), 0) as total_spent,
-        COALESCE(SUM(
-            CASE 
-                WHEN ie.is_subaccount = false THEN 
-                    CASE ie.frequency
-                        WHEN 'monthly' THEN ie.amount
-                        WHEN 'weekly' THEN ie.amount * (52.0/12.0)
-                        WHEN 'biweekly' THEN ie.amount * (26.0/12.0)
-                        WHEN 'yearly' THEN ie.amount / 12.0
-                    END
-                ELSE 0 
-            END
-        ) - SUM(ph.amount), 0) as total_saved
-    FROM income_entries ie
-    LEFT JOIN payments_history ph ON ie.id = ph.income_entry_id
-    WHERE (ph.payment_date >= :from_date AND ph.payment_date <= :to_date)
-       OR ph.payment_date IS NULL
-""")
-                
+        -- Total budgeted is sum of all monthly amounts
+        COALESCE(SUM(m.monthly_amount), 0) as total_budgeted,
+        -- Total spent is only from transactions within date range
+        COALESCE(SUM(s.total_spent), 0) as total_spent,
+        -- Total saved is the difference
+        COALESCE(SUM(m.monthly_amount), 0) - COALESCE(SUM(s.total_spent), 0) as total_saved
+    FROM MonthlyAmounts m
+    LEFT JOIN SpentAmounts s ON m.id = s.income_entry_id
+""")       
                 # Execute and print budget totals
                 totals_result = connection.execute(
                     budget_totals_query,
