@@ -28,7 +28,7 @@ export default function BudgetRegister() {
                   <span>Back to Budget</span>
                 </button>
               </div>
-              <h1 className="text-xl font-semibold text-gray-900">Budget History</h1>
+              <h1 className="text-xl font-semibold text-gray-900">Fayes Budget History</h1>
               <div className="w-24">{/* Spacer for alignment */}</div>
             </div>
           </div>
