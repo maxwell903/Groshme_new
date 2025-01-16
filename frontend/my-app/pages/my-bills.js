@@ -166,7 +166,7 @@ const AddIncomeModal = ({ isOpen, onClose, onSubmit, initialData = null, entries
               value={formData.title}
               onChange={(e) => setFormData({ ...formData, title: e.target.value })}
               className="w-full border rounded-md p-2"
-              placeholder="e.g., Salary, Freelance Work"
+              placeholder="e.g., Monthly Budget, Groceries, Expenses"
             />
             {errors.title && <p className="text-red-500 text-sm mt-1">{errors.title}</p>}
           </div>
