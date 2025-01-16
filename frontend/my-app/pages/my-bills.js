@@ -68,7 +68,7 @@ const AddIncomeModal = ({ isOpen, onClose, onSubmit, initialData = null, entries
   const validateForm = () => {
     const newErrors = {};
     if (!formData.title.trim()) newErrors.title = 'Title is required';
-    if (!formData.amount || formData.amount <= 0) newErrors.amount = 'Valid amount is required';
+    if (!formData.amount || formData.amount < 0) newErrors.amount = 'Valid amount is required';
     
     if (formData.is_recurring) {
       if (!formData.start_date) newErrors.start_date = 'Start date is required';
