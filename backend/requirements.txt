@@ -10,3 +10,4 @@ gunicorn
 python-dotenv
 python-dateutil
 pytz==2022.7.1
+PyJWT==2.7.0

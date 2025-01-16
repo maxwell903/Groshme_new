@@ -6,7 +6,7 @@ import { useRouter } from 'next/router';
 import { Plus, X, Search, ChevronDown, ChevronUp, Check } from 'lucide-react';
 import { supabase } from '../src/lib/supabaseClient'
 import { fetchApi, API_URL } from '@/utils/api';
-
+import { useSession, useSupabaseClient } from '@supabase/auth-helpers-react';
 import emailjs from '@emailjs/browser';
 
 
@@ -351,7 +351,13 @@ const EmailToMyselfButton = () => {
 
 
 export default function Home() {
+  const session = useSession();
+  const supabase = useSupabaseClient();
 
+  const handleSignOut = async () => {
+    await supabase.auth.signOut();
+    router.push('/auth');
+  };
 
   const handleSignUp = async (e) => {
     e.preventDefault()
@@ -401,6 +407,7 @@ export default function Home() {
 
   if (loading) {
     return (
+      
       <div className="flex h-screen items-center justify-center">
         <div className="rounded-lg bg-white p-8 shadow-lg">
           <p className="text-gray-600">Loading recipes...</p>
@@ -415,10 +422,14 @@ export default function Home() {
     
   
 
-  
+  if (!session) {
+    router.push('/auth');
+    return null;
+  }
 
   return (
     <div className="min-h-screen bg-gray-50">
+      
       <div className="relative bg-white">
         <div className="absolute inset-0 bg-gradient-to-br from-blue-50 to-blue-100" />
         <div className="relative mx-auto max-w-6xl px-4 sm:px-6 lg:px-8 py-20">
@@ -426,6 +437,12 @@ export default function Home() {
             <h1 className="mb-6 text-3xl sm:text-4xl font-bold text-gray-900">
               Personal Productivity API
             </h1>
+            <button
+  onClick={handleSignOut}
+  className="block w-full sm:w-auto px-4 py-2 bg-red-600 text-white rounded-md hover:bg-red-700 transition-colors text-center"
+>
+  Sign Out
+</button>
             
             <p className="mb-8 text-gray-600">
               Total Recipes: {homeData.total_recipes}

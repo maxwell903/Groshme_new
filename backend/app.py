@@ -21,7 +21,11 @@ from email.mime.text import MIMEText
 import base64
 import os
 from werkzeug.utils import secure_filename
-
+from functools import wraps
+from flask import request, jsonify, g
+import jwt
+from datetime import datetime, timedelta
+import secrets
 
 
 
@@ -54,13 +58,138 @@ db_name = 'postgres'  # Supabase uses 'postgres' as default database name
 db_url = os.environ.get('DATABASE_URL', 'postgresql://postgres.bvgnlxznztqggtqswovg:RecipeFinder123!@aws-0-us-east-2.pooler.supabase.com:5432/postgres')
 app.config['SQLALCHEMY_DATABASE_URI'] = db_url
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
+app.config['JWT_SECRET_KEY'] = 'jwt_secret_key'  # In production, use environment variable
+app.config['JWT_ACCESS_TOKEN_EXPIRES'] = timedelta(days=1)
 
 # Initialize SQLAlchemy
 db = SQLAlchemy(app)
 migrate = Migrate(app, db)
 
 
+def require_auth(f):
+    @wraps(f)
+    def decorated(*args, **kwargs):
+        auth_header = request.headers.get('Authorization')
+        
+        if not auth_header or not auth_header.startswith('Bearer '):
+            return jsonify({'error': 'No authorization token provided'}), 401
+            
+        token = auth_header.split(' ')[1]
+        
+        try:
+            # Verify the JWT token
+            payload = jwt.decode(token, app.config['JWT_SECRET_KEY'], algorithms=['HS256'])
+            g.user_id = payload['sub']  # Store user_id in Flask's g object
+        except jwt.ExpiredSignatureError:
+            return jsonify({'error': 'Token has expired'}), 401
+        except jwt.InvalidTokenError:
+            return jsonify({'error': 'Invalid token'}), 401
+            
+        return f(*args, **kwargs)
+    return decorated
 
+# User management routes
+@app.route('/api/auth/verify-session', methods=['POST'])
+def verify_session():
+    try:
+        data = request.json
+        
+        if not data or 'session_token' not in data:
+            return jsonify({'error': 'No session token provided'}), 400
+            
+        # Verify token with Supabase
+        engine = create_engine(db_url, poolclass=NullPool)
+        
+        with engine.connect() as connection:
+            result = connection.execute(
+                text("""
+                    SELECT user_id, expires_at
+                    FROM auth.sessions
+                    WHERE token = :token
+                    AND expires_at > CURRENT_TIMESTAMP
+                """),
+                {"token": data['session_token']}
+            )
+            
+            session = result.fetchone()
+            
+            if not session:
+                return jsonify({'error': 'Invalid or expired session'}), 401
+                
+            return jsonify({
+                'valid': True,
+                'user_id': str(session.user_id)
+            })
+            
+    except Exception as e:
+        print(f"Error verifying session: {str(e)}")
+        return jsonify({'error': str(e)}), 500
+
+def verify_supabase_token(token):
+    try:
+        # Decode and verify the JWT token using Supabase's public key
+        # The public key should be fetched from Supabase's JWKS endpoint
+        decoded = jwt.decode(
+            token,
+            app.config['UePlNfEZbOkObGzBwm987IAQ1iryqHxdCetXSS11h0ezhg1q1/GvtDB7ZjnAPsI1P5zPvQIU4sBphuzurumygA=='],
+            algorithms=['HS256'],
+            audience='authenticated'
+        )
+        return decoded
+    except jwt.ExpiredSignatureError:
+        return None
+    except jwt.InvalidTokenError:
+        return None
+    
+
+@app.route('/api/user/profile', methods=['GET', 'PUT'])
+@require_auth
+def handle_user_profile():
+    try:
+        user_id = g.user_id
+        engine = create_engine(db_url, poolclass=NullPool)
+        
+        if request.method == 'GET':
+            with engine.connect() as connection:
+                result = connection.execute(
+                    text("""
+                        SELECT email, created_at, last_sign_in_at
+                        FROM auth.users
+                        WHERE id = :user_id
+                    """),
+                    {"user_id": user_id}
+                )
+                
+                user = result.fetchone()
+                if not user:
+                    return jsonify({'error': 'User not found'}), 404
+                    
+                return jsonify({
+                    'email': user.email,
+                    'created_at': user.created_at.isoformat(),
+                    'last_sign_in_at': user.last_sign_in_at.isoformat() if user.last_sign_in_at else None
+                })
+                
+        elif request.method == 'PUT':
+            data = request.json
+            
+            with engine.connect() as connection:
+                # Update user profile
+                connection.execute(
+                    text("""
+                        UPDATE auth.users
+                        SET updated_at = CURRENT_TIMESTAMP
+                        WHERE id = :user_id
+                    """),
+                    {"user_id": user_id}
+                )
+                
+                connection.commit()
+                return jsonify({'message': 'Profile updated successfully'})
+                
+    except Exception as e:
+        print(f"Error handling user profile: {str(e)}")
+        return jsonify({'error': str(e)}), 500
 
 def get_vision_credentials():
     try:
@@ -2387,6 +2516,7 @@ def delete_grocery_item(list_id, item_id):
 
 
 @app.route('/api/recipe', methods=['POST'])
+@require_auth
 def add_recipe():
     try:
         data = request.json
@@ -3350,6 +3480,7 @@ def search():
 
     
 @app.route('/api/recipe/<int:recipe_id>', methods=['PUT'])
+@require_auth
 def update_recipe(recipe_id):
     try:
         data = request.json
@@ -3451,6 +3582,7 @@ def update_recipe(recipe_id):
         return jsonify({'error': str(e)}), 500
     
 @app.route('/api/recipe/<int:recipe_id>', methods=['DELETE'])
+@require_auth
 def delete_recipe(recipe_id):
     try:
         # Create connection to Supabase PostgreSQL
@@ -3496,6 +3628,7 @@ def delete_recipe(recipe_id):
     
 
 @app.route('/api/recipe/<int:recipe_id>/ingredients/<int:ingredient_id>', methods=['DELETE'])
+@require_auth
 def delete_recipe_ingredient(recipe_id, ingredient_id):
     try:
         # Find the recipe-ingredient quantity association
@@ -3987,6 +4120,7 @@ def import_to_grocery_list():
     
 
 @app.route('/api/recipe-ingredient-details', methods=['POST'])
+@require_auth
 def add_recipe_ingredient_details():
     try:
         data = request.json
@@ -4035,6 +4169,7 @@ def delete_exercise_by_id(exercise_id):
         return jsonify({'error': str(e)}), 500
 
 @app.route('/api/recipe/<int:recipe_id>/ingredients', methods=['GET'])
+@require_auth
 def get_recipe_ingredients(recipe_id):
     try:
         # Create connection to Supabase PostgreSQL
@@ -4074,6 +4209,7 @@ def get_recipe_ingredients(recipe_id):
         }), 500
     
 @app.route('/api/recipe/<int:recipe_id>/ingredients/<int:ingredient_index>/nutrition', methods=['POST'])
+@require_auth
 def add_ingredient_nutrition(recipe_id, ingredient_index):
     try:
         data = request.json
@@ -4116,6 +4252,7 @@ def add_ingredient_nutrition(recipe_id, ingredient_index):
         return jsonify({'error': str(e)}), 500
     
 @app.route('/api/recipe/<int:recipe_id>', methods=['GET'])
+@require_auth
 def get_recipe(recipe_id):
     try:
         # Create the database engine using Supabase credentials
@@ -4214,6 +4351,7 @@ def get_recipe(recipe_id):
         return jsonify({'error': str(e)}), 500
 
 @app.route('/api/recipe/<int:recipe_id>/nutrition', methods=['GET'])
+@require_auth
 def get_recipe_nutrition(recipe_id):
     try:
         with db.engine.connect() as connection:
