@@ -101,7 +101,7 @@ const AddIncomeModal = ({ isOpen, onClose, onSubmit, initialData = null, entries
       <div className="bg-white p-6 rounded-lg shadow-xl w-full max-w-md">
         <div className="flex justify-between items-center mb-4">
           <h2 className="text-xl font-semibold">
-            {initialData ? 'Edit Income Entry' : 'Add New Income'}
+            {initialData ? 'Edit Budget Entry' : 'Add New Budget'}
           </h2>
           <button onClick={onClose} className="text-gray-500 hover:text-gray-700">
             <X size={24} />
