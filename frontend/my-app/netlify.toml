@@ -1,12 +1,22 @@
 # Path: C:\Users\maxwa\Groshme_new\frontend\my-app\netlify.toml
 [build]
+ base = "frontend/my-app"
   command = "npm install && npm run build && pwd && ls -la"
   publish = ".next"
-
-[[plugins]]
-  package = "@netlify/plugin-nextjs"
 
 [build.environment]
   NEXT_PUBLIC_SUPABASE_URL = "https://bvgnlxznztqggtqswovg.supabase.co"
   NEXT_PUBLIC_SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImJ2Z25seHpuenRxZ2d0cXN3b3ZnIiwicm9sZSI6ImFub24iLCJpYXQiOjE3MzQ5MDI1ODIsImV4cCI6MjA1MDQ3ODU4Mn0.I8alzEBJYt_D1PDZHvuyZzLzlAEANTGkeR3IRyp1gCc"
   NEXT_PUBLIC_API_URL = "postgresql://postgres:RecipeFinder123!@db.bvgnlxznztqggtqswovg.supabase.co:5432/postgres"
+  NEXT_TELEMETRY_DISABLED = "1"
+  NODE_VERSION = "18"
+
+[[plugins]]
+  package = "@netlify/plugin-nextjs"
+
+  
+[[redirects]]
+  from = "/*"
+  to = "/index.html"
+  status = 200
+

@@ -77,9 +77,18 @@ def require_auth(f):
         token = auth_header.split(' ')[1]
         
         try:
-            # Verify the JWT token
-            payload = jwt.decode(token, app.config['JWT_SECRET_KEY'], algorithms=['HS256'])
-            g.user_id = payload['sub']  # Store user_id in Flask's g object
+            # Decode Supabase JWT token
+            decoded = jwt.decode(
+                token,
+                'your-supabase-jwt-secret',  # Replace with your Supabase JWT secret
+                algorithms=['HS256'],
+                audience='authenticated'
+            )
+            
+            # The sub claim contains the user's ID
+            user_id = decoded['sub']
+            g.user_id = user_id
+            
         except jwt.ExpiredSignatureError:
             return jsonify({'error': 'Token has expired'}), 401
         except jwt.InvalidTokenError:
@@ -87,6 +96,8 @@ def require_auth(f):
             
         return f(*args, **kwargs)
     return decorated
+
+
 
 # User management routes
 @app.route('/api/auth/verify-session', methods=['POST'])
@@ -227,6 +238,9 @@ def get_db_connection():
     except Error as e:
         print(f"Error connecting to MySQL: {e}")
         return None
+    
+def get_current_user():
+    return getattr(g, 'user_id', None)
     
 
 UPLOAD_FOLDER = 'temp_uploads'
@@ -2521,6 +2535,7 @@ def delete_grocery_item(list_id, item_id):
 def add_recipe():
     try:
         data = request.json
+        user_id = get_current_user()
         
         # Create the recipe
         new_recipe = Recipe(
@@ -2528,7 +2543,7 @@ def add_recipe():
             description=data['description'],
             instructions=data['instructions'],
             prep_time=int(data['prep_time']),
-            user_id=uuid.UUID('bc6ae242-c238-4a6b-a884-2fd1fc03ed72')
+            user_id=user_id
         )
         db.session.add(new_recipe)
         db.session.flush()
