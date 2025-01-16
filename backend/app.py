@@ -90,6 +90,7 @@ def require_auth(f):
 
 # User management routes
 @app.route('/api/auth/verify-session', methods=['POST'])
+@require_auth
 def verify_session():
     try:
         data = request.json

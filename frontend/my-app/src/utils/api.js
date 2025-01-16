@@ -2,13 +2,22 @@
 // utils/api.js
 export const API_URL = 'https://groshmebeta-05487aa160b2.herokuapp.com';
 
+// api.js
 export const fetchApi = async (endpoint, options = {}) => {
   try {
-    console.log('Fetching:', `${API_URL}${endpoint}`); // Debug log
+    const { supabase } = await import('@/lib/supabaseClient');
+    const { data: { session } } = await supabase.auth.getSession();
+
+    if (!session) {
+      throw new Error('No authenticated session');
+    }
+
+    console.log('Fetching:', `${API_URL}${endpoint}`); 
     const response = await fetch(`${API_URL}${endpoint}`, {
       ...options,
       headers: {
         'Content-Type': 'application/json',
+        'Authorization': `Bearer ${session.access_token}`,
         ...options.headers,
       },
     });
