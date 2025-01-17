@@ -33,14 +33,29 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-SUPABASE_URL = os.getenv('SUPABASE_URL')
-SUPABASE_KEY = os.getenv('SUPABASE_KEY')
-SUPABASE_JWT_SECRET = os.getenv('SUPABASE_JWT_SECRET')  # Add this to Heroku config
+# Update these configurations
+SUPABASE_URL = os.getenv('SUPABASE_URL', 'https://bvgnlxznztqggtqswovg.supabase.co')
+SUPABASE_KEY = os.getenv('SUPABASE_KEY', 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImJ2Z25seHpuenRxZ2d0cXN3b3ZnIiwicm9sZSI6ImFub24iLCJpYXQiOjE3MzQ5MDI1ODIsImV4cCI6MjA1MDQ3ODU4Mn0.I8alzEBJYt_D1PDZHvuyZzLzlAEANTGkeR3IRyp1gCc')
+SUPABASE_JWT_SECRET = os.getenv('SUPABASE_JWT_SECRET', 'UePlNfEZbOkObGzBwm987IAQ1iryqHxdCetXSS11h0ezhg1q1/GvtDB7ZjnAPsI1P5zPvQIU4sBphuzurumygA==') # add this to heroku config?
+DATABASE_URL = os.getenv('DATABASE_URL', 'postgresql://postgres.bvgnlxznztqggtqswovg:RecipeFinder123!@aws-0-us-east-2.pooler.supabase.com:5432/postgres')
 
-if not all([SUPABASE_URL, SUPABASE_KEY, SUPABASE_JWT_SECRET]):
-    raise ValueError("Missing required environment variables")
+app = Flask(__name__)
+CORS(app, resources={
+    r"/api/*": {
+        "origins": ["https://groshmebeta.netlify.app", "http://localhost:3000"],
+        "methods": ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+        "allow_headers": ["Content-Type", "Authorization"],
+        "supports_credentials": True
+    }
+})
 
-# Update your require_auth decorator
+app.config['SQLALCHEMY_DATABASE_URI'] = DATABASE_URL
+app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
+
+# Initialize SQLAlchemy with the app
+db = SQLAlchemy(app)
+
+# Update the require_auth decorator
 def require_auth(f):
     @wraps(f)
     def decorated(*args, **kwargs):
@@ -54,7 +69,7 @@ def require_auth(f):
         try:
             decoded = jwt.decode(
                 token,
-                SUPABASE_JWT_SECRET,  # Use environment variable
+                SUPABASE_JWT_SECRET,
                 algorithms=['HS256'],
                 audience='authenticated'
             )
@@ -67,20 +82,12 @@ def require_auth(f):
             
     return decorated
 
+if not all([SUPABASE_URL, SUPABASE_KEY, SUPABASE_JWT_SECRET]):
+    raise ValueError("Missing required environment variables")
 
 
 
-app = Flask(__name__)
-# In app.py
-CORS(app, resources={
-    r"/api/*": {
-        "origins": ["https://groshmebeta.netlify.app", "http://localhost:3000"],
-        "methods": ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
-        "allow_headers": ["Content-Type", "Authorization"],
-        "supports_credentials": True,
-        "expose_headers": ["Authorization"]
-    }
-})
+
 
 # Supabase PostgreSQL connection
 SUPABASE_URL = 'https://bvgnlxznztqggtqswovg.supabase.co'
@@ -2620,27 +2627,19 @@ def add_recipe():
 
 
 @app.route('/api/home-data')
-
+@require_auth
 def home_data():
     try:
-        current_user_id = g.user_id  # Get from auth decorator
+        current_user_id = g.user_id
         
+        # Use SQLAlchemy session
+        total_recipes = Recipe.query.filter_by(user_id=current_user_id).count()
         
-            
-        with db.engine.connect() as connection:
-            # Get total recipes count for this user
-            total_recipes = connection.execute(text("""
-                SELECT COUNT(*) 
-                FROM recipe 
-                WHERE user_id = :user_id
-            """), {"user_id": current_user_id}).scalar()
-
-            # Rest of your code...
-        # Get latest recipes with nutrition data
         latest_recipes = db.session.execute(text("""
             WITH LatestRecipes AS (
                 SELECT id, name, description, prep_time, created_date
                 FROM recipe
+                WHERE user_id = :user_id
                 ORDER BY created_date DESC
                 LIMIT 6
             )
@@ -2692,13 +2691,20 @@ def home_data():
             'total_recipes': total_recipes,
             'latest_recipes': latest_recipes_data
         })
+        
     except Exception as e:
         print(f"Error in home_data: {str(e)}")
-        db.session.rollback()
         return jsonify({
+            'error': str(e),
             'total_recipes': 0,
             'latest_recipes': []
         }), 500
+
+if __name__ == '__main__':
+    port = int(os.environ.get('PORT', 5000))
+    app.run(host='0.0.0.0', port=port)
+
+
     
 # All Recipes Route
 @app.route('/api/all-recipes')
