@@ -1,7 +1,9 @@
 import { useState } from 'react';
 import { useSupabaseClient } from '@supabase/auth-helpers-react';
+import { useRouter } from 'next/router';
 
 const AuthComponent = () => {
+  const router = useRouter();
   const [isSignUp, setIsSignUp] = useState(false);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -19,17 +21,18 @@ const AuthComponent = () => {
 
     try {
       if (isSignUp) {
-        // Handle Sign Up
         const { data, error: signUpError } = await supabase.auth.signUp({
           email,
           password,
+          options: {
+            emailRedirectTo: `${window.location.origin}/auth/callback`
+          }
         });
 
         if (signUpError) throw signUpError;
 
         setSuccess('Check your email to confirm your account!');
       } else {
-        // Handle Sign In
         const { data, error: signInError } = await supabase.auth.signInWithPassword({
           email,
           password,
@@ -37,8 +40,8 @@ const AuthComponent = () => {
 
         if (signInError) throw signInError;
 
+        // On successful sign in, the middleware will handle redirect
         setSuccess('Successfully signed in!');
-        // You can add a redirect here or handle the successful sign-in
       }
     } catch (error) {
       setError(error.message);
@@ -46,6 +49,18 @@ const AuthComponent = () => {
       setLoading(false);
     }
   };
+
+  // Add auth state change listener
+  useEffect(() => {
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+      if (event === 'SIGNED_IN') {
+        router.push('/');
+      }
+    });
+
+    return () => subscription.unsubscribe();
+  }, [supabase, router]);
+
 
   return (
     <div className="max-w-md mx-auto mt-8 p-6 bg-white rounded-lg shadow-md">

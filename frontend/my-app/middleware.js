@@ -1,29 +1,42 @@
-import { createMiddlewareSupabaseClient } from '@supabase/auth-helpers-nextjs';
+// middleware.js
+import { createMiddlewareClient } from '@supabase/auth-helpers-nextjs';
 import { NextResponse } from 'next/server';
 
 export async function middleware(req) {
-  try {
-    const res = NextResponse.next();
-    const supabase = createMiddlewareSupabaseClient({ req, res });
+  const res = NextResponse.next();
+  const supabase = createMiddlewareClient({ req, res });
 
+  try {
     const {
       data: { session },
     } = await supabase.auth.getSession();
 
-    // Protect all routes except /auth
-    if (!session && req.nextUrl.pathname !== '/auth') {
-      const redirectUrl = req.nextUrl.clone();
-      redirectUrl.pathname = '/auth';
-      return NextResponse.redirect(redirectUrl);
+    // Get the current URL path
+    const path = req.nextUrl.pathname;
+
+    // If there's no session and we're not on the auth page
+    if (!session && path !== '/auth') {
+      // Create absolute URL for redirection
+      return NextResponse.redirect(new URL('/auth', req.url));
+    }
+
+    // If there is a session and we're on the auth page
+    if (session && path === '/auth') {
+      // Create absolute URL for redirection
+      return NextResponse.redirect(new URL('/', req.url));
     }
 
     return res;
   } catch (e) {
     console.error('Middleware error:', e);
-    return NextResponse.next();
+    // On error, redirect to auth page
+    return NextResponse.redirect(new URL('/auth', req.url));
   }
 }
 
+// Update matcher to include api routes but exclude static files
 export const config = {
-  matcher: ['/((?!_next/static|_next/image|favicon.ico|api/).*)'],
-}
+  matcher: [
+    '/((?!_next/static|_next/image|favicon.ico).*)',
+  ],
+};

@@ -1,32 +1,27 @@
-// api.js
-// utils/api.js
+import { getAccessToken } from '../lib/supabaseClient';
+
 export const API_URL = 'https://groshmebeta-05487aa160b2.herokuapp.com';
 
-// api.js
 export const fetchApi = async (endpoint, options = {}) => {
   try {
-    const { supabase } = await import('@/lib/supabaseClient');
-    const { data: { session } } = await supabase.auth.getSession();
-
-    if (!session) {
-      throw new Error('No authenticated session');
+    const token = await getAccessToken();
+    
+    if (!token) {
+      // Instead of throwing, return a specific error
+      return { error: 'No authenticated session' };
     }
 
-    console.log('Fetching:', `${API_URL}${endpoint}`); 
     const response = await fetch(`${API_URL}${endpoint}`, {
       ...options,
+      credentials: 'include',
       headers: {
         'Content-Type': 'application/json',
-        'Authorization': `Bearer ${session.access_token}`,
+        'Authorization': `Bearer ${token}`,
         ...options.headers,
       },
     });
 
     if (!response.ok) {
-      console.error('Response:', {
-        status: response.status,
-        statusText: response.statusText
-      });
       const errorData = await response.json().catch(() => ({}));
       throw new Error(errorData.message || `HTTP error! status: ${response.status}`);
     }
