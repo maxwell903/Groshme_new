@@ -1,4 +1,7 @@
 # app.py
+import os
+from dotenv import load_dotenv
+load_dotenv()
 import re, uuid, json
 from sqlalchemy import create_engine, text # type: ignore
 from sqlalchemy.pool import NullPool
@@ -29,9 +32,12 @@ import jwt
 from datetime import datetime, timedelta
 import secrets
 import os
-from dotenv import load_dotenv
+import logging
 
-load_dotenv()
+logging.basicConfig(level=logging.DEBUG)
+logger = logging.getLogger(__name__)
+
+
 
 # Update these configurations
 SUPABASE_URL = os.getenv('SUPABASE_URL', 'https://bvgnlxznztqggtqswovg.supabase.co')
@@ -48,6 +54,10 @@ CORS(app, resources={
         "supports_credentials": True
     }
 })
+
+DATABASE_URL = os.getenv('DATABASE_URL')
+if DATABASE_URL and DATABASE_URL.startswith('postgres://'):
+    DATABASE_URL = DATABASE_URL.replace('postgres://', 'postgresql://', 1)
 
 app.config['SQLALCHEMY_DATABASE_URI'] = DATABASE_URL
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
@@ -86,18 +96,6 @@ if not all([SUPABASE_URL, SUPABASE_KEY, SUPABASE_JWT_SECRET]):
     raise ValueError("Missing required environment variables")
 
 
-
-
-
-# Supabase PostgreSQL connection
-SUPABASE_URL = 'https://bvgnlxznztqggtqswovg.supabase.co'
-SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImJ2Z25seHpuenRxZ2d0cXN3b3ZnIiwicm9sZSI6ImFub24iLCJpYXQiOjE3MzQ5MDI1ODIsImV4cCI6MjA1MDQ3ODU4Mn0.I8alzEBJYt_D1PDZHvuyZzLzlAEANTGkeR3IRyp1gCc'
-DB_PASSWORD = 'RecipeFinder123!'
-
-# Construct database URL
-if not all([SUPABASE_URL, SUPABASE_KEY, DB_PASSWORD]):
-    raise ValueError("Missing required environment variables")
-
 # Extract host and database name from Supabase URL
 db_host = SUPABASE_URL.replace('https://', '').split('.')[0] + '.supabase.co'
 db_name = 'postgres'  # Supabase uses 'postgres' as default database name
@@ -114,36 +112,6 @@ app.config['JWT_ACCESS_TOKEN_EXPIRES'] = timedelta(days=1)
 db = SQLAlchemy(app)
 migrate = Migrate(app, db)
 
-
-def require_auth(f):
-    @wraps(f)
-    def decorated(*args, **kwargs):
-        auth_header = request.headers.get('Authorization')
-        
-        if not auth_header or not auth_header.startswith('Bearer '):
-            return jsonify({'error': 'No authorization token provided'}), 401
-            
-        token = auth_header.split(' ')[1]
-        
-        try:
-            # Verify the Supabase JWT token
-            decoded = jwt.decode(
-                token,
-                'your-supabase-jwt-secret',
-                algorithms=['HS256'],
-                audience='authenticated'
-            )
-            
-            # Store user_id in Flask's g object for access in routes
-            g.user_id = decoded['sub']
-            
-            return f(*args, **kwargs)
-        except jwt.ExpiredSignatureError:
-            return jsonify({'error': 'Token has expired'}), 401
-        except jwt.InvalidTokenError:
-            return jsonify({'error': 'Invalid token'}), 401
-            
-    return decorated
 
 
 
@@ -2630,7 +2598,9 @@ def add_recipe():
 @require_auth
 def home_data():
     try:
+        logger.debug("Received request for home-data")
         current_user_id = g.user_id
+        logger.debug(f"User ID: {current_user_id}")
         
         # Use SQLAlchemy session
         total_recipes = Recipe.query.filter_by(user_id=current_user_id).count()
@@ -2693,16 +2663,14 @@ def home_data():
         })
         
     except Exception as e:
-        print(f"Error in home_data: {str(e)}")
+        logger.error(f"Error in home_data: {str(e)}")
         return jsonify({
             'error': str(e),
             'total_recipes': 0,
             'latest_recipes': []
         }), 500
 
-if __name__ == '__main__':
-    port = int(os.environ.get('PORT', 5000))
-    app.run(host='0.0.0.0', port=port)
+
 
 
     
@@ -5640,5 +5608,5 @@ def upgrade_database():
 
      
 if __name__ == '__main__':
-    port = int(os.environ.get('PORT', 5000))
+    port = int(os.getenv('PORT', 5000))
     app.run(host='0.0.0.0', port=port)

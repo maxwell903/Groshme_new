@@ -7,9 +7,11 @@ export const fetchApi = async (endpoint, options = {}) => {
     const token = session?.data?.session?.access_token;
     
     if (!token) {
+      console.error('No auth token found');
       return { error: 'No authenticated session' };
     }
 
+    console.log('Making request to:', `${API_URL}${endpoint}`);
     const response = await fetch(`${API_URL}${endpoint}`, {
       ...options,
       credentials: 'include',
@@ -21,7 +23,9 @@ export const fetchApi = async (endpoint, options = {}) => {
     });
 
     if (!response.ok) {
-      throw new Error(`HTTP error! status: ${response.status}`);
+      const errorText = await response.text();
+      console.error('API Error:', errorText);
+      throw new Error(`HTTP error! status: ${response.status}, message: ${errorText}`);
     }
 
     return response.json();
@@ -30,7 +34,6 @@ export const fetchApi = async (endpoint, options = {}) => {
     throw error;
   }
 };
-
 // Supabase specific functions
 export const supabaseApi = {
   async addItem(data) {
