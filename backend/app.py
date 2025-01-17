@@ -16,6 +16,8 @@ from sqlalchemy import func # type: ignore
 from receipt_parser import parse_receipt  # Add at top with other imports
 import mysql.connector # type: ignore
 from mysql.connector import Error # type: ignore
+# At the top of app.py
+from sqlalchemy.exc import SQLAlchemyError, OperationalError
 
 from email.mime.text import MIMEText
 import base64
@@ -26,6 +28,44 @@ from flask import request, jsonify, g
 import jwt
 from datetime import datetime, timedelta
 import secrets
+import os
+from dotenv import load_dotenv
+
+load_dotenv()
+
+SUPABASE_URL = os.getenv('SUPABASE_URL')
+SUPABASE_KEY = os.getenv('SUPABASE_KEY')
+SUPABASE_JWT_SECRET = os.getenv('SUPABASE_JWT_SECRET')  # Add this to Heroku config
+
+if not all([SUPABASE_URL, SUPABASE_KEY, SUPABASE_JWT_SECRET]):
+    raise ValueError("Missing required environment variables")
+
+# Update your require_auth decorator
+def require_auth(f):
+    @wraps(f)
+    def decorated(*args, **kwargs):
+        auth_header = request.headers.get('Authorization')
+        
+        if not auth_header or not auth_header.startswith('Bearer '):
+            return jsonify({'error': 'No authorization token provided'}), 401
+            
+        token = auth_header.split(' ')[1]
+        
+        try:
+            decoded = jwt.decode(
+                token,
+                SUPABASE_JWT_SECRET,  # Use environment variable
+                algorithms=['HS256'],
+                audience='authenticated'
+            )
+            g.user_id = decoded['sub']
+            return f(*args, **kwargs)
+        except jwt.ExpiredSignatureError:
+            return jsonify({'error': 'Token expired'}), 401
+        except jwt.InvalidTokenError:
+            return jsonify({'error': 'Invalid token'}), 401
+            
+    return decorated
 
 
 
@@ -37,7 +77,8 @@ CORS(app, resources={
         "origins": ["https://groshmebeta.netlify.app", "http://localhost:3000"],
         "methods": ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
         "allow_headers": ["Content-Type", "Authorization"],
-        "supports_credentials": True
+        "supports_credentials": True,
+        "expose_headers": ["Authorization"]
     }
 })
 
@@ -104,34 +145,27 @@ def require_auth(f):
 @require_auth
 def verify_session():
     try:
-        data = request.json
-        
-        if not data or 'session_token' not in data:
-            return jsonify({'error': 'No session token provided'}), 400
+        auth_header = request.headers.get('Authorization')
+        if not auth_header or not auth_header.startswith('Bearer '):
+            return jsonify({'error': 'No authorization token provided'}), 401
             
-        # Verify token with Supabase
-        engine = create_engine(db_url, poolclass=NullPool)
+        token = auth_header.split(' ')[1]
         
-        with engine.connect() as connection:
-            result = connection.execute(
-                text("""
-                    SELECT user_id, expires_at
-                    FROM auth.sessions
-                    WHERE token = :token
-                    AND expires_at > CURRENT_TIMESTAMP
-                """),
-                {"token": data['session_token']}
+        try:
+            # Update the JWT verification
+            decoded = jwt.decode(
+                token,
+                SUPABASE_JWT_SECRET,
+                algorithms=['HS256'],
+                audience='authenticated'
             )
-            
-            session = result.fetchone()
-            
-            if not session:
-                return jsonify({'error': 'Invalid or expired session'}), 401
-                
             return jsonify({
                 'valid': True,
-                'user_id': str(session.user_id)
+                'user_id': decoded['sub']
             })
+            
+        except jwt.InvalidTokenError:
+            return jsonify({'error': 'Invalid token'}), 401
             
     except Exception as e:
         print(f"Error verifying session: {str(e)}")
@@ -2586,16 +2620,22 @@ def add_recipe():
 
 
 @app.route('/api/home-data')
+
 def home_data():
     try:
-        # Get total recipes count
-        total_recipes = db.session.execute(text('SELECT COUNT(*) FROM recipe')).scalar()
-        current_user_id = get_current_user()  # Get current user's ID
+        current_user_id = g.user_id  # Get from auth decorator
+        
+        
+            
         with db.engine.connect() as connection:
             # Get total recipes count for this user
-            total_recipes = connection.execute(text(
-                "SELECT COUNT(*) FROM recipe WHERE user_id = :user_id"
-            ), {"user_id": current_user_id}).scalar()
+            total_recipes = connection.execute(text("""
+                SELECT COUNT(*) 
+                FROM recipe 
+                WHERE user_id = :user_id
+            """), {"user_id": current_user_id}).scalar()
+
+            # Rest of your code...
         # Get latest recipes with nutrition data
         latest_recipes = db.session.execute(text("""
             WITH LatestRecipes AS (
@@ -2721,7 +2761,106 @@ def get_all_recipes():
 
 
 
+@app.route('/api/all-recipes', methods=['GET'])
+@require_auth  # This uses your existing auth decorator
+def get_all_recipes():
+    try:
+        current_user_id = g.user_id  # Get user_id from auth decorator
+        engine = create_engine(db_url, poolclass=NullPool)
+        
+        with engine.connect() as connection:
+            # Comprehensive query that gets recipes with their ingredients and nutrition data
+            result = connection.execute(text("""
+                WITH RecipeNutrition AS (
+                    SELECT 
+                        r.id as recipe_id,
+                        COALESCE(SUM(
+                            CASE WHEN rin.serving_size > 0 
+                            THEN (rin.protein_grams * riq.quantity / rin.serving_size)
+                            ELSE 0 
+                            END
+                        ), 0) as total_protein,
+                        COALESCE(SUM(
+                            CASE WHEN rin.serving_size > 0 
+                            THEN (rin.fat_grams * riq.quantity / rin.serving_size)
+                            ELSE 0 
+                            END
+                        ), 0) as total_fat,
+                        COALESCE(SUM(
+                            CASE WHEN rin.serving_size > 0 
+                            THEN (rin.carbs_grams * riq.quantity / rin.serving_size)
+                            ELSE 0 
+                            END
+                        ), 0) as total_carbs
+                    FROM recipe r
+                    LEFT JOIN recipe_ingredient_quantities riq ON r.id = riq.recipe_id
+                    LEFT JOIN recipe_ingredient_nutrition rin 
+                        ON rin.recipe_ingredient_quantities_id = riq.id
+                    WHERE r.user_id = :user_id
+                    GROUP BY r.id
+                )
+                SELECT 
+                    r.id,
+                    r.name,
+                    r.description,
+                    r.prep_time,
+                    r.created_date,
+                    rn.total_protein,
+                    rn.total_fat,
+                    rn.total_carbs,
+                    json_agg(DISTINCT i.name) FILTER (WHERE i.name IS NOT NULL) as ingredients
+                FROM recipe r
+                LEFT JOIN recipe_ingredient_quantities riq ON r.id = riq.recipe_id
+                LEFT JOIN ingredients i ON riq.ingredient_id = i.id
+                LEFT JOIN RecipeNutrition rn ON r.id = rn.recipe_id
+                WHERE r.user_id = :user_id
+                GROUP BY 
+                    r.id, 
+                    r.name, 
+                    r.description, 
+                    r.prep_time,
+                    r.created_date,
+                    rn.total_protein,
+                    rn.total_fat,
+                    rn.total_carbs
+                ORDER BY r.created_date DESC
+            """), {"user_id": current_user_id})
 
+            recipes = []
+            for row in result:
+                recipes.append({
+                    'id': row.id,
+                    'name': row.name,
+                    'description': row.description,
+                    'prep_time': row.prep_time,
+                    'ingredients': row.ingredients if row.ingredients else [],
+                    'total_nutrition': {
+                        'protein_grams': round(float(row.total_protein), 1),
+                        'fat_grams': round(float(row.total_fat), 1),
+                        'carbs_grams': round(float(row.total_carbs), 1)
+                    }
+                })
+
+            # Create response with proper CORS headers
+            response = jsonify({
+                'recipes': recipes,
+                'count': len(recipes)
+            })
+            
+            # Add CORS headers
+            response.headers.add('Access-Control-Allow-Origin', 'https://groshmebeta.netlify.app')
+            response.headers.add('Access-Control-Allow-Credentials', 'true')
+            response.headers.add('Access-Control-Allow-Headers', 'Content-Type,Authorization')
+            
+            return response
+
+    except Exception as e:
+        print(f"Error in get_all_recipes: {str(e)}")
+        return jsonify({
+            'error': str(e),
+            'recipes': [],
+            'count': 0
+        }), 500
 
 
 from sqlalchemy import create_engine, text

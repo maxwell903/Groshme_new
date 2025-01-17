@@ -1,7 +1,3 @@
-// middleware.js
-import { createMiddlewareClient } from '@supabase/auth-helpers-nextjs';
-import { NextResponse } from 'next/server';
-
 export async function middleware(req) {
   const res = NextResponse.next();
   const supabase = createMiddlewareClient({ req, res });
@@ -15,14 +11,12 @@ export async function middleware(req) {
     const path = req.nextUrl.pathname;
 
     // If there's no session and we're not on the auth page
-    if (!session && path !== '/auth') {
-      // Create absolute URL for redirection
+    if (!session && path !== '/auth' && path !== '/auth/callback') {
       return NextResponse.redirect(new URL('/auth', req.url));
     }
 
     // If there is a session and we're on the auth page
     if (session && path === '/auth') {
-      // Create absolute URL for redirection
       return NextResponse.redirect(new URL('/', req.url));
     }
 
