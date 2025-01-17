@@ -347,7 +347,30 @@ const EmailToMyselfButton = () => {
 
 
 
-
+const Header = ({ session, onSignOut }) => {
+  return (
+    <div className="bg-white shadow-sm">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
+        <div className="flex justify-between items-center">
+          <h1 className="text-xl font-semibold text-gray-900">
+            Personal Productivity API
+          </h1>
+          <div className="flex items-center gap-4">
+            <span className="text-gray-600">
+              {session?.user?.email}
+            </span>
+            <button
+              onClick={onSignOut}
+              className="px-4 py-2 bg-red-600 text-white rounded-md hover:bg-red-700"
+            >
+              Sign Out
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+};
 
 
 // Import your existing components here...
@@ -428,21 +451,16 @@ export default function Home() {
     );
   }
 
+  
+
   return (
     <div className="min-h-screen bg-gray-50">
+       <Header session={session} onSignOut={handleSignOut} />
       <div className="relative bg-white">
         <div className="absolute inset-0 bg-gradient-to-br from-blue-50 to-blue-100" />
         <div className="relative mx-auto max-w-6xl px-4 sm:px-6 lg:px-8 py-20">
           <div className="text-center">
-            <h1 className="mb-6 text-3xl sm:text-4xl font-bold text-gray-900">
-              Personal Productivity API
-            </h1>
-            <button
-              onClick={handleSignOut}
-              className="block w-full sm:w-auto px-4 py-2 bg-red-600 text-white rounded-md hover:bg-red-700 transition-colors text-center"
-            >
-              Sign Out
-            </button>
+            
             
             <p className="mb-8 text-gray-600">
               Total Recipes: {homeData.total_recipes}
