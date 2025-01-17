@@ -31,11 +31,12 @@ import secrets
 
 
 app = Flask(__name__)
+# In app.py
 CORS(app, resources={
     r"/api/*": {
         "origins": ["https://groshmebeta.netlify.app", "http://localhost:3000"],
         "methods": ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
-        "allow_headers": ["Content-Type", "Authorization", "Accept"],
+        "allow_headers": ["Content-Type", "Authorization"],
         "supports_credentials": True
     }
 })

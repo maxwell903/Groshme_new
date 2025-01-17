@@ -1,5 +1,6 @@
 // src/pages/all-recipes.js
 import { useState, useEffect } from 'react';
+import { useSession, useSupabaseClient } from '@supabase/auth-helpers-react';
 import Link from 'next/link';
 import { useRouter } from 'next/router';
 import { debounce } from 'lodash';
@@ -50,7 +51,9 @@ const SearchInput = ({ value, onChange }) => {
   );
 };
 
+
 export default function AllRecipes() {
+  const session = useSession();
   const router = useRouter();
   const [recipes, setRecipes] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -62,24 +65,42 @@ export default function AllRecipes() {
     const fetchRecipes = async () => {
       try {
         setLoading(true);
-        const response = await fetch(`${API_URL}/api/all-recipes`);
+        if (!session?.access_token) {
+          throw new Error('No authenticated session');
+        }
+
+        const response = await fetch(`${API_URL}/api/all-recipes`, {
+          headers: {
+            'Authorization': `Bearer ${session.access_token}`,
+            'Content-Type': 'application/json'
+          },
+          credentials: 'include'
+        });
+
         if (!response.ok) {
           throw new Error('Failed to fetch recipes');
         }
+
         const data = await response.json();
         setRecipes(data.recipes || []);
         setFilteredRecipes(data.recipes || []);
         setError(null);
       } catch (err) {
         console.error("Fetch error:", err);
-        setError(err.message);
+        if (err.message === 'No authenticated session') {
+          router.push('/auth');
+        } else {
+          setError(err.message);
+        }
       } finally {
         setLoading(false);
       }
     };
 
-    fetchRecipes();
-  }, []);
+    if (session) {
+      fetchRecipes();
+    }
+  }, [session, router]);
 
   useEffect(() => {
     const debouncedSearch = debounce((value) => {
