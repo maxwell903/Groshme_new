@@ -9,4 +9,3 @@ psycopg2-binary>=2.9.3
 gunicorn
 python-dotenv
 python-dateutil
-pytz==2022.7.1
