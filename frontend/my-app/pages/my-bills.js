@@ -880,7 +880,7 @@ export default function MyBills() {
     <div className="min-h-screen bg-gray-50 p-4">
       <div className="max-w-6xl mx-auto">
   <div className="flex justify-between items-center mb-6">
-    <h1 className="text-2xl font-bold">Faye's Budget Management</h1>
+    <h1 className="text-2xl font-bold">Fayes Budget Management</h1>
     <div className="flex items-center gap-4">
     <button
     onClick={() => setShowBudgetSaveModal(true)}
