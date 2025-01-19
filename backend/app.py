@@ -29,7 +29,7 @@ from werkzeug.utils import secure_filename
 app = Flask(__name__)
 CORS(app, resources={
     r"/api/*": {
-        "origins": ["http://localhost:3000", "https://groshmebeta.netlify.app", "https://groshmebeta-05487aa160b2.herokuapp.com"],
+        "origins": ["http://localhost:3000", "https://groshmebeta.netlify.app", "https://groshmebeta-05487aa160b2.herokuapp.com", "https://groshmebeta.netlify.app"],
         "methods": ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
         "allow_headers": ["Content-Type", "Authorization", "Accept"],
         "supports_credentials": True
@@ -106,6 +106,13 @@ if not os.path.exists(UPLOAD_FOLDER):
 
 def allowed_file(filename):
     return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
+
+@app.after_request
+def after_request(response):
+    response.headers.add('Access-Control-Allow-Origin', '*')
+    response.headers.add('Access-Control-Allow-Headers', 'Content-Type,Authorization')
+    response.headers.add('Access-Control-Allow-Methods', 'GET,PUT,POST,DELETE,OPTIONS')
+    return response
 
 
 class MealPrepWeek(db.Model):
