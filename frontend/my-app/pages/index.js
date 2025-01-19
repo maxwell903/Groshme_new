@@ -4,8 +4,9 @@ import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/router';
 import { Plus, X, Search, ChevronDown, ChevronUp, Check } from 'lucide-react';
-import { useSession, useSupabaseClient } from '@supabase/auth-helpers-react';
+import { supabase } from '../src/lib/supabaseClient'
 import { fetchApi, API_URL } from '@/utils/api';
+
 import emailjs from '@emailjs/browser';
 
 
@@ -347,37 +348,31 @@ const EmailToMyselfButton = () => {
 
 
 
-const Header = ({ session, onSignOut }) => {
-  return (
-    <div className="bg-white shadow-sm">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
-        <div className="flex justify-between items-center">
-          <h1 className="text-xl font-semibold text-gray-900">
-            Personal Productivity API
-          </h1>
-          <div className="flex items-center gap-4">
-            <span className="text-gray-600">
-              {session?.user?.email}
-            </span>
-            <button
-              onClick={onSignOut}
-              className="px-4 py-2 bg-red-600 text-white rounded-md hover:bg-red-700"
-            >
-              Sign Out
-            </button>
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-};
 
-
-// Import your existing components here...
 
 export default function Home() {
-  const session = useSession();
-  const supabase = useSupabaseClient();
+
+
+  const handleSignUp = async (e) => {
+    e.preventDefault()
+    const { email, password } = e.target.elements
+    
+    try {
+      const { user, error } = await supabase.auth.signUp({
+        email: email.value,
+        password: password.value,
+      })
+      
+      if (error) throw error
+      
+      // Create a new user record in the Supabase database
+      await supabase.from('users').insert({ id: user.id, email: user.email })
+    } catch (error) {
+      console.error('Error signing up:', error)
+    }
+  }
+
+  
   const router = useRouter();
   const [homeData, setHomeData] = useState({
     total_recipes: 0,
@@ -386,30 +381,13 @@ export default function Home() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
-  const handleSignOut = async () => {
-    await supabase.auth.signOut();
-    router.replace('/auth');
-  };
-
   useEffect(() => {
-    if (!session) {
-      setLoading(false);
-      return;
-    }
-
     const fetchData = async () => {
       try {
         setLoading(true);
-        const response = await fetch(`${API_URL}/api/home-data`);
-        if (!response.ok) {
-          throw new Error('Failed to fetch home data');
-        }
-        const data = await response.json();
-        setHomeData({
-          total_recipes: data.total_recipes || 0,
-          latest_recipes: data.latest_recipes || []
-        });
-        setError(null);
+        const data = await fetchApi('/api/home-data');
+        console.log('Fetched data:', data); // Debug log
+        setHomeData(data);
       } catch (error) {
         console.error('Error:', error);
         setError(error.message);
@@ -417,50 +395,37 @@ export default function Home() {
         setLoading(false);
       }
     };
-
+  
     fetchData();
-  }, [session]);
+  }, []);
 
-  // Handle loading state
   if (loading) {
     return (
       <div className="flex h-screen items-center justify-center">
         <div className="rounded-lg bg-white p-8 shadow-lg">
-          <p className="text-gray-600">Loading...</p>
+          <p className="text-gray-600">Loading recipes...</p>
         </div>
       </div>
     );
   }
 
-  // Handle no session
-  if (!session) {
-    return null;
-  }
 
-  // Handle error state
-  if (error) {
-    return (
-      <div className="flex h-screen items-center justify-center">
-        <div className="rounded-lg bg-red-100 p-8 text-red-700">
-          <p>{error}</p>
-          <Link href="/" className="mt-4 block text-blue-600 hover:text-blue-800">
-            Retry
-          </Link>
-        </div>
-      </div>
-    );
-  }
+
+
+    
+  
 
   
 
   return (
     <div className="min-h-screen bg-gray-50">
-       <Header session={session} onSignOut={handleSignOut} />
       <div className="relative bg-white">
         <div className="absolute inset-0 bg-gradient-to-br from-blue-50 to-blue-100" />
         <div className="relative mx-auto max-w-6xl px-4 sm:px-6 lg:px-8 py-20">
           <div className="text-center">
-            
+            <h1 className="mb-6 text-3xl sm:text-4xl font-bold text-gray-900">
+              Personal Productivity API
+            </h1>
             
             <p className="mb-8 text-gray-600">
               Total Recipes: {homeData.total_recipes}
@@ -494,6 +459,7 @@ export default function Home() {
               >
                 My Bills
               </Link>
+              
             </div>
 
             <div className="mt-8">
@@ -526,13 +492,14 @@ export default function Home() {
                 <div className="rounded-lg bg-white p-6 shadow-lg transition-all hover:-translate-y-1 hover:shadow-xl cursor-pointer">
                   <h3 className="mb-2 text-lg font-semibold text-gray-900">{recipe.name}</h3>
                   <p className="mb-4 text-gray-600">{recipe.description}</p>
+                  {/* Add Total Nutrition Information */}
                   <p className="text-sm text-gray-500 mb-1">
                     Protein: {recipe.total_nutrition?.protein_grams || 0}g •
                     Fat: {recipe.total_nutrition?.fat_grams || 0}g •
                     Carbs: {recipe.total_nutrition?.carbs_grams || 0}g
                   </p>
                   <p className="text-m text-gray-500">
-                    Prep time: {recipe.prep_time}
+                    Prep time: {recipe.name}
                   </p>
                   <div className="mt-4 text-green-600 hover:text-green-700">
                     View Recipe →

@@ -121,7 +121,7 @@ const BudgetRegisterPage = () => {
           <Card className="bg-white shadow-lg">
             <CardHeader className="pb-4">
               <div className="flex items-center justify-between">
-                <CardTitle className="text-xl font-semibold">Fayes Budget Register History</CardTitle>
+                <CardTitle className="text-xl font-semibold">Faye's Budget Register History</CardTitle>
                 <div className="flex items-center gap-4">
                   <div className="relative">
                     <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4" />

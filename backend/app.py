@@ -1,7 +1,4 @@
 # app.py
-import os
-from dotenv import load_dotenv
-load_dotenv()
 import re, uuid, json
 from sqlalchemy import create_engine, text # type: ignore
 from sqlalchemy.pool import NullPool
@@ -19,82 +16,34 @@ from sqlalchemy import func # type: ignore
 from receipt_parser import parse_receipt  # Add at top with other imports
 import mysql.connector # type: ignore
 from mysql.connector import Error # type: ignore
-# At the top of app.py
-from sqlalchemy.exc import SQLAlchemyError, OperationalError
 
 from email.mime.text import MIMEText
 import base64
 import os
 from werkzeug.utils import secure_filename
-from functools import wraps
-from flask import request, jsonify, g
-import jwt
-from datetime import datetime, timedelta
-import secrets
-import os
-import logging
-
-logging.basicConfig(level=logging.DEBUG)
-logger = logging.getLogger(__name__)
 
 
 
-# Update these configurations
-SUPABASE_URL = os.getenv('SUPABASE_URL', 'https://bvgnlxznztqggtqswovg.supabase.co')
-SUPABASE_KEY = os.getenv('SUPABASE_KEY', 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImJ2Z25seHpuenRxZ2d0cXN3b3ZnIiwicm9sZSI6ImFub24iLCJpYXQiOjE3MzQ5MDI1ODIsImV4cCI6MjA1MDQ3ODU4Mn0.I8alzEBJYt_D1PDZHvuyZzLzlAEANTGkeR3IRyp1gCc')
-SUPABASE_JWT_SECRET = os.getenv('SUPABASE_JWT_SECRET', 'UePlNfEZbOkObGzBwm987IAQ1iryqHxdCetXSS11h0ezhg1q1/GvtDB7ZjnAPsI1P5zPvQIU4sBphuzurumygA==') # add this to heroku config?
-DATABASE_URL = os.getenv('DATABASE_URL', 'postgresql://postgres.bvgnlxznztqggtqswovg:RecipeFinder123!@aws-0-us-east-2.pooler.supabase.com:5432/postgres')
+
 
 app = Flask(__name__)
 CORS(app, resources={
     r"/api/*": {
-        "origins": ["https://groshmebeta.netlify.app", "http://localhost:3000"],
+        "origins": ["http://localhost:3000", "https://groshmebeta.netlify.app", "https://groshmebeta-05487aa160b2.herokuapp.com"],
         "methods": ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
-        "allow_headers": ["Content-Type", "Authorization"],
+        "allow_headers": ["Content-Type", "Authorization", "Accept"],
         "supports_credentials": True
     }
 })
 
-DATABASE_URL = os.getenv('DATABASE_URL')
-if DATABASE_URL and DATABASE_URL.startswith('postgres://'):
-    DATABASE_URL = DATABASE_URL.replace('postgres://', 'postgresql://', 1)
+# Supabase PostgreSQL connection
+SUPABASE_URL = 'https://bvgnlxznztqggtqswovg.supabase.co'
+SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImJ2Z25seHpuenRxZ2d0cXN3b3ZnIiwicm9sZSI6ImFub24iLCJpYXQiOjE3MzQ5MDI1ODIsImV4cCI6MjA1MDQ3ODU4Mn0.I8alzEBJYt_D1PDZHvuyZzLzlAEANTGkeR3IRyp1gCc'
+DB_PASSWORD = 'RecipeFinder123!'
 
-app.config['SQLALCHEMY_DATABASE_URI'] = DATABASE_URL
-app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
-
-# Initialize SQLAlchemy with the app
-db = SQLAlchemy(app)
-
-# Update the require_auth decorator
-def require_auth(f):
-    @wraps(f)
-    def decorated(*args, **kwargs):
-        auth_header = request.headers.get('Authorization')
-        
-        if not auth_header or not auth_header.startswith('Bearer '):
-            return jsonify({'error': 'No authorization token provided'}), 401
-            
-        token = auth_header.split(' ')[1]
-        
-        try:
-            decoded = jwt.decode(
-                token,
-                SUPABASE_JWT_SECRET,
-                algorithms=['HS256'],
-                audience='authenticated'
-            )
-            g.user_id = decoded['sub']
-            return f(*args, **kwargs)
-        except jwt.ExpiredSignatureError:
-            return jsonify({'error': 'Token expired'}), 401
-        except jwt.InvalidTokenError:
-            return jsonify({'error': 'Invalid token'}), 401
-            
-    return decorated
-
-if not all([SUPABASE_URL, SUPABASE_KEY, SUPABASE_JWT_SECRET]):
+# Construct database URL
+if not all([SUPABASE_URL, SUPABASE_KEY, DB_PASSWORD]):
     raise ValueError("Missing required environment variables")
-
 
 # Extract host and database name from Supabase URL
 db_host = SUPABASE_URL.replace('https://', '').split('.')[0] + '.supabase.co'
@@ -105,8 +54,6 @@ db_name = 'postgres'  # Supabase uses 'postgres' as default database name
 db_url = os.environ.get('DATABASE_URL', 'postgresql://postgres.bvgnlxznztqggtqswovg:RecipeFinder123!@aws-0-us-east-2.pooler.supabase.com:5432/postgres')
 app.config['SQLALCHEMY_DATABASE_URI'] = db_url
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
-app.config['JWT_SECRET_KEY'] = 'jwt_secret_key'  # In production, use environment variable
-app.config['JWT_ACCESS_TOKEN_EXPIRES'] = timedelta(days=1)
 
 # Initialize SQLAlchemy
 db = SQLAlchemy(app)
@@ -114,103 +61,6 @@ migrate = Migrate(app, db)
 
 
 
-
-# User management routes
-@app.route('/api/auth/verify-session', methods=['POST'])
-@require_auth
-def verify_session():
-    try:
-        auth_header = request.headers.get('Authorization')
-        if not auth_header or not auth_header.startswith('Bearer '):
-            return jsonify({'error': 'No authorization token provided'}), 401
-            
-        token = auth_header.split(' ')[1]
-        
-        try:
-            # Update the JWT verification
-            decoded = jwt.decode(
-                token,
-                SUPABASE_JWT_SECRET,
-                algorithms=['HS256'],
-                audience='authenticated'
-            )
-            return jsonify({
-                'valid': True,
-                'user_id': decoded['sub']
-            })
-            
-        except jwt.InvalidTokenError:
-            return jsonify({'error': 'Invalid token'}), 401
-            
-    except Exception as e:
-        print(f"Error verifying session: {str(e)}")
-        return jsonify({'error': str(e)}), 500
-
-def verify_supabase_token(token):
-    try:
-        # Decode and verify the JWT token using Supabase's public key
-        # The public key should be fetched from Supabase's JWKS endpoint
-        decoded = jwt.decode(
-            token,
-            app.config['UePlNfEZbOkObGzBwm987IAQ1iryqHxdCetXSS11h0ezhg1q1/GvtDB7ZjnAPsI1P5zPvQIU4sBphuzurumygA=='],
-            algorithms=['HS256'],
-            audience='authenticated'
-        )
-        return decoded
-    except jwt.ExpiredSignatureError:
-        return None
-    except jwt.InvalidTokenError:
-        return None
-    
-
-@app.route('/api/user/profile', methods=['GET', 'PUT'])
-@require_auth
-def handle_user_profile():
-    try:
-        user_id = g.user_id
-        engine = create_engine(db_url, poolclass=NullPool)
-        
-        if request.method == 'GET':
-            with engine.connect() as connection:
-                result = connection.execute(
-                    text("""
-                        SELECT email, created_at, last_sign_in_at
-                        FROM auth.users
-                        WHERE id = :user_id
-                    """),
-                    {"user_id": user_id}
-                )
-                
-                user = result.fetchone()
-                if not user:
-                    return jsonify({'error': 'User not found'}), 404
-                    
-                return jsonify({
-                    'email': user.email,
-                    'created_at': user.created_at.isoformat(),
-                    'last_sign_in_at': user.last_sign_in_at.isoformat() if user.last_sign_in_at else None
-                })
-                
-        elif request.method == 'PUT':
-            data = request.json
-            
-            with engine.connect() as connection:
-                # Update user profile
-                connection.execute(
-                    text("""
-                        UPDATE auth.users
-                        SET updated_at = CURRENT_TIMESTAMP
-                        WHERE id = :user_id
-                    """),
-                    {"user_id": user_id}
-                )
-                
-                connection.commit()
-                return jsonify({'message': 'Profile updated successfully'})
-                
-    except Exception as e:
-        print(f"Error handling user profile: {str(e)}")
-        return jsonify({'error': str(e)}), 500
 
 def get_vision_credentials():
     try:
@@ -247,9 +97,6 @@ def get_db_connection():
     except Error as e:
         print(f"Error connecting to MySQL: {e}")
         return None
-    
-def get_current_user():
-    return getattr(g, 'user_id', None)
     
 
 UPLOAD_FOLDER = 'temp_uploads'
@@ -1608,15 +1455,21 @@ class MealPlan(db.Model):
     meal_prep_week = db.relationship('MealPrepWeek', backref=db.backref('meals', lazy=True, cascade='all, delete-orphan'))
 
 class Recipe(db.Model):
-    __tablename__ = 'recipe'
     id = db.Column(db.Integer, primary_key=True)
-    user_id = db.Column(db.UUID, db.ForeignKey('auth.users.id'), nullable=False)
+    user_id = db.Column(db.UUID, nullable=False, default='bc6ae242-c238-4a6b-a884-2fd1fc03ed72')
     name = db.Column(db.String(100), nullable=False)
     description = db.Column(db.Text)
     instructions = db.Column(db.Text)
     prep_time = db.Column(db.Integer)
     created_date = db.Column(db.DateTime, default=db.func.current_timestamp())
-    ingredients = db.relationship('RecipeIngredientQuantity', backref='recipe', cascade='all, delete-orphan')
+    
+   
+    ingredient_quantities = db.relationship(
+        'RecipeIngredientQuantity',
+        backref='recipe',
+        lazy=True,
+        cascade='all, delete-orphan'
+    )
 
 class RecipeIngredientQuantity(db.Model):
     __tablename__ = 'recipe_ingredient_quantities'
@@ -2534,25 +2387,24 @@ def delete_grocery_item(list_id, item_id):
 
 
 @app.route('/api/recipe', methods=['POST'])
-@require_auth
 def add_recipe():
     try:
         data = request.json
-        current_user_id = g.user_id  # Get from auth middleware
         
-        # Create the recipe with user_id
+        # Create the recipe
         new_recipe = Recipe(
             name=data['name'],
             description=data['description'],
             instructions=data['instructions'],
             prep_time=int(data['prep_time']),
-            user_id=current_user_id  # Add user_id
+            user_id=uuid.UUID('bc6ae242-c238-4a6b-a884-2fd1fc03ed72')
         )
         db.session.add(new_recipe)
         db.session.flush()
         
-        # Process ingredients
+        # Process each ingredient
         for ingredient_data in data['ingredients']:
+            # Find or create ingredient
             ingredient = Ingredient.query.filter(
                 func.lower(Ingredient.name) == func.lower(ingredient_data['name'])
             ).first()
@@ -2562,6 +2414,7 @@ def add_recipe():
                 db.session.add(ingredient)
                 db.session.flush()
             
+            # Create quantity association
             quantity = RecipeIngredientQuantity(
                 recipe_id=new_recipe.id,
                 ingredient_id=ingredient.id,
@@ -2571,6 +2424,7 @@ def add_recipe():
             db.session.add(quantity)
             db.session.flush()
             
+            # Add nutrition data if provided
             if ingredient_data.get('nutritionData'):
                 nutrition = RecipeIngredientNutrition(
                     recipe_ingredient_quantities_id=quantity.id,
@@ -2594,22 +2448,18 @@ def add_recipe():
         return jsonify({'error': str(e)}), 500
 
 
+
 @app.route('/api/home-data')
-@require_auth
 def home_data():
     try:
-        logger.debug("Received request for home-data")
-        current_user_id = g.user_id
-        logger.debug(f"User ID: {current_user_id}")
+        # Get total recipes count
+        total_recipes = db.session.execute(text('SELECT COUNT(*) FROM recipe')).scalar()
         
-        # Use SQLAlchemy session
-        total_recipes = Recipe.query.filter_by(user_id=current_user_id).count()
-        
+        # Get latest recipes with nutrition data
         latest_recipes = db.session.execute(text("""
             WITH LatestRecipes AS (
                 SELECT id, name, description, prep_time, created_date
                 FROM recipe
-                WHERE user_id = :user_id
                 ORDER BY created_date DESC
                 LIMIT 6
             )
@@ -2642,7 +2492,7 @@ def home_data():
             LEFT JOIN ingredients i ON riq.ingredient_id = i.id
             LEFT JOIN recipe_ingredient_nutrition rin ON rin.recipe_ingredient_quantities_id = riq.id
             GROUP BY r.id, r.name, r.description, r.prep_time, r.created_date
-        """), {"user_id": current_user_id}).fetchall()
+        """)).fetchall()
         
         latest_recipes_data = [{
             'id': recipe.id,
@@ -2661,180 +2511,101 @@ def home_data():
             'total_recipes': total_recipes,
             'latest_recipes': latest_recipes_data
         })
-        
     except Exception as e:
-        logger.error(f"Error in home_data: {str(e)}")
+        print(f"Error in home_data: {str(e)}")
+        db.session.rollback()
         return jsonify({
-            'error': str(e),
             'total_recipes': 0,
             'latest_recipes': []
         }), 500
-
-
-
-
     
 # All Recipes Route
 @app.route('/api/all-recipes')
-@require_auth
 def get_all_recipes():
     try:
-        current_user_id = g.user_id
-        engine = create_engine(db_url, poolclass=NullPool)
+        # Update the database URL to use your Supabase credentials
+        db_url = 'postgresql://postgres.bvgnlxznztqggtqswovg:RecipeFinder123!@aws-0-us-east-2.pooler.supabase.com:5432/postgres'
+        engine = create_engine(db_url)
         
         with engine.connect() as connection:
-            result = connection.execute(text("""
+            # First get all recipes
+            recipes_result = connection.execute(text("""
                 SELECT id, name, description, prep_time 
                 FROM recipe 
-                WHERE user_id = :user_id
-                ORDER BY created_date DESC
-            """), {"user_id": current_user_id})
+                ORDER BY id ASC
+            """))
+            recipes = recipes_result.fetchall()
             
-            recipes = result.fetchall()
+            print(f"Found {len(recipes)} recipes")
             
-            # Return empty array if no recipes
             recipes_data = []
             for recipe in recipes:
-                try:
-                    # Get ingredients
-                    ingredients_result = connection.execute(text("""
-                        SELECT name 
-                        FROM recipe_ingredients3 
-                        WHERE recipe_ids::jsonb ? :recipe_id
-                    """), {'recipe_id': str(recipe.id)})
-                    
-                    ingredients = [ing[0] for ing in ingredients_result]
-                    
-                    recipes_data.append({
-                        'id': recipe.id,
-                        'name': recipe.name,
-                        'description': recipe.description,
-                        'prep_time': recipe.prep_time,
-                        'ingredients': ingredients,
-                        'total_nutrition': {
-                            'protein_grams': 0,
-                            'fat_grams': 0,
-                            'carbs_grams': 0
-                        }
-                    })
-                except Exception as recipe_error:
-                    print(f"Error processing recipe {recipe.id}: {str(recipe_error)}")
-                    continue
+                # Get ingredients using Supabase's JSON functions
+                ingredients_result = connection.execute(text("""
+                    SELECT name 
+                    FROM recipe_ingredients3 
+                    WHERE recipe_ids::jsonb ? :recipe_id
+                """), {'recipe_id': str(recipe.id)})
+                
+                ingredients = ingredients_result.fetchall()
+                
+                # Get nutrition data
+                nutrition_result = connection.execute(text("""
+                    SELECT 
+                        riq.quantity,
+                        rin.protein_grams,
+                        rin.fat_grams,
+                        rin.carbs_grams,
+                        rin.serving_size
+                    FROM recipe_ingredient_quantities riq
+                    LEFT JOIN recipe_ingredient_nutrition rin 
+                        ON rin.recipe_ingredient_quantities_id = riq.id
+                    WHERE riq.recipe_id = :recipe_id
+                """), {'recipe_id': recipe.id})
+                
+                nutrition_data = nutrition_result.fetchall()
+                
+                # Calculate total nutrition
+                total_nutrition = {
+                    'protein_grams': 0,
+                    'fat_grams': 0,
+                    'carbs_grams': 0
+                }
+                
+                for nutr in nutrition_data:
+                    if nutr.serving_size and nutr.serving_size > 0:
+                        ratio = nutr.quantity / nutr.serving_size
+                        total_nutrition['protein_grams'] += (nutr.protein_grams or 0) * ratio
+                        total_nutrition['fat_grams'] += (nutr.fat_grams or 0) * ratio
+                        total_nutrition['carbs_grams'] += (nutr.carbs_grams or 0) * ratio
+                
+                recipes_data.append({
+                    'id': recipe.id,
+                    'name': recipe.name,
+                    'description': recipe.description,
+                    'prep_time': recipe.prep_time,
+                    'ingredients': [ingredient[0] for ingredient in ingredients],
+                    'total_nutrition': {
+                        'protein_grams': round(total_nutrition['protein_grams'], 1),
+                        'fat_grams': round(total_nutrition['fat_grams'], 1),
+                        'carbs_grams': round(total_nutrition['carbs_grams'], 1)
+                    }
+                })
             
             return jsonify({
                 'recipes': recipes_data,
                 'count': len(recipes_data)
             })
-            
     except Exception as e:
-        print(f"Error in get_all_recipes: {str(e)}")
+        print(f"Error fetching all recipes: {str(e)}")
         return jsonify({
-            'recipes': [],
-            'count': 0
-        }), 200  # Return 200 even with empty data
-
-
-
-@app.route('/api/all-recipes', methods=['GET'])
-@require_auth  # This uses your existing auth decorator
-def get_all_recipes():
-    try:
-        current_user_id = g.user_id  # Get user_id from auth decorator
-        engine = create_engine(db_url, poolclass=NullPool)
-        
-        with engine.connect() as connection:
-            # Comprehensive query that gets recipes with their ingredients and nutrition data
-            result = connection.execute(text("""
-                WITH RecipeNutrition AS (
-                    SELECT 
-                        r.id as recipe_id,
-                        COALESCE(SUM(
-                            CASE WHEN rin.serving_size > 0 
-                            THEN (rin.protein_grams * riq.quantity / rin.serving_size)
-                            ELSE 0 
-                            END
-                        ), 0) as total_protein,
-                        COALESCE(SUM(
-                            CASE WHEN rin.serving_size > 0 
-                            THEN (rin.fat_grams * riq.quantity / rin.serving_size)
-                            ELSE 0 
-                            END
-                        ), 0) as total_fat,
-                        COALESCE(SUM(
-                            CASE WHEN rin.serving_size > 0 
-                            THEN (rin.carbs_grams * riq.quantity / rin.serving_size)
-                            ELSE 0 
-                            END
-                        ), 0) as total_carbs
-                    FROM recipe r
-                    LEFT JOIN recipe_ingredient_quantities riq ON r.id = riq.recipe_id
-                    LEFT JOIN recipe_ingredient_nutrition rin 
-                        ON rin.recipe_ingredient_quantities_id = riq.id
-                    WHERE r.user_id = :user_id
-                    GROUP BY r.id
-                )
-                SELECT 
-                    r.id,
-                    r.name,
-                    r.description,
-                    r.prep_time,
-                    r.created_date,
-                    rn.total_protein,
-                    rn.total_fat,
-                    rn.total_carbs,
-                    json_agg(DISTINCT i.name) FILTER (WHERE i.name IS NOT NULL) as ingredients
-                FROM recipe r
-                LEFT JOIN recipe_ingredient_quantities riq ON r.id = riq.recipe_id
-                LEFT JOIN ingredients i ON riq.ingredient_id = i.id
-                LEFT JOIN RecipeNutrition rn ON r.id = rn.recipe_id
-                WHERE r.user_id = :user_id
-                GROUP BY 
-                    r.id, 
-                    r.name, 
-                    r.description, 
-                    r.prep_time,
-                    r.created_date,
-                    rn.total_protein,
-                    rn.total_fat,
-                    rn.total_carbs
-                ORDER BY r.created_date DESC
-            """), {"user_id": current_user_id})
-
-            recipes = []
-            for row in result:
-                recipes.append({
-                    'id': row.id,
-                    'name': row.name,
-                    'description': row.description,
-                    'prep_time': row.prep_time,
-                    'ingredients': row.ingredients if row.ingredients else [],
-                    'total_nutrition': {
-                        'protein_grams': round(float(row.total_protein), 1),
-                        'fat_grams': round(float(row.total_fat), 1),
-                        'carbs_grams': round(float(row.total_carbs), 1)
-                    }
-                })
-
-            # Create response with proper CORS headers
-            response = jsonify({
-                'recipes': recipes,
-                'count': len(recipes)
-            })
-            
-            # Add CORS headers
-            response.headers.add('Access-Control-Allow-Origin', 'https://groshmebeta.netlify.app')
-            response.headers.add('Access-Control-Allow-Credentials', 'true')
-            response.headers.add('Access-Control-Allow-Headers', 'Content-Type,Authorization')
-            
-            return response
-
-    except Exception as e:
-        print(f"Error in get_all_recipes: {str(e)}")
-        return jsonify({
-            'error': str(e),
             'recipes': [],
             'count': 0
         }), 500
+
+
+
+
 
 
 from sqlalchemy import create_engine, text
@@ -3579,7 +3350,6 @@ def search():
 
     
 @app.route('/api/recipe/<int:recipe_id>', methods=['PUT'])
-@require_auth
 def update_recipe(recipe_id):
     try:
         data = request.json
@@ -3680,25 +3450,54 @@ def update_recipe(recipe_id):
         print(f"Error updating recipe: {str(e)}")
         return jsonify({'error': str(e)}), 500
     
+@app.route('/api/recipe/<int:recipe_id>', methods=['DELETE'])
+def delete_recipe(recipe_id):
+    try:
+        # Create connection to Supabase PostgreSQL
+        db_url = 'postgresql://postgres.bvgnlxznztqggtqswovg:RecipeFinder123!@aws-0-us-east-2.pooler.supabase.com:5432/postgres'
+        engine = create_engine(db_url, poolclass=NullPool)
 
+        with engine.connect() as connection:
+            # Start a transaction
+            with connection.begin():
+                # Delete recipe ingredient details first
+                connection.execute(
+                    text("DELETE FROM recipe_ingredient_details WHERE recipe_id = :recipe_id"),
+                    {"recipe_id": recipe_id}
+                )
+
+                # Delete recipe ingredient quantities and associated nutrition data
+                # PostgreSQL will handle cascade deletes for nutrition data
+                connection.execute(
+                    text("DELETE FROM recipe_ingredient_quantities WHERE recipe_id = :recipe_id"),
+                    {"recipe_id": recipe_id}
+                )
+
+                # Delete recipe from menus
+                connection.execute(
+                    text("DELETE FROM menu_recipe WHERE recipe_id = :recipe_id"),
+                    {"recipe_id": recipe_id}
+                )
+
+                # Delete the recipe itself
+                result = connection.execute(
+                    text("DELETE FROM recipe WHERE id = :recipe_id RETURNING id"),
+                    {"recipe_id": recipe_id}
+                )
+
+                if not result.rowcount:
+                    return jsonify({'error': 'Recipe not found'}), 404
+
+            return jsonify({'message': 'Recipe deleted successfully'}), 200
+
+    except Exception as e:
+        print(f"Error deleting recipe: {str(e)}")  # Debug logging
+        return jsonify({'error': str(e)}), 500
     
 
 @app.route('/api/recipe/<int:recipe_id>/ingredients/<int:ingredient_id>', methods=['DELETE'])
-@require_auth
 def delete_recipe_ingredient(recipe_id, ingredient_id):
     try:
-        
-        current_user_id = g.user_id
-        
-        # First verify user owns the recipe
-        recipe = Recipe.query.filter_by(
-            id=recipe_id, 
-            user_id=current_user_id
-        ).first()
-        
-        if not recipe:
-            return jsonify({'error': 'Recipe not found or unauthorized'}), 404
-        
         # Find the recipe-ingredient quantity association
         quantity = RecipeIngredientQuantity.query.filter_by(
             recipe_id=recipe_id,
@@ -4188,7 +3987,6 @@ def import_to_grocery_list():
     
 
 @app.route('/api/recipe-ingredient-details', methods=['POST'])
-@require_auth
 def add_recipe_ingredient_details():
     try:
         data = request.json
@@ -4237,7 +4035,6 @@ def delete_exercise_by_id(exercise_id):
         return jsonify({'error': str(e)}), 500
 
 @app.route('/api/recipe/<int:recipe_id>/ingredients', methods=['GET'])
-@require_auth
 def get_recipe_ingredients(recipe_id):
     try:
         # Create connection to Supabase PostgreSQL
@@ -4277,7 +4074,6 @@ def get_recipe_ingredients(recipe_id):
         }), 500
     
 @app.route('/api/recipe/<int:recipe_id>/ingredients/<int:ingredient_index>/nutrition', methods=['POST'])
-@require_auth
 def add_ingredient_nutrition(recipe_id, ingredient_index):
     try:
         data = request.json
@@ -4319,27 +4115,26 @@ def add_ingredient_nutrition(recipe_id, ingredient_index):
         print(f"Error adding nutrition info: {str(e)}")
         return jsonify({'error': str(e)}), 500
     
-# Delete Recipe (with user verification)
-@app.route('/api/recipe/<int:recipe_id>', methods=['DELETE'])
-@require_auth
-def delete_recipe(recipe_id):
+@app.route('/api/recipe/<int:recipe_id>', methods=['GET'])
+def get_recipe(recipe_id):
     try:
-        current_user_id = g.user_id
-        engine = create_engine(db_url, poolclass=NullPool)
-
+        # Create the database engine using Supabase credentials
+        db_url = 'postgresql://postgres.bvgnlxznztqggtqswovg:RecipeFinder123!@aws-0-us-east-2.pooler.supabase.com:5432/postgres'
+        engine = create_engine(db_url)
+        
         with engine.connect() as connection:
-            with connection.begin():
-                # First verify user owns this recipe
-                recipe_check = connection.execute(
-                    text("""
-                        SELECT id FROM recipe 
-                        WHERE id = :recipe_id AND user_id = :user_id
-                    """),
-                    {"recipe_id": recipe_id, "user_id": current_user_id}
-                ).fetchone()
-                
-                if not recipe_check:
-                    return jsonify({'error': 'Recipe not found or unauthorized'}), 404
+            # Get basic recipe information
+            recipe_result = connection.execute(
+                text("""
+                    SELECT id, name, description, instructions, prep_time, created_date
+                    FROM recipe
+                    WHERE id = :recipe_id
+                """),
+                {"recipe_id": recipe_id}
+            ).first()
+            
+            if not recipe_result:
+                return jsonify({'error': 'Recipe not found'}), 404
             
             # Get ingredients with their quantities and units
             ingredients_result = connection.execute(
@@ -4419,7 +4214,6 @@ def delete_recipe(recipe_id):
         return jsonify({'error': str(e)}), 500
 
 @app.route('/api/recipe/<int:recipe_id>/nutrition', methods=['GET'])
-@require_auth
 def get_recipe_nutrition(recipe_id):
     try:
         with db.engine.connect() as connection:
@@ -5103,7 +4897,6 @@ def get_income_entries():
 def create_income_entry():
     try:
         data = request.json
-        current_user_id = get_current_user()  # Get current user's ID
         print("Received data for income entry:", data)
         print("Subaccount status:", data.get('is_subaccount'), "Parent ID:", data.get('parent_id'))
         
@@ -5608,5 +5401,5 @@ def upgrade_database():
 
      
 if __name__ == '__main__':
-    port = int(os.getenv('PORT', 5000))
+    port = int(os.environ.get('PORT', 5000))
     app.run(host='0.0.0.0', port=port)

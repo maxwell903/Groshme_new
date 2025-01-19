@@ -68,7 +68,7 @@ const AddIncomeModal = ({ isOpen, onClose, onSubmit, initialData = null, entries
   const validateForm = () => {
     const newErrors = {};
     if (!formData.title.trim()) newErrors.title = 'Title is required';
-    if (!formData.amount || formData.amount < 0) newErrors.amount = 'Valid amount is required';
+    if (!formData.amount || formData.amount <= 0) newErrors.amount = 'Valid amount is required';
     
     if (formData.is_recurring) {
       if (!formData.start_date) newErrors.start_date = 'Start date is required';
@@ -101,7 +101,7 @@ const AddIncomeModal = ({ isOpen, onClose, onSubmit, initialData = null, entries
       <div className="bg-white p-6 rounded-lg shadow-xl w-full max-w-md">
         <div className="flex justify-between items-center mb-4">
           <h2 className="text-xl font-semibold">
-            {initialData ? 'Edit Budget Entry' : 'Add New Budget'}
+            {initialData ? 'Edit Income Entry' : 'Add New Income'}
           </h2>
           <button onClick={onClose} className="text-gray-500 hover:text-gray-700">
             <X size={24} />
@@ -166,7 +166,7 @@ const AddIncomeModal = ({ isOpen, onClose, onSubmit, initialData = null, entries
               value={formData.title}
               onChange={(e) => setFormData({ ...formData, title: e.target.value })}
               className="w-full border rounded-md p-2"
-              placeholder="e.g., Monthly Budget, Groceries, Expenses"
+              placeholder="e.g., Salary, Freelance Work"
             />
             {errors.title && <p className="text-red-500 text-sm mt-1">{errors.title}</p>}
           </div>
@@ -880,7 +880,7 @@ export default function MyBills() {
     <div className="min-h-screen bg-gray-50 p-4">
       <div className="max-w-6xl mx-auto">
   <div className="flex justify-between items-center mb-6">
-    <h1 className="text-2xl font-bold">Fayes Budget Management</h1>
+    <h1 className="text-2xl font-bold">Faye's Budget Management</h1>
     <div className="flex items-center gap-4">
     <button
     onClick={() => setShowBudgetSaveModal(true)}

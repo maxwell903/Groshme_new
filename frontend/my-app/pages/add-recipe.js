@@ -35,9 +35,7 @@ const RecipeNavigation = ({ activePage }) => {
   );
 };
 
-
 const AddRecipe = () => {
-  const session = useSession();
   const router = useRouter();
   const [backPath, setBackPath] = useState('/');
   const [recipe, setRecipe] = useState({
@@ -64,13 +62,12 @@ const AddRecipe = () => {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${session?.access_token}`
         },
         body: JSON.stringify({
           name: recipe.name,
           description: recipe.description,
           instructions: recipe.instructions,
-          prep_time: parseInt(recipe.prep_time),
+          prep_time: recipe.prep_time,
           ingredients: recipe.ingredients.map(ingredient => ({
             name: ingredient.name,
             quantity: parseFloat(ingredient.quantity),
@@ -83,8 +80,7 @@ const AddRecipe = () => {
         throw new Error('Failed to add recipe');
       }
 
-      const data = await response.json();
-      router.push(`/recipe/${data.recipe_id}`);
+      router.push('/');
     } catch (err) {
       setError(err.message);
     } finally {
