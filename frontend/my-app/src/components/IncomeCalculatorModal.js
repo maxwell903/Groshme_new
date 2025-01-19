@@ -96,30 +96,24 @@ const IncomeCalculatorModal = ({ isOpen, onClose, onSubmit }) => {
     setIsSubmitting(true);
 
     try {
-      // First, clear any existing salary
-      await fetch('https://groshmebeta-05487aa160b2.herokuapp.com/api/real-salary', {
-        method: 'DELETE',
-      });
-
-      // Then add the new salary
+      // Add the new salary
       const response = await fetch('https://groshmebeta-05487aa160b2.herokuapp.com/api/real-salary', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Accept': 'application/json'
         },
         body: JSON.stringify({
           amount: parseFloat(amount),
-          frequency: frequency
+          frequency
         }),
       });
 
-      const data = await response.json();
-      
       if (!response.ok) {
-        throw new Error(data.error || 'Failed to save salary');
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Failed to save salary');
       }
 
+      const data = await response.json();
       onSubmit(data.salary);
       onClose();
     } catch (error) {
@@ -129,6 +123,7 @@ const IncomeCalculatorModal = ({ isOpen, onClose, onSubmit }) => {
       setIsSubmitting(false);
     }
   };
+
 
   if (!isOpen) return null;
 

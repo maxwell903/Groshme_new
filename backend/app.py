@@ -28,13 +28,30 @@ from werkzeug.utils import secure_filename
 
 app = Flask(__name__)
 CORS(app, resources={
-    r"/api/*": {
-        "origins": ["http://localhost:3000", "https://groshmebeta.netlify.app", "https://groshmebeta-05487aa160b2.herokuapp.com", "https://groshmebeta.netlify.app"],
-        "methods": ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
-        "allow_headers": ["Content-Type", "Authorization", "Accept"],
-        "supports_credentials": True
+    r"/*": {  # Change from /api/* to /* to catch all routes
+        "origins": [
+            "http://localhost:3000",
+            "https://groshmebeta.netlify.app",
+            "https://groshmebeta-05487aa160b2.herokuapp.com"
+        ],
+        "methods": ["GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"],
+        "allow_headers": ["Content-Type", "Authorization", "Access-Control-Allow-Origin"],
+        "supports_credentials": True,
+        "expose_headers": ["Access-Control-Allow-Origin"],
+        "max_age": 600
     }
 })
+
+@app.after_request
+def after_request(response):
+    origin = request.headers.get('Origin')
+    if origin in ["http://localhost:3000", "https://groshmebeta.netlify.app", 
+                 "https://groshmebeta-05487aa160b2.herokuapp.com"]:
+        response.headers.add('Access-Control-Allow-Origin', origin)
+    response.headers.add('Access-Control-Allow-Headers', 'Content-Type,Authorization')
+    response.headers.add('Access-Control-Allow-Methods', 'GET,PUT,POST,DELETE,OPTIONS,PATCH')
+    response.headers.add('Access-Control-Allow-Credentials', 'true')
+    return response
 
 # Supabase PostgreSQL connection
 SUPABASE_URL = 'https://bvgnlxznztqggtqswovg.supabase.co'
@@ -107,12 +124,7 @@ if not os.path.exists(UPLOAD_FOLDER):
 def allowed_file(filename):
     return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
 
-@app.after_request
-def after_request(response):
-    response.headers.add('Access-Control-Allow-Origin', '*')
-    response.headers.add('Access-Control-Allow-Headers', 'Content-Type,Authorization')
-    response.headers.add('Access-Control-Allow-Methods', 'GET,PUT,POST,DELETE,OPTIONS')
-    return response
+
 
 
 class MealPrepWeek(db.Model):
@@ -332,7 +344,169 @@ def test_exercises_table():
             'error_type': type(e).__name__
         }), 500
 
+@app.route('/api/real-salary', methods=['GET', 'POST', 'OPTIONS'])
+def handle_real_salary():
+    if request.method == 'OPTIONS':
+        response = jsonify({'status': 'ok'})
+        origin = request.headers.get('Origin')
+        if origin in ["http://localhost:3000", "https://groshmebeta.netlify.app"]:
+            response.headers['Access-Control-Allow-Origin'] = origin
+        response.headers['Access-Control-Allow-Methods'] = 'GET, POST, OPTIONS'
+        response.headers['Access-Control-Allow-Headers'] = 'Content-Type'
+        return response
 
+    try:
+        if request.method == 'POST':
+            data = request.json
+            engine = create_engine(db_url, poolclass=NullPool)
+            
+            with engine.connect() as connection:
+                # Delete all existing records
+                connection.execute(text("DELETE FROM real_salary"))
+                
+                # Insert new salary record
+                result = connection.execute(
+                    text("""
+                        INSERT INTO real_salary (amount, frequency)
+                        VALUES (:amount, :frequency)
+                        RETURNING id, amount, frequency
+                    """),
+                    {
+                        "amount": float(data['amount']),
+                        "frequency": data['frequency']
+                    }
+                )
+                
+                salary = result.fetchone()
+                connection.commit()
+                
+                return jsonify({
+                    'salary': {
+                        'id': salary.id,
+                        'amount': float(salary.amount),
+                        'frequency': salary.frequency
+                    }
+                })
+        else:
+            # GET request
+            engine = create_engine(db_url, poolclass=NullPool)
+            with engine.connect() as connection:
+                result = connection.execute(
+                    text("SELECT id, amount, frequency FROM real_salary ORDER BY created_at DESC LIMIT 1")
+                )
+                salary = result.fetchone()
+                
+                return jsonify({
+                    'salary': {
+                        'id': salary.id,
+                        'amount': float(salary.amount),
+                        'frequency': salary.frequency
+                    } if salary else None
+                })
+                
+    except Exception as e:
+        print(f"Error handling salary: {str(e)}")
+        return jsonify({'error': str(e)}), 500
+    
+@app.route('/api/real-salary', methods=['DELETE'])
+def delete_real_salary():
+    try:
+        engine = create_engine(db_url, poolclass=NullPool)
+        with engine.connect() as connection:
+            connection.execute(text("DELETE FROM real_salary"))
+            connection.commit()
+            return jsonify({'message': 'Salary deleted successfully'})
+    except Exception as e:
+        print(f"Error deleting salary: {str(e)}")
+        return jsonify({'error': str(e)}), 500
+    
+
+
+@app.route('/api/real-salary', methods=['POST'])
+def create_real_salary():
+    try:
+        data = request.json
+        engine = create_engine(db_url, poolclass=NullPool)
+        
+        with engine.connect() as connection:
+            # First delete any existing entries
+            connection.execute(text("DELETE FROM real_salary"))
+            
+            # Insert new salary
+            result = connection.execute(
+                text("""
+                    INSERT INTO real_salary (amount, frequency)
+                    VALUES (:amount, :frequency)
+                    RETURNING id, amount, frequency
+                """),
+                {
+                    "amount": float(data['amount']),
+                    "frequency": data['frequency']
+                }
+            )
+            
+            salary = result.fetchone()
+            connection.commit()
+            
+            return jsonify({
+                'salary': {
+                    'id': salary.id,
+                    'amount': float(salary.amount),
+                    'frequency': salary.frequency
+                }
+            })
+            
+    except Exception as e:
+        print(f"Error creating salary: {str(e)}")
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/api/real-salary/calculate', methods=['GET'])
+def calculate_salary():
+    try:
+        engine = create_engine(db_url, poolclass=NullPool)
+        with engine.connect() as connection:
+            result = connection.execute(
+                text("SELECT amount, frequency FROM real_salary ORDER BY created_at DESC LIMIT 1")
+            )
+            salary = result.fetchone()
+            
+            if not salary:
+                return jsonify({'error': 'No salary found'}), 404
+            
+            amount = float(salary.amount)
+            frequency = salary.frequency
+            
+            calculations = {}
+            if frequency == 'weekly':
+                calculations = {
+                    'weekly': amount,
+                    'monthly': amount * 52 / 12,
+                    'yearly': amount * 52
+                }
+            elif frequency == 'biweekly':
+                calculations = {
+                    'weekly': amount / 2,
+                    'monthly': amount * 26 / 12,
+                    'yearly': amount * 26
+                }
+            elif frequency == 'monthly':
+                calculations = {
+                    'weekly': amount * 12 / 52,
+                    'monthly': amount,
+                    'yearly': amount * 12
+                }
+            elif frequency == 'yearly':
+                calculations = {
+                    'weekly': amount / 52,
+                    'monthly': amount / 12,
+                    'yearly': amount
+                }
+            
+            return jsonify({'calculations': calculations})
+            
+    except Exception as e:
+        print(f"Error calculating salary: {str(e)}")
+        return jsonify({'error': str(e)}), 500
 
 @app.route('/health', methods=['GET'])
 def health_check():
