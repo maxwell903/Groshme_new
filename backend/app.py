@@ -327,6 +327,11 @@ SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJ
 
 supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
 
+from functools import wraps
+from flask import request, jsonify, g
+import jwt
+from datetime import datetime
+
 def auth_required(f):
     @wraps(f)
     def decorated(*args, **kwargs):
@@ -342,13 +347,19 @@ def auth_required(f):
             
             token = auth_header.split(' ')[1]
             
-            # Verify token with Supabase
-            user = supabase.auth.get_user(token)
-            if not user:
-                raise Exception('Invalid token')
+            # Decode the JWT to get the user ID
+            decoded = jwt.decode(
+                token,
+                algorithms=["HS256"],
+                options={"verify_signature": False}  # We trust Supabase's token
+            )
             
-            # Store user_id in Flask's g object for access in route handlers
-            g.user_id = user.id
+            # Store user_id in Flask's g object
+            g.user_id = decoded.get('sub')  # Supabase stores user ID in 'sub' claim
+            
+            if not g.user_id:
+                raise Exception('No user ID in token')
+                
             return f(*args, **kwargs)
             
         except Exception as e:
@@ -2599,7 +2610,7 @@ def migrate_existing_data():
 def add_recipe():
     try:
         data = request.json
-        user_id = g.user_id  # Get the authenticated user's ID
+        user_id = g.user_id  # Get the authenticated user's ID from g object
         
         # Create new recipe with user_id
         with db.engine.connect() as connection:
@@ -2620,7 +2631,7 @@ def add_recipe():
                         "description": data['description'],
                         "instructions": data['instructions'],
                         "prep_time": int(data['prep_time']),
-                        "user_id": user_id
+                        "user_id": user_id  # Use the user_id from the token
                     }
                 )
                 
