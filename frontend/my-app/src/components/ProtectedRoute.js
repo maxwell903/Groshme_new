@@ -1,5 +1,5 @@
 import { useRouter } from 'next/router';
-import { useAuth } from './contexts/AuthContext';
+import { useAuth } from '../contexts/AuthContext';
 const API_URL = process.env.NEXT_PUBLIC_API_URL
 
 export default function ProtectedRoute({ children }) {
