@@ -354,17 +354,58 @@ const EmailToMyselfButton = () => {
 
 
 export default function Home() {
-  const { user, loadings } = useAuth();
-  if (loadings) {
+  const router = useRouter();
+  const { user } = useAuth();
+  const [homeData, setHomeData] = useState({
+    total_recipes: 0,
+    latest_recipes: []
+  });
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+  const [showFormatterModal, setShowFormatterModal] = useState(false);
+  const [showGroceryFormatterModal, setShowGroceryFormatterModal] = useState(false);
+
+  useEffect(() => {
+    const fetchData = async () => {
+      if (!user) {
+        router.push('/signin');
+        return;
+      }
+
+      try {
+        setLoading(true);
+        const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/home-data`);
+        const data = await response.json();
+        setHomeData(data);
+      } catch (error) {
+        console.error('Error:', error);
+        setError(error.message);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchData();
+  }, [user, router]);
+
+  if (loading) {
     return (
       <div className="flex h-screen items-center justify-center">
-        <div className="text-lg">Loading...</div>
+        <div className="rounded-lg bg-white p-8 shadow-lg">
+          <p className="text-gray-600">Loading recipes...</p>
+        </div>
       </div>
-    )
+    );
   }
 
-  if (!user) {
-    return null // or redirect to login
+  if (error) {
+    return (
+      <div className="flex h-screen items-center justify-center">
+        <div className="rounded-lg bg-red-100 p-8 text-red-700">
+          {error}
+        </div>
+      </div>
+    );
   }
 
 
@@ -396,50 +437,7 @@ export default function Home() {
     }
   }
 
-  
-  const router = useRouter();
-  const [homeData, setHomeData] = useState({
-    total_recipes: 0,
-    latest_recipes: []
-  });
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(null);
 
-  useEffect(() => {
-    const fetchData = async () => {
-      try {
-        setLoading(true);
-        const data = await fetchApi('/api/home-data');
-        console.log('Fetched data:', data); // Debug log
-        setHomeData(data);
-      } catch (error) {
-        console.error('Error:', error);
-        setError(error.message);
-      } finally {
-        setLoading(false);
-      }
-    };
-  
-    fetchData();
-  }, []);
-
-  if (loading) {
-    return (
-      <div className="flex h-screen items-center justify-center">
-        <div className="rounded-lg bg-white p-8 shadow-lg">
-          <p className="text-gray-600">Loading recipes...</p>
-        </div>
-      </div>
-    );
-  }
-
-
-
-
-    
-  
-
-  
 
   return (
     <div className="min-h-screen bg-gray-50">
