@@ -1,7 +1,7 @@
 // Updated search.js
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
-import { fetchApi, API_URL } from '@/utils/api';
+const API_URL = process.env.NEXT_PUBLIC_API_URL
 
 export default function Search() {
   const [ingredientInput, setIngredientInput] = useState('');

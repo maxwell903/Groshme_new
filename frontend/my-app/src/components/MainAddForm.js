@@ -5,7 +5,7 @@ import { ChevronDown, ChevronUp, Plus, X } from 'lucide-react';
 import InventoryRow from './InventoryRow';  // Import from separate file
 import { ReceiptUploadModal, GroceryListModal } from './InventoryModals';
 import { useFilteredInventory, useGroceryListItems, renderFilterButtons } from './InventoryUtils';
-import { fetchApi, API_URL } from '@/utils/api';
+const API_URL = process.env.NEXT_PUBLIC_API_URL
 
 const MainAddForm = ({ newItem, setNewItem, handleManualAdd }) => (
   <form onSubmit={handleManualAdd} className="grid grid-cols-3 gap-4">

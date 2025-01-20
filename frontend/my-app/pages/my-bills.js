@@ -7,6 +7,7 @@ import TransactionEditModal from '@/components/TransactionEditModal';
 import OneTimeIncomeModal from '@/components/OneTimeIncomeModal';
 import BudgetSummaryCard from '@/components/BudgetSummaryCard';
 import BudgetSaveModal from '@/components/BudgetSaveModal';
+const API_URL = process.env.NEXT_PUBLIC_API_URL
 
 
 

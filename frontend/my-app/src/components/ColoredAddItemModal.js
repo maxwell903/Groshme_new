@@ -1,6 +1,7 @@
 // Create a new file: src/components/ColoredAddItemModal.js
 
 import React, { useState, useEffect } from 'react';
+const API_URL = process.env.NEXT_PUBLIC_API_URL
 
 const ColoredAddItemModal = ({ 
   isOpen, 

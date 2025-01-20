@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { Check } from 'lucide-react';
-import { fetchApi, API_URL } from '@/utils/api';
+const API_URL = process.env.NEXT_PUBLIC_API_URL
 
 const GroceryListFormatter = ({ onFormat, onClose }) => {
   const [groceryLists, setGroceryLists] = useState([]);

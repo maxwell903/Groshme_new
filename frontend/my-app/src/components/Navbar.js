@@ -1,5 +1,6 @@
 import React from 'react';
 import { Link } from "react-router-dom";
+const API_URL = process.env.NEXT_PUBLIC_API_URL
 
 const Navbar = () => {
   return (

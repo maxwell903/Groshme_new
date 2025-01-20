@@ -5,7 +5,10 @@ import { Card, CardHeader, CardTitle, CardContent } from './ui/cards';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, AreaChart, Area } from 'recharts';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { TrendingUp, TrendingDown, PieChart, Calendar } from 'lucide-react';
+
 import _ from 'lodash';
+
+const API_URL = process.env.NEXT_PUBLIC_API_URL
 
 const BudgetHistoryStats = ({ currentBudgetData }) => {
   const [budgetRegisters, setBudgetRegisters] = useState([]);

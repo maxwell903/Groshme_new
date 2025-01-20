@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { Calendar, Plus, Edit2, X } from 'lucide-react';
 import TransactionEditModal from '@/components/TransactionEditModal';
 import OneTimeIncomeModal from '@/components/OneTimeIncomeModal';
+const API_URL = process.env.NEXT_PUBLIC_API_URL
 
 const IncomeEntry = ({ entry, onEdit, onDelete, onTransactionsUpdate }) => {
   const [showTransactionModal, setShowTransactionModal] = useState(false);

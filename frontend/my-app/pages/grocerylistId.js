@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { ChevronDown, ChevronUp, Plus, Edit, Trash, X, Check, Layers } from 'lucide-react';
 import { useRouter } from 'next/router';
 import Link from 'next/link';
-import { fetchApi, API_URL } from '@/utils/api';
+const API_URL = process.env.NEXT_PUBLIC_API_URL
 
 // Modal Components
 const RecipeSelectionModal = ({ listId, onClose, onSelect }) => {

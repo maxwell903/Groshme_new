@@ -1,6 +1,7 @@
 import { useEffect } from 'react';
 import { useRouter } from 'next/router';
 import { supabase } from '../lib/supabaseClient';
+const API_URL = process.env.NEXT_PUBLIC_API_URL
 
 const EmailConfirmation = () => {
   const router = useRouter();

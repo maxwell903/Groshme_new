@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { X, Save } from 'lucide-react';
 import { fetchApi } from '@/utils/api';
+const API_URL = process.env.NEXT_PUBLIC_API_URL
 
 const BudgetSaveModal = ({ 
   isOpen, 

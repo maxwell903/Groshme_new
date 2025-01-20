@@ -3,7 +3,7 @@ import { useRouter } from 'next/router';
 import { ChevronLeft, ChevronRight, Plus, X } from 'lucide-react';
 import SetsModal from './SetsModal';
 import DaySelectionModal from './DaySelectionModal'; // Add this import
-import { fetchApi, API_URL } from '@/utils/api';
+const API_URL = process.env.NEXT_PUBLIC_API_URL
 
 const ExerciseCard = ({ exercise }) => {
   

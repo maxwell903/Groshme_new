@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
+const API_URL = process.env.NEXT_PUBLIC_API_URL
 
 const NutritionModal = ({ 
   isOpen, 

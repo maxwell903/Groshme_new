@@ -1,5 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Card, CardHeader, CardTitle, CardContent } from './ui/cards';
+const API_URL = process.env.NEXT_PUBLIC_API_URL
+
 import { 
   Calendar, 
   ChevronRight, 

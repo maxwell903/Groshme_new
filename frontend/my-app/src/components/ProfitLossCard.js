@@ -1,5 +1,6 @@
 import React, { useState, useMemo } from 'react';
 import { DollarSign, ArrowRight } from 'lucide-react';
+const API_URL = process.env.NEXT_PUBLIC_API_URL
 
 const ProfitLossCard = ({ summaryData }) => {
   const [timeframe, setTimeframe] = useState('monthly');

@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { X } from 'lucide-react';
+const API_URL = process.env.NEXT_PUBLIC_API_URL
 
 const TransactionEditModal = ({ isOpen, onClose, transactions = [], onSave }) => {
   const [selectedTransactions, setSelectedTransactions] = useState(new Set());

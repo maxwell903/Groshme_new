@@ -1,5 +1,6 @@
 import React, { useState, useMemo } from 'react';
 import { X, Loader2 } from 'lucide-react';
+const API_URL = process.env.NEXT_PUBLIC_API_URL
 
 const IncomeCalculatorModal = ({ isOpen, onClose, onSubmit }) => {
   const [amount, setAmount] = useState('');

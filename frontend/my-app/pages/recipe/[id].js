@@ -4,7 +4,7 @@ import { useRouter } from 'next/router';
 import Link from 'next/link';
 import NutritionModal from '@/components/NutritionModal';
 import { ChevronDown, ChevronUp, Plus, Edit, Trash, X, Check } from 'lucide-react';
-import { fetchApi, API_URL } from '@/utils/api';
+const API_URL = process.env.NEXT_PUBLIC_API_URL
 
 const NavigationBar = () => {
   const router = useRouter();

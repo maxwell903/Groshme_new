@@ -6,7 +6,7 @@ import ExerciseDisplay from '../src/components/ExerciseDisplay';
 import WorkoutDisplay from '../src/components/WorkoutDisplay';
 import { Calendar } from 'lucide-react';
 import NutritionSummary from '@/components/NutritionModal';
-import { fetchApi, API_URL } from '@/utils/api';
+const API_URL = process.env.NEXT_PUBLIC_API_URL
 
 
 const SearchableRecipeSelector = ({ isOpen, onClose, onSelect, mealType }) => {

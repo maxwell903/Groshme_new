@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { Plus, X, Search, ChevronDown, ChevronUp } from 'lucide-react';
-import { fetchApi, API_URL } from '@/utils/api';
+const API_URL = process.env.NEXT_PUBLIC_API_URL
 
 // Exercise search modal component
 const ExerciseSearchModal = ({ isOpen, onClose, onSubmit }) => {

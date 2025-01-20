@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/router';
 import Link from 'next/link';
 import { Trash, X, Edit, ArrowLeft } from 'lucide-react';
-import { API_URL } from '@/utils/api';
+const API_URL = process.env.NEXT_PUBLIC_API_URL
 import EditExerciseModal from '@/components/EditExerciseModal';
 
 const ExerciseDetailsPage = () => {

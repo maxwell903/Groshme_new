@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { ChevronDown, ChevronUp, Plus, Edit, Trash, X } from 'lucide-react';
-import { fetchApi, API_URL } from '@/utils/api';
+const API_URL = process.env.NEXT_PUBLIC_API_URL
 
 const ExerciseSearch = ({ onSelect, onClose }) => {
   const [searchTerm, setSearchTerm] = useState('');

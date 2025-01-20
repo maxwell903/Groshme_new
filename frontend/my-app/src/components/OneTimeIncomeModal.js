@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { X } from 'lucide-react';
+const API_URL = process.env.NEXT_PUBLIC_API_URL
 
 const OneTimeIncomeModal = ({ isOpen, onClose, onSubmit }) => {
   const [formData, setFormData] = useState({

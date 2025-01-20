@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { ChevronDown, ChevronUp, Plus, Edit, Trash, Search } from 'lucide-react';
-import { fetchApi, API_URL } from '@/utils/api';
+const API_URL = process.env.NEXT_PUBLIC_API_URL
 
 const WorkoutCard = ({ workout, onDelete, onAddExercise }) => {
   const [isExpanded, setIsExpanded] = useState(false);

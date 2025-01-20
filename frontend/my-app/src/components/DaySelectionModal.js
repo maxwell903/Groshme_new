@@ -1,5 +1,6 @@
 import React from 'react';
 import { X } from 'lucide-react';
+const API_URL = process.env.NEXT_PUBLIC_API_URL
 
 const DaySelectionModal = ({ isOpen, onClose, onDaySelect }) => {
   if (!isOpen) return null;

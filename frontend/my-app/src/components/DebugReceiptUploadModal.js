@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { X, Upload, Clipboard, FileText } from 'lucide-react';
-import { fetchApi, API_URL } from '@/utils/api';
+const API_URL = process.env.NEXT_PUBLIC_API_URL
+
 
 const DebugReceiptUploadModal = ({ isOpen, onClose, onUpload }) => {
   const [receiptText, setReceiptText] = useState('');

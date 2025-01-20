@@ -2,7 +2,7 @@ import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { useRouter } from 'next/router';
 import Link from 'next/link';
 import { ChevronDown, ChevronUp, Plus, X } from 'lucide-react';
-import { fetchApi, API_URL } from '@/utils/api';
+const API_URL = process.env.NEXT_PUBLIC_API_URL
 
 // Helper component for inventory rows
 const InventoryRow = React.memo(({ item, isEven, onUpdate }) => {

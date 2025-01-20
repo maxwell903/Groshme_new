@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { X, Loader } from 'lucide-react';
-import { API_URL } from '@/utils/api';
+const API_URL = process.env.NEXT_PUBLIC_API_URL
 
 const SetsModal = ({ exercise, isOpen, onClose }) => {
   const [sets, setSets] = useState([]);

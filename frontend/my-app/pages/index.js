@@ -5,7 +5,8 @@ import Link from 'next/link';
 import { useRouter } from 'next/router';
 import { Plus, X, Search, ChevronDown, ChevronUp, Check } from 'lucide-react';
 import { supabase } from '../src/lib/supabaseClient'
-import { fetchApi, API_URL } from '@/utils/api';
+import { fetchApi} from '@/utils/api';
+const API_URL = process.env.NEXT_PUBLIC_API_URL
 
 import emailjs from '@emailjs/browser';
 

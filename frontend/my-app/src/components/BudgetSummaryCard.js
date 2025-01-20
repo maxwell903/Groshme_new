@@ -2,6 +2,7 @@ import React, { useState, useMemo, useEffect } from 'react';
 import { Clock, Plus } from 'lucide-react';
 import IncomeCalculatorModal from './IncomeCalculatorModal';
 import ProfitLossCard from './ProfitLossCard';
+const API_URL = process.env.NEXT_PUBLIC_API_URL
 
 
 const AverageIncomeCard = ({ averageIncome, summaryData, isLoading, timeframe, onTimeframeChange }) => {
