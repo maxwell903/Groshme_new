@@ -3598,39 +3598,7 @@ def search():
         return jsonify({'error': str(e), 'results': [], 'count': 0}), 500
     
 
-@app.route('/api/recipe/<int:recipe_id>', methods=['GET', 'PUT', 'DELETE'])
-@auth_required
-def manage_recipe(recipe_id):
-    try:
-        # Get recipe and verify ownership
-        recipe = Recipe.query.filter_by(
-            id=recipe_id, 
-            user_id=g.user_id
-        ).first_or_404()
-        
-        if request.method == 'GET':
-            return jsonify(recipe.to_dict())
-            
-        elif request.method == 'PUT':
-            data = request.json
-            recipe.name = data['name']
-            recipe.description = data['description']
-            recipe.instructions = data['instructions']
-            recipe.prep_time = data['prep_time']
-            
-            # Update ingredients...
-            
-            db.session.commit()
-            return jsonify({'message': 'Recipe updated successfully'})
-            
-        elif request.method == 'DELETE':
-            db.session.delete(recipe)
-            db.session.commit()
-            return jsonify({'message': 'Recipe deleted successfully'})
-            
-    except Exception as e:
-        db.session.rollback()
-        return jsonify({'error': str(e)}), 500
+
 
     
 @app.route('/api/recipe/<int:recipe_id>', methods=['PUT'])
@@ -4399,31 +4367,42 @@ def add_ingredient_nutrition(recipe_id, ingredient_index):
         print(f"Error adding nutrition info: {str(e)}")
         return jsonify({'error': str(e)}), 500
     
+import traceback  # Make sure this is imported at the top of your file
+
 @app.route('/api/recipe/<int:recipe_id>', methods=['GET'])
 @auth_required
 def get_recipe(recipe_id):
     try:
         # Use the authenticated user's ID from g object
         user_id = g.user_id
+        print(f"Fetching recipe {recipe_id} for user {user_id}")  # Debug print
         
         # Create the database engine using Supabase credentials
-        db_url = 'postgresql://postgres.bvgnlxznztqggtqswovg:RecipeFinder123!@aws-0-us-east-2.pooler.supabase.com:5432/postgres'
-        engine = create_engine(db_url)
+        engine = create_engine(db_url, poolclass=NullPool)
         
         with engine.connect() as connection:
+            # Debugging: Print out the SQL query and parameters
+            recipe_ownership_query = text("""
+                SELECT id FROM recipe 
+                WHERE id = :recipe_id AND user_id = :user_id
+            """)
+            
+            print(f"Checking recipe ownership query: {recipe_ownership_query}")
+            print(f"Query parameters: recipe_id={recipe_id}, user_id={user_id}")
+            
             # First, verify the recipe belongs to the authenticated user
             recipe_ownership = connection.execute(
-                text("""
-                    SELECT id FROM recipe 
-                    WHERE id = :recipe_id AND user_id = :user_id
-                """),
+                recipe_ownership_query,
                 {
                     "recipe_id": recipe_id,
                     "user_id": user_id
                 }
             ).fetchone()
             
+            print(f"Recipe ownership result: {recipe_ownership}")
+            
             if not recipe_ownership:
+                print(f"No recipe found for id {recipe_id} and user {user_id}")
                 return jsonify({'error': 'Recipe not found or unauthorized'}), 404
             
             # Get basic recipe information
@@ -4431,10 +4410,15 @@ def get_recipe(recipe_id):
                 text("""
                     SELECT id, name, description, instructions, prep_time, created_date
                     FROM recipe
-                    WHERE id = :recipe_id
+                    WHERE id = :recipe_id AND user_id = :user_id
                 """),
-                {"recipe_id": recipe_id}
+                {
+                    "recipe_id": recipe_id,
+                    "user_id": user_id
+                }
             ).first()
+            
+            print(f"Recipe result: {recipe_result}")
             
             if not recipe_result:
                 return jsonify({'error': 'Recipe not found'}), 404
@@ -4514,8 +4498,23 @@ def get_recipe(recipe_id):
             return jsonify(recipe_data)
             
     except Exception as e:
-        print(f"Error fetching recipe: {str(e)}")
-        return jsonify({'error': str(e)}), 500
+        print("Full error details:")
+        print("Error Type:", type(e).__name__)
+        print("Error Message:", str(e))
+        
+        # Print full traceback
+        print("Traceback:")
+        traceback.print_exc()
+        
+        # If there's a database-specific error, print more details
+        if hasattr(e, 'orig'):
+            print("Original DB Error:", e.orig)
+        
+        return jsonify({
+            'error': 'Internal server error',
+            'details': str(e),
+            'error_type': type(e).__name__
+        }), 500
 
 @app.route('/api/recipe/<int:recipe_id>/nutrition', methods=['GET'])
 def get_recipe_nutrition(recipe_id):
