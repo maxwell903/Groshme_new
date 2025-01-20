@@ -30,13 +30,12 @@ app = Flask(__name__)
 # Simplified CORS configuration
 CORS(app, resources={
     r"/api/*": {
-        "origins": ["https://groshmebeta.netlify.app"],
+        "origins": ["https://groshmebeta.netlify.app", "http://localhost:3000"],
         "methods": ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
         "allow_headers": ["Content-Type", "Authorization"],
         "expose_headers": ["Content-Range", "X-Content-Range"]
     }
 })
-
 
 def auth_required(f):
     @wraps(f)
@@ -44,14 +43,18 @@ def auth_required(f):
         auth_header = request.headers.get('Authorization')
         
         if not auth_header:
+            print("No authorization header found")  # Debug log
             return jsonify({'error': 'No authorization header'}), 401
             
         try:
             # Extract token
+            if not auth_header.startswith('Bearer '):
+                print("Invalid token format")  # Debug log
+                return jsonify({'error': 'Invalid token format'}), 401
+                
             token = auth_header.replace('Bearer ', '')
             
-            # Verify token with Supabase JWT
-            # Decode the JWT to get the user ID
+            # Decode and verify token
             decoded = jwt.decode(
                 token,
                 algorithms=["HS256"],
@@ -60,14 +63,24 @@ def auth_required(f):
             
             # Store user_id in Flask's g object
             g.user_id = decoded.get('sub')  # Supabase stores user ID in 'sub' claim
+            print(f"Authenticated user_id: {g.user_id}")  # Debug log
             
             return f(*args, **kwargs)
             
         except Exception as e:
-            print(f"Auth error: {str(e)}")
+            print(f"Auth error: {str(e)}")  # Debug log
             return jsonify({'error': 'Invalid token'}), 401
             
     return decorated
+
+# Add this route to handle OPTIONS preflight requests
+@app.route('/api/recipe', methods=['OPTIONS'])
+def handle_recipe_options():
+    response = jsonify({'status': 'ok'})
+    response.headers.add('Access-Control-Allow-Origin', '*')
+    response.headers.add('Access-Control-Allow-Headers', 'Content-Type,Authorization')
+    response.headers.add('Access-Control-Allow-Methods', 'POST,OPTIONS')
+    return response
 
 @app.errorhandler(Exception)
 def handle_error(error):
@@ -2605,16 +2618,16 @@ def migrate_existing_data():
     Recipe.query.filter_by(user_id=None).update({'user_id': default_user_id})
     db.session.commit()
 
+
 @app.route('/api/recipe', methods=['POST'])
 @auth_required
 def add_recipe():
     try:
         data = request.json
-        user_id = g.user_id  # Get the authenticated user's ID from g object
+        user_id = g.user_id  # Get the authenticated user's ID
+        print(f"Creating recipe for user: {user_id}")  # Debug log
         
-        # Create new recipe with user_id
         with db.engine.connect() as connection:
-            # Start a transaction
             with connection.begin():
                 result = connection.execute(
                     text("""
@@ -2631,15 +2644,15 @@ def add_recipe():
                         "description": data['description'],
                         "instructions": data['instructions'],
                         "prep_time": int(data['prep_time']),
-                        "user_id": user_id  # Use the user_id from the token
+                        "user_id": user_id
                     }
                 )
                 
                 recipe_id = result.fetchone()[0]
+                print(f"Created recipe with ID: {recipe_id}")  # Debug log
                 
                 # Add ingredients
                 for ingredient in data['ingredients']:
-                    # Insert or get ingredient
                     ingredient_result = connection.execute(
                         text("""
                             WITH ins AS (
@@ -2660,8 +2673,8 @@ def add_recipe():
                     )
                     
                     ingredient_id = ingredient_result.fetchone()[0]
+                    print(f"Added ingredient with ID: {ingredient_id}")  # Debug log
                     
-                    # Add quantity association
                     connection.execute(
                         text("""
                             INSERT INTO recipe_ingredient_quantities (
@@ -2684,7 +2697,7 @@ def add_recipe():
                 }), 201
                 
     except Exception as e:
-        print(f"Error adding recipe: {str(e)}")
+        print(f"Error adding recipe: {str(e)}")  # Debug log
         return jsonify({'error': str(e)}), 500
 
 
