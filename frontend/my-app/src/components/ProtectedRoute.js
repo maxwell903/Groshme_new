@@ -1,4 +1,5 @@
 // ProtectedRoute.js
+// ProtectedRoute.js
 import { useRouter } from 'next/router';
 import { useAuth } from '@/contexts/AuthContext';
 
