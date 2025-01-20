@@ -354,7 +354,15 @@ const EmailToMyselfButton = () => {
 
 
 export default function Home() {
+  const { user } = useAuth();
 
+  const handleSignOut = async () => {
+    try {
+      await supabase.auth.signOut();
+    } catch (error) {
+      console.error('Error signing out:', error);
+    }
+  };
 
   
   const handleSignUp = async (e) => {
