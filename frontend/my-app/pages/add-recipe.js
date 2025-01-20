@@ -2,7 +2,7 @@
 import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/router';
-import { fetchWithAuth } from '@/utils/api';
+import { fetchWithAuth } from '@/utils/fetch';
 const API_URL = process.env.NEXT_PUBLIC_API_URL;
 
 const RecipeNavigation = ({ activePage }) => {
