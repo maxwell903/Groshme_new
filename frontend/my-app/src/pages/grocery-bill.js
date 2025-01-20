@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/router';
 import { Upload, X, FileText, Clipboard, ChevronDown, AlertCircle, Loader, ArrowLeft } from 'lucide-react';
-import DebugReceiptUploadModal from '../src/components/DebugReceiptUploadModal';
+import DebugReceiptUploadModal from '../components/DebugReceiptUploadModal';
 import { words } from 'lodash';
 
 
