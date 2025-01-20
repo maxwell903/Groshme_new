@@ -1,5 +1,5 @@
 [build]
-  base = "frontend/my-app"    # Adjust if your Next.js app is in a different location
+  base = "frontend/my-app"
   command = "npm install && npm run build"
   publish = ".next"
 
