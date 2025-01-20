@@ -84,20 +84,9 @@ const AddRecipe = () => {
 
   return (
     <div className="min-h-screen bg-gray-50">
-      <nav className="bg-white shadow-sm">
-        <div className="max-w-6xl mx-auto px-4 py-4">
-          <Link
-            href={backPath}
-            className="text-blue-600 hover:text-blue-800"
-          >
-            ← Back to {backPath === "/" ? "Home" :
-              backPath === "/search" ? "Search" :
-                backPath === "/menus" ? "Menus" : "Previous Page"}
-          </Link>
-        </div>
-      </nav>
+     
       <div className="max-w-6xl mx-auto px-4 py-8">
-        <RecipeNavigation activePage="add" />
+        
 
         <div className="max-w-6xl mx-auto px-4 py-8">
           <h1 className="text-3xl font-bold text-gray-900 mb-8">Add New Recipe</h1>
