@@ -21,6 +21,7 @@ from email.mime.text import MIMEText
 import base64
 import os
 from werkzeug.utils import secure_filename
+from config import Config
 
 
 
@@ -45,38 +46,47 @@ def auth_required(f):
         auth_header = request.headers.get('Authorization')
         
         if not auth_header:
-            print("No authorization header found")  # Debug log
             return jsonify({'error': 'No authorization header'}), 401
             
         try:
-            # Extract token
-            if not auth_header.startswith('Bearer '):
-                print("Invalid token format")  # Debug log
-                return jsonify({'error': 'Invalid token format'}), 401
-                
             token = auth_header.replace('Bearer ', '')
             
-            # Decode and verify token
-            decoded = jwt.decode(
+            # Decode without verification first to get the claims
+            unverified_claims = jwt.decode(
                 token,
-                algorithms=["HS256"],
-                options={"verify_signature": False}  # We trust Supabase's token
+                options={
+                    "verify_signature": False,
+                    "verify_aud": False,
+                    "verify_exp": False
+                }
             )
             
-            # Store user_id in Flask's g object
-            g.user_id = decoded.get('sub')  # Supabase stores user ID in 'sub' claim
-            print(f"Authenticated user_id: {g.user_id}")  # Debug log
+            print(f"Decoded claims: {unverified_claims}")  # Debug log
             
-            if not g.user_id:
-                raise ValueError('No user ID in token')
+            # Get the user ID from the sub claim
+            user_id = unverified_claims.get('sub')
+            
+            if not user_id:
+                raise ValueError("No user ID in token")
+            
+            # Store the user ID in Flask's g object
+            g.user_id = user_id
             
             return f(*args, **kwargs)
             
         except Exception as e:
-            print(f"Auth error: {str(e)}")  # Debug log
-            return jsonify({'error': 'Invalid token'}), 401
+            print(f"Auth error: {str(e)}")
+            return jsonify({'error': str(e)}), 401
             
     return decorated
+
+@app.route('/api/auth-test', methods=['GET'])
+@auth_required
+def test_auth():
+    return jsonify({
+        'message': 'Authentication successful',
+        'user_id': g.user_id
+    })
 
 # Add this route to handle OPTIONS preflight requests
 @app.route('/api/recipe', methods=['OPTIONS'])
@@ -94,20 +104,7 @@ def handle_error(error):
         "message": "An error occurred while processing your request."
     }), 500
 
-@app.route('/api/recipe', methods=['POST', 'OPTIONS'])
-def handle_recipe():
-    if request.method == 'OPTIONS':
-        # Don't set CORS headers here, let the CORS extension handle it
-        return jsonify({'status': 'ok'}), 200
-        
-    # Your existing POST logic here
-    try:
-        data = request.json
-        # ... rest of your code
-        return jsonify({'message': 'Recipe created successfully'}), 201
-    except Exception as e:
-        print(f"Error creating recipe: {str(e)}")
-        return jsonify({'error': str(e)}), 500
+
 
 
 
@@ -147,7 +144,7 @@ def decorated(*args, **kwargs):
         # Decode JWT token from Supabase
         decoded = jwt.decode(
             token,
-            jwt_secret_key,  # Add your JWT secret key here
+            JWT_SECRET,  # Add your JWT secret key here
             algorithms=["HS256"]
         )
         
@@ -365,47 +362,8 @@ SUPABASE_URL = 'https://bvgnlxznztqggtqswovg.supabase.co'
 SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImJ2Z25seHpuenRxZ2d0cXN3b3ZnIiwicm9sZSI6ImFub24iLCJpYXQiOjE3MzQ5MDI1ODIsImV4cCI6MjA1MDQ3ODU4Mn0.I8alzEBJYt_D1PDZHvuyZzLzlAEANTGkeR3IRyp1gCc'
 
 supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
+            
 
-from functools import wraps
-from flask import request, jsonify, g
-import jwt
-from datetime import datetime
-
-def auth_required(f):
-    @wraps(f)
-    def decorated(*args, **kwargs):
-        auth_header = request.headers.get('Authorization')
-        
-        if not auth_header:
-            return jsonify({'error': 'No authorization header'}), 401
-
-        try:
-            # Extract token from 'Bearer <token>'
-            if not auth_header.startswith('Bearer '):
-                return jsonify({'error': 'Invalid token format'}), 401
-            
-            token = auth_header.split(' ')[1]
-            
-            # Decode the JWT to get the user ID
-            decoded = jwt.decode(
-                token,
-                algorithms=["HS256"],
-                options={"verify_signature": False}  # We trust Supabase's token
-            )
-            
-            # Store user_id in Flask's g object
-            g.user_id = decoded.get('sub')  # Supabase stores user ID in 'sub' claim
-            
-            if not g.user_id:
-                raise Exception('No user ID in token')
-                
-            return f(*args, **kwargs)
-            
-        except Exception as e:
-            print(f"Auth error: {str(e)}")
-            return jsonify({'error': 'Invalid token'}), 401
-            
-    return decorated
 
 
     
@@ -2645,98 +2603,117 @@ def migrate_existing_data():
     db.session.commit()
 
 
+
 @app.route('/api/recipe', methods=['POST'])
-@auth_required  # This will set g.user_id from the JWT token
+@auth_required
 def add_recipe():
     try:
         data = request.json
-        user_id = g.user_id  # Get the authenticated user's ID
+        user_id = g.user_id
         
-        print(f"Creating recipe for user: {user_id}")  # Debug log
+        print(f"=== START RECIPE CREATION ===")
+        print(f"Received data: {data}")
+        print(f"User ID: {user_id}")
         
         engine = create_engine(db_url, poolclass=NullPool)
         
         with engine.connect() as connection:
-            with connection.begin():
-                # First verify the user exists
-                user_check = connection.execute(
-                    text("SELECT id FROM auth.users WHERE id = :user_id"),
-                    {"user_id": user_id}
-                ).fetchone()
-                
-                if not user_check:
-                    return jsonify({'error': 'Invalid user ID'}), 401
-
-                # Insert recipe with explicit user_id
-                result = connection.execute(
-                    text("""
-                        INSERT INTO recipe (
-                            name, description, instructions, 
-                            prep_time, user_id, created_date
-                        ) VALUES (
-                            :name, :description, :instructions,
-                            :prep_time, :user_id, CURRENT_TIMESTAMP
-                        ) RETURNING id, user_id
-                    """),
-                    {
-                        "name": data['name'],
-                        "description": data['description'],
-                        "instructions": data['instructions'],
-                        "prep_time": int(data['prep_time']),
-                        "user_id": user_id  # This is the critical line!
-                    }
-                )
-                
+            # Test database connection
+            test = connection.execute(text("SELECT current_user, current_database()")).fetchone()
+            print(f"Database connection test: {test}")
+            
+            # Construct insert query - use bindparam for more explicit parameter binding
+            insert_query = text("""
+                INSERT INTO recipe (
+                    name, description, instructions, 
+                    prep_time, user_id, created_date
+                ) VALUES (
+                    :name, :description, :instructions,
+                    :prep_time, :user_id, CURRENT_TIMESTAMP
+                ) RETURNING id, name, user_id
+            """)
+            
+            params = {
+                "name": data['name'],
+                "description": data.get('description', ''),
+                "instructions": data.get('instructions', ''),
+                "prep_time": int(data.get('prep_time', 0)),
+                "user_id": user_id
+            }
+            
+            print(f"Executing insert with query: {insert_query}")
+            print(f"Parameters: {params}")
+            
+            try:
+                result = connection.execute(insert_query, params)
                 new_recipe = result.fetchone()
-                print(f"Created recipe with ID: {new_recipe.id} for user: {new_recipe.user_id}")  # Debug log
+                print(f"Insert result: {new_recipe}")
                 
-                # Add ingredients if provided
-                if 'ingredients' in data:
+                # Verify the insert worked
+                verify = connection.execute(
+                    text("SELECT * FROM recipe WHERE id = :id"),
+                    {"id": new_recipe.id}
+                ).fetchone()
+                print(f"Verification query result: {verify}")
+                
+                # Insert recipe ingredients if provided
+                if 'ingredients' in data and data['ingredients']:
                     for ingredient in data['ingredients']:
-                        # Get or create ingredient
-                        ing_result = connection.execute(
+                        # First, get or create the ingredient
+                        ingredient_result = connection.execute(
                             text("""
-                                WITH e AS (
-                                    INSERT INTO ingredients (name)
-                                    VALUES (:name)
-                                    ON CONFLICT (name) DO UPDATE SET name = EXCLUDED.name
-                                    RETURNING id
-                                )
-                                SELECT id FROM e
-                                UNION ALL
-                                SELECT id FROM ingredients WHERE name = :name
-                                LIMIT 1
+                                INSERT INTO ingredients (name)
+                                VALUES (:name)
+                                ON CONFLICT (name) DO NOTHING
+                                RETURNING id
                             """),
                             {"name": ingredient['name']}
                         )
-                        ingredient_id = ing_result.fetchone()[0]
                         
-                        # Add quantity association
+                        # Get the ingredient ID (either newly created or existing)
+                        ingredient_id = connection.execute(
+                            text("SELECT id FROM ingredients WHERE name = :name"),
+                            {"name": ingredient['name']}
+                        ).fetchone().id
+                        
+                        # Add ingredient quantity to recipe
                         connection.execute(
                             text("""
                                 INSERT INTO recipe_ingredient_quantities 
-                                    (recipe_id, ingredient_id, quantity, unit)
-                                VALUES 
-                                    (:recipe_id, :ingredient_id, :quantity, :unit)
+                                (recipe_id, ingredient_id, quantity, unit)
+                                VALUES (:recipe_id, :ingredient_id, :quantity, :unit)
                             """),
                             {
                                 "recipe_id": new_recipe.id,
                                 "ingredient_id": ingredient_id,
                                 "quantity": ingredient['quantity'],
-                                "unit": ingredient['unit']
+                                "unit": ingredient.get('unit', '')
                             }
                         )
                 
+                connection.commit()  # Commit the transaction
+                
                 return jsonify({
                     'message': 'Recipe created successfully',
-                    'recipe_id': new_recipe.id,
-                    'user_id': new_recipe.user_id  # Return user_id for verification
+                    'recipe': {
+                        'id': new_recipe.id,
+                        'name': new_recipe.name,
+                        'user_id': str(new_recipe.user_id)
+                    }
                 }), 201
                 
+            except Exception as db_error:
+                print(f"Database error during insert: {str(db_error)}")
+                connection.rollback()  # Rollback on error
+                raise
+                
     except Exception as e:
-        print(f"Error creating recipe: {str(e)}")  # Debug log
+        print(f"=== ERROR IN RECIPE CREATION ===")
+        print(f"Error: {str(e)}")
+        print(f"Error type: {type(e)}")
         return jsonify({'error': str(e)}), 500
-
+    finally:
+        print("=== END RECIPE CREATION ===")
 
 
 @app.route('/api/home-data')
@@ -2816,46 +2793,45 @@ def home_data():
 @auth_required
 def get_all_recipes():
     try:
-        user_id = g.user_id  # Get current user's ID
+        user_id = g.user_id  # Get the authenticated user's ID
+        print(f"Getting recipes for user: {user_id}")  # Debug log
+        
         engine = create_engine(db_url, poolclass=NullPool)
         
         with engine.connect() as connection:
-            # Optimize the query with proper indexing and limiting
-            result = connection.execute(text("""
-                SELECT 
-                    r.id,
-                    r.name,
-                    r.description,
-                    r.prep_time,
-                    COALESCE(
-                        SUM(CASE WHEN rin.serving_size > 0 
-                            THEN (rin.protein_grams * riq.quantity / rin.serving_size)
-                            ELSE 0 
-                        END), 0
-                    ) as total_protein,
-                    COALESCE(
-                        SUM(CASE WHEN rin.serving_size > 0 
-                            THEN (rin.fat_grams * riq.quantity / rin.serving_size)
-                            ELSE 0 
-                        END), 0
-                    ) as total_fat,
-                    COALESCE(
-                        SUM(CASE WHEN rin.serving_size > 0 
-                            THEN (rin.carbs_grams * riq.quantity / rin.serving_size)
-                            ELSE 0 
-                        END), 0
-                    ) as total_carbs
-                FROM recipe r
-                LEFT JOIN recipe_ingredient_quantities riq ON r.id = riq.recipe_id
-                LEFT JOIN recipe_ingredient_nutrition rin 
-                    ON rin.recipe_ingredient_quantities_id = riq.id
-                WHERE r.user_id = :user_id
-                GROUP BY r.id, r.name, r.description, r.prep_time
-                ORDER BY r.created_date DESC
-                LIMIT 100
-            """), {"user_id": user_id})
+            result = connection.execute(
+                text("""
+                    SELECT r.*, 
+                        COALESCE(
+                            SUM(CASE WHEN rin.serving_size > 0 
+                                THEN (rin.protein_grams * riq.quantity / rin.serving_size)
+                                ELSE 0 
+                            END), 0
+                        ) as total_protein,
+                        COALESCE(
+                            SUM(CASE WHEN rin.serving_size > 0 
+                                THEN (rin.fat_grams * riq.quantity / rin.serving_size)
+                                ELSE 0 
+                            END), 0
+                        ) as total_fat,
+                        COALESCE(
+                            SUM(CASE WHEN rin.serving_size > 0 
+                                THEN (rin.carbs_grams * riq.quantity / rin.serving_size)
+                                ELSE 0 
+                            END), 0
+                        ) as total_carbs
+                    FROM recipe r
+                    LEFT JOIN recipe_ingredient_quantities riq ON r.id = riq.recipe_id
+                    LEFT JOIN recipe_ingredient_nutrition rin 
+                        ON rin.recipe_ingredient_quantities_id = riq.id
+                    WHERE r.user_id = :user_id
+                    GROUP BY r.id, r.name, r.description, r.prep_time
+                    ORDER BY r.created_date DESC
+                """),
+                {"user_id": user_id}
+            )
             
-            recipes_data = [{
+            recipes = [{
                 'id': row.id,
                 'name': row.name,
                 'description': row.description,
@@ -2868,13 +2844,14 @@ def get_all_recipes():
             } for row in result]
             
             return jsonify({
-                'recipes': recipes_data,
-                'count': len(recipes_data)
+                'recipes': recipes,
+                'count': len(recipes)
             })
             
     except Exception as e:
-        print(f"Error fetching all recipes: {str(e)}")
+        print(f"Error fetching recipes: {str(e)}")
         return jsonify({'error': str(e)}), 500
+
 
 
 
