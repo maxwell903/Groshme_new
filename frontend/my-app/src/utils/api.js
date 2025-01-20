@@ -1,32 +1,27 @@
-// api.js
-// utils/api.js
-export const API_URL = 'https://groshmebeta-05487aa160b2.herokuapp.com';
+
+import { supabase } from '@/lib/supabaseClient';
 
 export const fetchApi = async (endpoint, options = {}) => {
-  try {
-    console.log('Fetching:', `${API_URL}${endpoint}`); // Debug log
-    const response = await fetch(`${API_URL}${endpoint}`, {
-      ...options,
-      headers: {
-        'Content-Type': 'application/json',
-        ...options.headers,
-      },
-    });
+  const session = await supabase.auth.getSession();
+  const token = session?.data?.session?.access_token;
 
-    if (!response.ok) {
-      console.error('Response:', {
-        status: response.status,
-        statusText: response.statusText
-      });
-      const errorData = await response.json().catch(() => ({}));
-      throw new Error(errorData.message || `HTTP error! status: ${response.status}`);
-    }
+  const headers = {
+    'Content-Type': 'application/json',
+    'Authorization': token ? `Bearer ${token}` : '',
+    ...options.headers,
+  };
 
-    return response.json();
-  } catch (error) {
-    console.error('API Error:', error);
-    throw error;
+  const response = await fetch(`${API_URL}${endpoint}`, {
+    ...options,
+    headers,
+  });
+
+  if (!response.ok) {
+    const error = await response.json().catch(() => ({}));
+    throw new Error(error.message || response.statusText);
   }
+
+  return response.json();
 };
 
 // Supabase specific functions
