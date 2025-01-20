@@ -5,17 +5,22 @@ export const fetchWithAuth = async (endpoint, options = {}) => {
   try {
     const { data: { session } } = await supabase.auth.getSession();
     
+    if (!session?.access_token) {
+      throw new Error('No authentication token available');
+    }
+
     const headers = {
       'Content-Type': 'application/json',
-      ...(session?.access_token && { 'Authorization': `Bearer ${session.access_token}` }),
+      'Authorization': `Bearer ${session.access_token}`,
       ...options.headers
     };
 
+    // Remove credentials: 'include' as we're using Bearer token
     const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}${endpoint}`, {
       ...options,
       headers,
-      credentials: 'include', // Add this line
-      mode: 'cors' // Add this line
+      mode: 'cors',
+      body: options.body ? options.body : null,
     });
 
     if (!response.ok) {

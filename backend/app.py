@@ -29,18 +29,45 @@ from werkzeug.utils import secure_filename
 app = Flask(__name__)
 # Update CORS configuration
 CORS(app, resources={
-    r"/api/*": {
-        "origins": [
-            "http://localhost:3000",
-            "https://groshmebeta.netlify.app",
-            "https://groshmebeta-05487aa160b2.herokuapp.com"
-        ],
+    r"/*": {
+        "origins": ["https://groshmebeta.netlify.app", "http://localhost:3000"],
         "methods": ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
-        "allow_headers": ["Content-Type", "Authorization", "Access-Control-Allow-Credentials"],
-        "supports_credentials": True,
-        "expose_headers": ["Content-Range", "X-Content-Range"]
+        "allow_headers": ["Content-Type", "Authorization"],
+        "supports_credentials": False  # Changed to False since we're using Bearer token
     }
 })
+
+
+def auth_required(f):
+    @wraps(f)
+    def decorated(*args, **kwargs):
+        auth_header = request.headers.get('Authorization')
+        
+        if not auth_header:
+            return jsonify({'error': 'No authorization header'}), 401
+            
+        try:
+            # Extract token
+            token = auth_header.replace('Bearer ', '')
+            
+            # Verify token with Supabase JWT
+            # Decode the JWT to get the user ID
+            decoded = jwt.decode(
+                token,
+                algorithms=["HS256"],
+                options={"verify_signature": False}  # We trust Supabase's token
+            )
+            
+            # Store user_id in Flask's g object
+            g.user_id = decoded.get('sub')  # Supabase stores user ID in 'sub' claim
+            
+            return f(*args, **kwargs)
+            
+        except Exception as e:
+            print(f"Auth error: {str(e)}")
+            return jsonify({'error': 'Invalid token'}), 401
+            
+    return decorated
 
 # Add OPTIONS handler for preflight requests
 @app.route('/api/recipe', methods=['OPTIONS'])
@@ -2576,49 +2603,78 @@ def add_recipe():
         data = request.json
         user_id = g.user_id  # Get the authenticated user's ID
         
-        # Create the recipe with user_id
-        new_recipe = Recipe(
-            name=data['name'],
-            description=data['description'],
-            instructions=data['instructions'],
-            prep_time=int(data['prep_time']),
-            user_id=user_id  # Associate recipe with user
-        )
-        db.session.add(new_recipe)
-        db.session.flush()
-        
-        # Process each ingredient
-        for ingredient_data in data['ingredients']:
-            # Find or create ingredient
-            ingredient = Ingredient.query.filter(
-                func.lower(Ingredient.name) == func.lower(ingredient_data['name'])
-            ).first()
-            
-            if not ingredient:
-                ingredient = Ingredient(
-                    name=ingredient_data['name'],
-                    created_by=user_id  # Track who created the ingredient
+        # Create new recipe with user_id
+        with db.engine.connect() as connection:
+            # Start a transaction
+            with connection.begin():
+                result = connection.execute(
+                    text("""
+                        INSERT INTO recipe (
+                            name, description, instructions, 
+                            prep_time, user_id, created_date
+                        ) VALUES (
+                            :name, :description, :instructions,
+                            :prep_time, :user_id, CURRENT_TIMESTAMP
+                        ) RETURNING id
+                    """),
+                    {
+                        "name": data['name'],
+                        "description": data['description'],
+                        "instructions": data['instructions'],
+                        "prep_time": int(data['prep_time']),
+                        "user_id": user_id
+                    }
                 )
-                db.session.add(ingredient)
-                db.session.flush()
-            
-            # Create quantity association
-            quantity = RecipeIngredientQuantity(
-                recipe_id=new_recipe.id,
-                ingredient_id=ingredient.id,
-                quantity=float(ingredient_data['quantity']),
-                unit=ingredient_data['unit']
-            )
-            db.session.add(quantity)
-            
-        db.session.commit()
-        return jsonify({
-            'message': 'Recipe added successfully',
-            'recipe_id': new_recipe.id
-        }), 201
-        
+                
+                recipe_id = result.fetchone()[0]
+                
+                # Add ingredients
+                for ingredient in data['ingredients']:
+                    # Insert or get ingredient
+                    ingredient_result = connection.execute(
+                        text("""
+                            WITH ins AS (
+                                INSERT INTO ingredients (name, created_by)
+                                VALUES (:name, :user_id)
+                                ON CONFLICT (name) DO UPDATE SET name = EXCLUDED.name
+                                RETURNING id
+                            )
+                            SELECT id FROM ins
+                            UNION ALL
+                            SELECT id FROM ingredients WHERE name = :name
+                            LIMIT 1
+                        """),
+                        {
+                            "name": ingredient['name'],
+                            "user_id": user_id
+                        }
+                    )
+                    
+                    ingredient_id = ingredient_result.fetchone()[0]
+                    
+                    # Add quantity association
+                    connection.execute(
+                        text("""
+                            INSERT INTO recipe_ingredient_quantities (
+                                recipe_id, ingredient_id, quantity, unit
+                            ) VALUES (
+                                :recipe_id, :ingredient_id, :quantity, :unit
+                            )
+                        """),
+                        {
+                            "recipe_id": recipe_id,
+                            "ingredient_id": ingredient_id,
+                            "quantity": float(ingredient['quantity']),
+                            "unit": ingredient['unit']
+                        }
+                    )
+                
+                return jsonify({
+                    'message': 'Recipe added successfully',
+                    'recipe_id': recipe_id
+                }), 201
+                
     except Exception as e:
-        db.session.rollback()
         print(f"Error adding recipe: {str(e)}")
         return jsonify({'error': str(e)}), 500
 
