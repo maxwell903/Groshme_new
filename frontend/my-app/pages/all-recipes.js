@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { useRouter } from 'next/router';
 import { debounce } from 'lodash';
 import { fetchApi, API_URL } from '@/utils/api';
+import ProtectedRoute from '../components/ProtectedRoute';
 
 const RecipeNavigation = ({ activePage }) => {
   return (
