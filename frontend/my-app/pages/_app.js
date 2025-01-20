@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { useRouter } from 'next/router';
 import { createPagesBrowserClient } from '@supabase/auth-helpers-nextjs';
 import { SessionContextProvider } from '@supabase/auth-helpers-react';
-import { AuthProvider } from '@/contexts/AuthContext';
+import { AuthProvider, useAuth } from '@/contexts/AuthContext';
 import '@/styles/globals.css';
 
 const publicRoutes = ['/signin', '/signup'];
@@ -11,6 +11,7 @@ export default function App({ Component, pageProps }) {
   const [supabaseClient] = useState(() => createPagesBrowserClient());
   const router = useRouter();
   const [loading, setLoading] = useState(true);
+  const { userId } = useAuth();
 
   useEffect(() => {
     const checkAuth = async () => {
@@ -46,7 +47,7 @@ export default function App({ Component, pageProps }) {
       initialSession={pageProps.initialSession}
     >
       <AuthProvider>
-        <Component {...pageProps} userId={pageProps.userId} />
+        <Component {...pageProps} userId={userId} />
       </AuthProvider>
     </SessionContextProvider>
   );
