@@ -1,39 +1,15 @@
-import { createClient } from '@supabase/supabase-js';
+import { createClient } from '@supabase/supabase-js'
 
-// Create Supabase client
-export const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL,
-  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY,
-  {
-    auth: {
-      persistSession: true,
-      autoRefreshToken: true,
-      detectSessionInUrl: true
-    }
-  }
-);
+const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
+const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
 
-// Optional: Create a wrapper for state change emitters
-export const createStateChangeEmitter = () => {
-  const stateChangeEmitters = new Map();
+if (!supabaseUrl || !supabaseKey) {
+  throw new Error('Missing Supabase environment variables')
+}
 
-  return {
-    register: (key, callback) => {
-      if (typeof callback !== 'function') {
-        console.error(`Invalid callback for key: ${key}`);
-        return;
-      }
-      stateChangeEmitters.set(key, { callback });
-    },
-    emit: (key, ...args) => {
-      const emitter = stateChangeEmitters.get(key);
-      if (emitter && typeof emitter.callback === 'function') {
-        try {
-          emitter.callback(...args);
-        } catch (error) {
-          console.error(`Error in emitter for key ${key}:`, error);
-        }
-      }
-    }
-  };
-};
+export const supabaseClient = createClient(supabaseUrl, supabaseKey)
+
+// Export a function to get client
+export const getSupabaseClient = () => {
+  return createClient(supabaseUrl, supabaseKey)
+}

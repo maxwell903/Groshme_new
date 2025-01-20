@@ -354,7 +354,19 @@ const EmailToMyselfButton = () => {
 
 
 export default function Home() {
-  const { user } = useAuth();
+  const { user, loadings } = useAuth();
+  if (loadings) {
+    return (
+      <div className="flex h-screen items-center justify-center">
+        <div className="text-lg">Loading...</div>
+      </div>
+    )
+  }
+
+  if (!user) {
+    return null // or redirect to login
+  }
+
 
   const handleSignOut = async () => {
     try {
