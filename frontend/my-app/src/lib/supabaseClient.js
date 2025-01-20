@@ -1,22 +1,19 @@
 import { createClient } from '@supabase/supabase-js';
 
-// Explicit error handling and logging
-export const supabaseClient = createClient(
+// Create Supabase client
+export const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL,
   process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY,
   {
-    // Add additional configuration options
     auth: {
       persistSession: true,
-      // Add more detailed error handling
-      onError: (error) => {
-        console.error('Supabase Auth Error:', error);
-      }
+      autoRefreshToken: true,
+      detectSessionInUrl: true
     }
   }
 );
 
-// Create a safe wrapper for state change emitters
+// Optional: Create a wrapper for state change emitters
 export const createStateChangeEmitter = () => {
   const stateChangeEmitters = new Map();
 
@@ -36,8 +33,6 @@ export const createStateChangeEmitter = () => {
         } catch (error) {
           console.error(`Error in emitter for key ${key}:`, error);
         }
-      } else {
-        console.warn(`No valid emitter found for key: ${key}`);
       }
     }
   };

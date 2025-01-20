@@ -1,20 +1,26 @@
-// ProtectedRoute.js
-// ProtectedRoute.js
+import { useEffect } from 'react';
 import { useRouter } from 'next/router';
 import { useAuth } from '@/contexts/AuthContext';
 
-export default function ProtectedRoute({ children }) {
+const ProtectedRoute = ({ children }) => {
   const { user, loading } = useAuth();
   const router = useRouter();
 
+  useEffect(() => {
+    if (!loading && !user) {
+      router.push('/signin');
+    }
+  }, [user, loading, router]);
+
   if (loading) {
-    return <div>Loading...</div>;
+    return (
+      <div className="flex h-screen items-center justify-center">
+        <div className="text-lg">Loading...</div>
+      </div>
+    );
   }
 
-  if (!user) {
-    router.push('/signin');
-    return null;
-  }
+  return user ? children : null;
+};
 
-  return <>{children}</>;
-}
+export default ProtectedRoute;
