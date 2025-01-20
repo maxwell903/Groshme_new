@@ -1,6 +1,6 @@
 import { createContext, useContext, useState, useEffect } from 'react'
 import { useRouter } from 'next/router'
-import { supabaseClient } from '@/lib/supabaseClient'
+import { supabase } from '@/lib/supabaseClient'
 
 const AuthContext = createContext({})
 
@@ -10,42 +10,71 @@ export const AuthProvider = ({ children }) => {
   const router = useRouter()
 
   useEffect(() => {
-    // Check active sessions
-    const checkUser = async () => {
+    let mounted = true
+
+    // Check current session
+    const checkSession = async () => {
       try {
-        const { data: { session }, error } = await supabaseClient.auth.getSession()
-        setUser(session?.user ?? null)
+        const { data: { session }, error } = await supabase.auth.getSession()
+        if (error) throw error
+        
+        if (mounted) {
+          setUser(session?.user ?? null)
+          setLoading(false)
+        }
       } catch (error) {
-        console.error('Error checking auth session:', error)
-      } finally {
-        setLoading(false)
+        console.error('Error checking session:', error)
+        if (mounted) {
+          setLoading(false)
+        }
       }
     }
 
-    checkUser()
+    checkSession()
 
-    // Listen for changes
-    const { data: { subscription } } = supabaseClient.auth.onAuthStateChange((_event, session) => {
-      setUser(session?.user ?? null)
-      setLoading(false)
+    // Set up auth state listener
+    const { data: { subscription }} = supabase.auth.onAuthStateChange((_event, session) => {
+      if (mounted) {
+        setUser(session?.user ?? null)
+        setLoading(false)
+      }
     })
 
+    // Cleanup
     return () => {
-      if (subscription) subscription.unsubscribe()
+      mounted = false
+      subscription?.unsubscribe()
     }
   }, [])
 
   const value = {
     user,
     loading,
-    signIn: (data) => supabaseClient.auth.signInWithPassword(data),
-    signUp: (data) => supabaseClient.auth.signUp(data),
-    signOut: () => supabaseClient.auth.signOut()
+    signIn: async (credentials) => {
+      try {
+        const { data, error } = await supabase.auth.signInWithPassword(credentials)
+        if (error) throw error
+        return data
+      } catch (error) {
+        console.error('Error signing in:', error)
+        throw error
+      }
+    },
+    signOut: async () => {
+      try {
+        const { error } = await supabase.auth.signOut()
+        if (error) throw error
+        router.push('/signin')
+      } catch (error) {
+        console.error('Error signing out:', error)
+        throw error
+      }
+    }
   }
 
   return (
     <AuthContext.Provider value={value}>
-      {children}
+      {!loading && children}
     </AuthContext.Provider>
   )
 }
