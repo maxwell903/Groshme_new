@@ -2624,11 +2624,13 @@ def migrate_existing_data():
 def add_recipe():
     try:
         data = request.json
-        user_id = g.user_id  # Get the authenticated user's ID
-        print(f"Creating recipe for user: {user_id}")  # Debug log
+        user_id = g.user_id
         
-        with db.engine.connect() as connection:
+        engine = create_engine(db_url, poolclass=NullPool)
+        
+        with engine.connect() as connection:
             with connection.begin():
+                # Insert recipe
                 result = connection.execute(
                     text("""
                         INSERT INTO recipe (
@@ -2649,46 +2651,41 @@ def add_recipe():
                 )
                 
                 recipe_id = result.fetchone()[0]
-                print(f"Created recipe with ID: {recipe_id}")  # Debug log
+                print(f"Created recipe with ID: {recipe_id}")
                 
-                # Add ingredients
+                # Batch insert ingredients
+                ingredient_values = []
                 for ingredient in data['ingredients']:
-                    ingredient_result = connection.execute(
+                    # First, create or get ingredient
+                    ing_result = connection.execute(
                         text("""
-                            WITH ins AS (
-                                INSERT INTO ingredients (name, created_by)
-                                VALUES (:name, :user_id)
-                                ON CONFLICT (name) DO UPDATE SET name = EXCLUDED.name
-                                RETURNING id
-                            )
-                            SELECT id FROM ins
-                            UNION ALL
-                            SELECT id FROM ingredients WHERE name = :name
-                            LIMIT 1
+                            INSERT INTO ingredients (name)
+                            VALUES (:name)
+                            ON CONFLICT (name) DO UPDATE 
+                            SET name = EXCLUDED.name
+                            RETURNING id
                         """),
-                        {
-                            "name": ingredient['name'],
-                            "user_id": user_id
-                        }
+                        {"name": ingredient['name']}
                     )
+                    ingredient_id = ing_result.fetchone()[0]
                     
-                    ingredient_id = ingredient_result.fetchone()[0]
-                    print(f"Added ingredient with ID: {ingredient_id}")  # Debug log
-                    
+                    # Add to values for batch insert
+                    ingredient_values.append({
+                        "recipe_id": recipe_id,
+                        "ingredient_id": ingredient_id,
+                        "quantity": float(ingredient['quantity']),
+                        "unit": ingredient['unit']
+                    })
+                
+                # Batch insert quantities
+                if ingredient_values:
                     connection.execute(
                         text("""
-                            INSERT INTO recipe_ingredient_quantities (
-                                recipe_id, ingredient_id, quantity, unit
-                            ) VALUES (
-                                :recipe_id, :ingredient_id, :quantity, :unit
-                            )
+                            INSERT INTO recipe_ingredient_quantities 
+                            (recipe_id, ingredient_id, quantity, unit)
+                            VALUES (:recipe_id, :ingredient_id, :quantity, :unit)
                         """),
-                        {
-                            "recipe_id": recipe_id,
-                            "ingredient_id": ingredient_id,
-                            "quantity": float(ingredient['quantity']),
-                            "unit": ingredient['unit']
-                        }
+                        ingredient_values
                     )
                 
                 return jsonify({
@@ -2697,7 +2694,9 @@ def add_recipe():
                 }), 201
                 
     except Exception as e:
-        print(f"Error adding recipe: {str(e)}")  # Debug log
+        print(f"Error adding recipe: {str(e)}")
+        import traceback
+        traceback.print_exc()
         return jsonify({'error': str(e)}), 500
 
 
@@ -2773,89 +2772,71 @@ def home_data():
         }), 500
     
 # All Recipes Route
+# In app.py
+
 @app.route('/api/all-recipes')
+@auth_required
 def get_all_recipes():
     try:
-        # Update the database URL to use your Supabase credentials
-        db_url = 'postgresql://postgres.bvgnlxznztqggtqswovg:RecipeFinder123!@aws-0-us-east-2.pooler.supabase.com:5432/postgres'
-        engine = create_engine(db_url)
+        user_id = g.user_id  # Get current user's ID
+        engine = create_engine(db_url, poolclass=NullPool)
         
         with engine.connect() as connection:
-            # First get all recipes
-            recipes_result = connection.execute(text("""
-                SELECT id, name, description, prep_time 
-                FROM recipe 
-                ORDER BY id ASC
-            """))
-            recipes = recipes_result.fetchall()
+            # Optimize the query with proper indexing and limiting
+            result = connection.execute(text("""
+                SELECT 
+                    r.id,
+                    r.name,
+                    r.description,
+                    r.prep_time,
+                    COALESCE(
+                        SUM(CASE WHEN rin.serving_size > 0 
+                            THEN (rin.protein_grams * riq.quantity / rin.serving_size)
+                            ELSE 0 
+                        END), 0
+                    ) as total_protein,
+                    COALESCE(
+                        SUM(CASE WHEN rin.serving_size > 0 
+                            THEN (rin.fat_grams * riq.quantity / rin.serving_size)
+                            ELSE 0 
+                        END), 0
+                    ) as total_fat,
+                    COALESCE(
+                        SUM(CASE WHEN rin.serving_size > 0 
+                            THEN (rin.carbs_grams * riq.quantity / rin.serving_size)
+                            ELSE 0 
+                        END), 0
+                    ) as total_carbs
+                FROM recipe r
+                LEFT JOIN recipe_ingredient_quantities riq ON r.id = riq.recipe_id
+                LEFT JOIN recipe_ingredient_nutrition rin 
+                    ON rin.recipe_ingredient_quantities_id = riq.id
+                WHERE r.user_id = :user_id
+                GROUP BY r.id, r.name, r.description, r.prep_time
+                ORDER BY r.created_date DESC
+                LIMIT 100
+            """), {"user_id": user_id})
             
-            print(f"Found {len(recipes)} recipes")
-            
-            recipes_data = []
-            for recipe in recipes:
-                # Get ingredients using Supabase's JSON functions
-                ingredients_result = connection.execute(text("""
-                    SELECT name 
-                    FROM recipe_ingredients3 
-                    WHERE recipe_ids::jsonb ? :recipe_id
-                """), {'recipe_id': str(recipe.id)})
-                
-                ingredients = ingredients_result.fetchall()
-                
-                # Get nutrition data
-                nutrition_result = connection.execute(text("""
-                    SELECT 
-                        riq.quantity,
-                        rin.protein_grams,
-                        rin.fat_grams,
-                        rin.carbs_grams,
-                        rin.serving_size
-                    FROM recipe_ingredient_quantities riq
-                    LEFT JOIN recipe_ingredient_nutrition rin 
-                        ON rin.recipe_ingredient_quantities_id = riq.id
-                    WHERE riq.recipe_id = :recipe_id
-                """), {'recipe_id': recipe.id})
-                
-                nutrition_data = nutrition_result.fetchall()
-                
-                # Calculate total nutrition
-                total_nutrition = {
-                    'protein_grams': 0,
-                    'fat_grams': 0,
-                    'carbs_grams': 0
+            recipes_data = [{
+                'id': row.id,
+                'name': row.name,
+                'description': row.description,
+                'prep_time': row.prep_time,
+                'total_nutrition': {
+                    'protein_grams': round(float(row.total_protein), 1),
+                    'fat_grams': round(float(row.total_fat), 1),
+                    'carbs_grams': round(float(row.total_carbs), 1)
                 }
-                
-                for nutr in nutrition_data:
-                    if nutr.serving_size and nutr.serving_size > 0:
-                        ratio = nutr.quantity / nutr.serving_size
-                        total_nutrition['protein_grams'] += (nutr.protein_grams or 0) * ratio
-                        total_nutrition['fat_grams'] += (nutr.fat_grams or 0) * ratio
-                        total_nutrition['carbs_grams'] += (nutr.carbs_grams or 0) * ratio
-                
-                recipes_data.append({
-                    'id': recipe.id,
-                    'name': recipe.name,
-                    'description': recipe.description,
-                    'prep_time': recipe.prep_time,
-                    'ingredients': [ingredient[0] for ingredient in ingredients],
-                    'total_nutrition': {
-                        'protein_grams': round(total_nutrition['protein_grams'], 1),
-                        'fat_grams': round(total_nutrition['fat_grams'], 1),
-                        'carbs_grams': round(total_nutrition['carbs_grams'], 1)
-                    }
-                })
+            } for row in result]
             
             return jsonify({
                 'recipes': recipes_data,
                 'count': len(recipes_data)
             })
+            
     except Exception as e:
         print(f"Error fetching all recipes: {str(e)}")
-        return jsonify({
-            'recipes': [],
-            'count': 0
-        }), 500
-
+        return jsonify({'error': str(e)}), 500
 
 
 
