@@ -2,6 +2,7 @@
 import '@/styles/globals.css'
 import { useState, useEffect } from 'react'
 import { AuthProvider } from '@/contexts/AuthContext'
+import Layout from '@/components/Layout'
 import { supabase } from '@/lib/supabaseClient'
 
 function MyApp({ Component, pageProps }) {
@@ -10,19 +11,14 @@ function MyApp({ Component, pageProps }) {
   useEffect(() => {
     const initializeSupabase = async () => {
       try {
-        // Verify Supabase initialization
         if (!supabase) {
           throw new Error('Supabase client not initialized');
         }
-
-        // Check if Supabase auth is working
-        const { data, error } = await supabase.auth.getSession();
+        const { data: { session }, error } = await supabase.auth.getSession();
         if (error) throw error;
-        
         setSupabaseInitialized(true);
       } catch (error) {
         console.error('Error initializing Supabase:', error);
-        // Still set initialized to true to prevent infinite loading
         setSupabaseInitialized(true);
       }
     };
@@ -38,9 +34,20 @@ function MyApp({ Component, pageProps }) {
     );
   }
 
+  // Don't wrap sign-in/sign-up pages with Layout
+  if (Component.noLayout) {
+    return (
+      <AuthProvider>
+        <Component {...pageProps} />
+      </AuthProvider>
+    );
+  }
+
   return (
     <AuthProvider>
-      <Component {...pageProps} />
+      <Layout>
+        <Component {...pageProps} />
+      </Layout>
     </AuthProvider>
   );
 }

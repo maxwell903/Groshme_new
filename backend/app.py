@@ -25,15 +25,15 @@ from werkzeug.utils import secure_filename
 
 
 
-
 app = Flask(__name__)
-# Update CORS configuration
+
+# Simplified CORS configuration
 CORS(app, resources={
-    r"/*": {
-        "origins": ["https://groshmebeta.netlify.app", "http://localhost:3000"],
+    r"/api/*": {
+        "origins": ["https://groshmebeta.netlify.app"],
         "methods": ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
         "allow_headers": ["Content-Type", "Authorization"],
-        "supports_credentials": False  # Changed to False since we're using Bearer token
+        "expose_headers": ["Content-Range", "X-Content-Range"]
     }
 })
 
@@ -69,31 +69,29 @@ def auth_required(f):
             
     return decorated
 
-# Add OPTIONS handler for preflight requests
-@app.route('/api/recipe', methods=['OPTIONS'])
-def handle_recipe_preflight():
-    response = jsonify({'status': 'ok'})
-    response.headers.add('Access-Control-Allow-Origin', 'https://groshmebeta.netlify.app')
-    response.headers.add('Access-Control-Allow-Headers', 'Content-Type,Authorization')
-    response.headers.add('Access-Control-Allow-Methods', 'GET,POST,PUT,DELETE,OPTIONS')
-    response.headers.add('Access-Control-Allow-Credentials', 'true')
-    return response
+@app.errorhandler(Exception)
+def handle_error(error):
+    return jsonify({
+        "error": str(error),
+        "message": "An error occurred while processing your request."
+    }), 500
 
-# Add a general preflight handler for all API routes
-@app.after_request
-def after_request(response):
-    allowed_origins = [
-        "http://localhost:3000",
-        "https://groshmebeta.netlify.app",
-        "https://groshmebeta-05487aa160b2.herokuapp.com"
-    ]
-    origin = request.headers.get('Origin')
-    if origin in allowed_origins:
-        response.headers.add('Access-Control-Allow-Origin', origin)
-        response.headers.add('Access-Control-Allow-Headers', 'Content-Type,Authorization')
-        response.headers.add('Access-Control-Allow-Methods', 'GET,POST,PUT,DELETE,OPTIONS')
-        response.headers.add('Access-Control-Allow-Credentials', 'true')
-    return response
+@app.route('/api/recipe', methods=['POST', 'OPTIONS'])
+def handle_recipe():
+    if request.method == 'OPTIONS':
+        # Don't set CORS headers here, let the CORS extension handle it
+        return jsonify({'status': 'ok'}), 200
+        
+    # Your existing POST logic here
+    try:
+        data = request.json
+        # ... rest of your code
+        return jsonify({'message': 'Recipe created successfully'}), 201
+    except Exception as e:
+        print(f"Error creating recipe: {str(e)}")
+        return jsonify({'error': str(e)}), 500
+
+
 
 # Supabase PostgreSQL connection
 SUPABASE_URL = 'https://bvgnlxznztqggtqswovg.supabase.co'

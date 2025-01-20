@@ -12,3 +12,4 @@ python-dotenv
 python-dateutil
 pytz==2022.7.1
 python-Levenshtein==0.25.0
+PyJWT==2.8.0

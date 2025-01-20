@@ -60,16 +60,10 @@ export const AuthProvider = ({ children }) => {
         throw error
       }
     },
-    signOut: async () => {
-      try {
-        const { error } = await supabase.auth.signOut()
-        if (error) throw error
-        router.push('/signin')
-      } catch (error) {
-        console.error('Error signing out:', error)
-        throw error
-      }
-    }
+    // contexts/AuthContext.js
+signOut: async () => {
+  await supabase.auth.signOut();
+}
   }
 
   return (
