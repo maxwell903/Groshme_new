@@ -1,13 +1,9 @@
-// src/pages/all-recipes.js
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/router';
 import { debounce } from 'lodash';
-
-const API_URL = process.env.NEXT_PUBLIC_API_URL
+import { fetchWithAuth } from '@/utils/fetch';
 import ProtectedRoute from '@/components/ProtectedRoute';
-
-
 
 const SearchInput = ({ value, onChange }) => {
   return (
@@ -35,11 +31,7 @@ export default function AllRecipes() {
     const fetchRecipes = async () => {
       try {
         setLoading(true);
-        const response = await fetch(`${API_URL}/api/all-recipes`);
-        if (!response.ok) {
-          throw new Error('Failed to fetch recipes');
-        }
-        const data = await response.json();
+        const data = await fetchWithAuth('/api/all-recipes');
         setRecipes(data.recipes || []);
         setFilteredRecipes(data.recipes || []);
         setError(null);
@@ -53,6 +45,7 @@ export default function AllRecipes() {
 
     fetchRecipes();
   }, []);
+
 
   useEffect(() => {
     const debouncedSearch = debounce((value) => {

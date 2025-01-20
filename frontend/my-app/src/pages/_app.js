@@ -1,6 +1,6 @@
 // pages/_app.js
 import '@/styles/globals.css'
-import { useState, useEffect } from 'react'
+import { useEffect, useState } from 'react'
 import { AuthProvider } from '@/contexts/AuthContext'
 import Layout from '@/components/Layout'
 import { supabase } from '@/lib/supabaseClient'
@@ -11,11 +11,14 @@ function MyApp({ Component, pageProps }) {
   useEffect(() => {
     const initializeSupabase = async () => {
       try {
-        if (!supabase) {
-          throw new Error('Supabase client not initialized');
-        }
         const { data: { session }, error } = await supabase.auth.getSession();
         if (error) throw error;
+
+        // Store the token if session exists
+        if (session) {
+          localStorage.setItem('access_token', session.access_token);
+        }
+        
         setSupabaseInitialized(true);
       } catch (error) {
         console.error('Error initializing Supabase:', error);
@@ -24,6 +27,19 @@ function MyApp({ Component, pageProps }) {
     };
 
     initializeSupabase();
+
+    // Set up auth state change listener
+    const { subscription } = supabase.auth.onAuthStateChange((_event, session) => {
+      if (session) {
+        localStorage.setItem('access_token', session.access_token);
+      } else {
+        localStorage.removeItem('access_token');
+      }
+    });
+
+    return () => {
+      subscription?.unsubscribe();
+    };
   }, []);
 
   if (!supabaseInitialized) {

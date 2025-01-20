@@ -1,7 +1,8 @@
 // Updated search.js
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
-const API_URL = process.env.NEXT_PUBLIC_API_URL
+import { fetchWithAuth } from '@/utils/fetch';
+import ProtectedRoute from '@/components/ProtectedRoute';
 
 export default function Search() {
   const [ingredientInput, setIngredientInput] = useState('');
@@ -10,9 +11,6 @@ export default function Search() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
 
-  
-
-  // Function to perform the search
   const performSearch = async (ingredients) => {
     if (ingredients.length === 0) {
       setSearchResults(null);
@@ -24,17 +22,17 @@ export default function Search() {
       const queryString = ingredients
         .map(ingredient => `ingredient=${encodeURIComponent(ingredient)}`)
         .join('&');
-      const response = await fetch(`${API_URL}/api/search?${queryString}`);
-      const data = await response.json();
+      const data = await fetchWithAuth(`/api/search?${queryString}`);
       setSearchResults(data);
       setError(null);
     } catch (error) {
       console.error('Search error:', error);
-      setError('Search failed');
+      setError(error.message);
     } finally {
       setLoading(false);
     }
   };
+
 
   // Trigger search whenever ingredients change
   useEffect(() => {
