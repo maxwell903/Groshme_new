@@ -269,17 +269,26 @@ def auth_required(f):
     @wraps(f)
     def decorated(*args, **kwargs):
         auth_header = request.headers.get('Authorization')
+        
         if not auth_header:
             return jsonify({'error': 'No authorization header'}), 401
             
         try:
-            # Verify JWT with Supabase
+            # Check if it starts with 'Bearer '
+            if not auth_header.startswith('Bearer '):
+                return jsonify({'error': 'Invalid authorization header format'}), 401
+                
             token = auth_header.split(' ')[1]
+            
+            # Verify the token with Supabase
             user = supabase.auth.get_user(token)
-            # Add user_id to request object
+            
+            # Add user info to request object
             request.user_id = user.id
             return f(*args, **kwargs)
+            
         except Exception as e:
+            print(f"Auth error: {str(e)}")  # Add logging
             return jsonify({'error': 'Invalid token'}), 401
             
     return decorated
