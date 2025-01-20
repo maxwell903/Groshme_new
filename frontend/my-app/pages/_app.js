@@ -1,9 +1,14 @@
 // _app.js
 import { useState } from 'react';
-import { createPagesSupabaseClient } from '@supabase/auth-helpers-nextjs';
+
 import { SessionContextProvider } from '@supabase/auth-helpers-react';
 import { AuthProvider } from '@/contexts/AuthContext';
 import '@/styles/globals.css';
+
+
+import { createPagesSupabaseClient } from '@/lib/supabaseClient';
+
+
 
 export default function App({ Component, pageProps }) {
   const [supabaseClient] = useState(() => createPagesSupabaseClient());
