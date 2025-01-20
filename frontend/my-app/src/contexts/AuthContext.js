@@ -1,19 +1,20 @@
 // AuthContext.js
 import { createContext, useContext, useState, useEffect } from 'react';
-import { supabase } from '@/lib/supabaseClient';
+import { useSession, useSupabaseClient } from '@supabase/auth-helpers-react';
 
 const AuthContext = createContext();
 
 export const AuthProvider = ({ children }) => {
+  const session = useSession();
+  const supabase = useSupabaseClient();
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const session = supabase.auth.getSession();
     setUser(session?.user ?? null);
     setLoading(false);
 
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(
+    const { data: authListener } = supabase.auth.onAuthStateChange(
       (event, session) => {
         setUser(session?.user ?? null);
         setLoading(false);
@@ -21,9 +22,9 @@ export const AuthProvider = ({ children }) => {
     );
 
     return () => {
-      subscription.unsubscribe();
+      authListener?.unsubscribe();
     };
-  }, []);
+  }, [session, supabase]);
 
   return (
     <AuthContext.Provider value={{ user, loading }}>
