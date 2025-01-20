@@ -1,6 +1,8 @@
 export const fetchWithAuth = async (endpoint, options = {}) => {
+  // Try to get token from localStorage first
   let token = localStorage.getItem('access_token');
   
+  // If no token in localStorage, try to get from current session
   if (!token) {
     const { data: { session } } = await supabase.auth.getSession();
     if (session?.access_token) {
@@ -10,6 +12,7 @@ export const fetchWithAuth = async (endpoint, options = {}) => {
   }
   
   if (!token) {
+    console.error('No authentication token found');
     throw new Error('No authentication token found');
   }
 
@@ -27,8 +30,12 @@ export const fetchWithAuth = async (endpoint, options = {}) => {
   });
 
   if (!response.ok) {
-    const error = await response.json();
-    throw new Error(error.message || 'Request failed');
+    try {
+      const errorData = await response.json();
+      throw new Error(errorData.error || 'An error occurred');
+    } catch (e) {
+      throw new Error('An error occurred while processing the request');
+    }
   }
 
   return response.json();
