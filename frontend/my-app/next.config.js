@@ -1,5 +1,10 @@
-module.exports = {
+/** @type {import('next').NextConfig} */
+const nextConfig = {
   reactStrictMode: true,
-  pageExtensions: ['js', 'jsx', 'ts', 'tsx'],
-  
+  swcMinify: true,
+  images: {
+    domains: ['bvgnlxznztqggtqswovg.supabase.co'],
+  },
 }
+
+module.exports = nextConfig
