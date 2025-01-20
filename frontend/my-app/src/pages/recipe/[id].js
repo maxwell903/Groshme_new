@@ -165,7 +165,11 @@ export default function RecipePage() {
 
   const fetchRecipe = async () => {
     try {
-      const response = await fetch(`${API_URL}/api/recipe/${id}`);
+      const response = await fetch(`${API_URL}/api/recipe/${id}`, {
+        headers: {
+          'Authorization': `Bearer ${localStorage.getItem('access_token')}`
+        }
+      });
       
       if (!response.ok) 
         throw new Error('Failed to fetch recipe data');

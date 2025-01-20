@@ -4402,17 +4402,30 @@ def add_ingredient_nutrition(recipe_id, ingredient_index):
 @app.route('/api/recipe/<int:recipe_id>', methods=['GET'])
 @auth_required
 def get_recipe(recipe_id):
-    recipe = Recipe.query.filter_by(
-        id=recipe_id, 
-        user_id=request.user_id
-    ).first_or_404()
-    
     try:
+        # Use the authenticated user's ID from g object
+        user_id = g.user_id
+        
         # Create the database engine using Supabase credentials
         db_url = 'postgresql://postgres.bvgnlxznztqggtqswovg:RecipeFinder123!@aws-0-us-east-2.pooler.supabase.com:5432/postgres'
         engine = create_engine(db_url)
         
         with engine.connect() as connection:
+            # First, verify the recipe belongs to the authenticated user
+            recipe_ownership = connection.execute(
+                text("""
+                    SELECT id FROM recipe 
+                    WHERE id = :recipe_id AND user_id = :user_id
+                """),
+                {
+                    "recipe_id": recipe_id,
+                    "user_id": user_id
+                }
+            ).fetchone()
+            
+            if not recipe_ownership:
+                return jsonify({'error': 'Recipe not found or unauthorized'}), 404
+            
             # Get basic recipe information
             recipe_result = connection.execute(
                 text("""
@@ -4467,6 +4480,7 @@ def get_recipe(recipe_id):
                         'serving_size': float(ing.serving_size),
                         'serving_unit': ing.serving_unit
                     }
+                    
                     # Add to total nutrition
                     total_nutrition['protein_grams'] += (ing.protein_grams or 0) * ratio
                     total_nutrition['fat_grams'] += (ing.fat_grams or 0) * ratio
