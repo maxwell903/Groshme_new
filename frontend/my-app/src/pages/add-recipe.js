@@ -36,6 +36,7 @@ const RecipeNavigation = ({ activePage }) => {
   );
 };
 
+
 const AddRecipe = () => {
   const router = useRouter();
   const [loading, setLoading] = useState(false);
@@ -60,29 +61,35 @@ const AddRecipe = () => {
     setError(null);
 
     try {
+      // First create the recipe payload
+      const recipePayload = {
+        name: recipe.name,
+        description: recipe.description,
+        instructions: recipe.instructions,
+        prep_time: parseInt(recipe.prep_time),
+        ingredients: recipe.ingredients.map(ingredient => ({
+          name: ingredient.name,
+          quantity: parseFloat(ingredient.quantity),
+          unit: ingredient.unit
+        }))
+      };
+
+      // Send the request using fetchWithAuth
       await fetchWithAuth('/api/recipe', {
         method: 'POST',
-        body: JSON.stringify({
-          name: recipe.name,
-          description: recipe.description,
-          instructions: recipe.instructions,
-          prep_time: parseInt(recipe.prep_time),
-          ingredients: recipe.ingredients.map(ingredient => ({
-            name: ingredient.name,
-            quantity: parseFloat(ingredient.quantity),
-            unit: ingredient.unit
-          }))
-        }),
+        body: JSON.stringify(recipePayload)
       });
 
+      // If successful, redirect to all recipes
       router.push('/all-recipes');
     } catch (err) {
-      setError(err.message);
+      console.error('Error adding recipe:', err);
+      setError(err.message || 'Failed to add recipe');
     } finally {
       setLoading(false);
     }
   };
-
+  
   const handleIngredientChange = (index, field, value) => {
     const newIngredients = [...recipe.ingredients];
     newIngredients[index] = {
