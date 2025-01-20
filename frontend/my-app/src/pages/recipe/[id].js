@@ -140,6 +140,7 @@ export default function RecipePage() {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
+          'Authorization': `Bearer ${localStorage.getItem('access_token')}`
         },
         body: JSON.stringify({
           protein_grams: nutritionData.protein_grams,
@@ -244,6 +245,7 @@ export default function RecipePage() {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
+          'Authorization': `Bearer ${localStorage.getItem('access_token')}`
         },
         body: JSON.stringify({ name: `**${recipe.name}**` }),
       });
@@ -260,6 +262,7 @@ export default function RecipePage() {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
+            'Authorization': `Bearer ${localStorage.getItem('access_token')}`
           },
           body: JSON.stringify({
             name: `${inFridge ? '✓' : '•'} ${ingredient.name}`,
@@ -272,6 +275,7 @@ export default function RecipePage() {
         await fetch(`${API_URL}/api/fridge/add`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
+          
           body: JSON.stringify({
             name: ingredient.name,
             quantity: 0,
@@ -361,6 +365,7 @@ const EditRecipeModal = ({ recipe, onClose, onSave }) => {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
+          'Authorization': `Bearer ${localStorage.getItem('access_token')}`
         },
         body: JSON.stringify({
           name: formData.name,
@@ -712,7 +717,8 @@ const getBackLabel = (path) => {
                                 setAddingToMenu(true);
                                 const response = await fetch(`${API_URL}/api/menus/${menu.id}/recipes`, {
                                   method: 'POST',
-                                  headers: { 'Content-Type': 'application/json' },
+                                  headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${localStorage.getItem('access_token')}` },
+                                  
                                   body: JSON.stringify({ recipe_id: id }),
                                 });
 
