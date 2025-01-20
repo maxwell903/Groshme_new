@@ -8,7 +8,7 @@ import '@/styles/globals.css';
 const publicRoutes = ['/signin', '/signup'];
 
 export default function App({ Component, pageProps }) {
-  const [supabaseClient] = useState(() => createPagesBrowserClient());
+  const [supabaseClient] = useState(() => createBrowserSupabaseClient());
   const router = useRouter();
   const [loading, setLoading] = useState(true);
   const { userId } = useAuth();
