@@ -1,31 +1,38 @@
-import { createClient } from '@supabase/supabase-js'
+import { supabase } from '@/lib/supabaseClient';
 
-// Add error checking for environment variables
-if (!process.env.NEXT_PUBLIC_SUPABASE_URL) {
-  throw new Error('Missing env.NEXT_PUBLIC_SUPABASE_URL')
-}
-if (!process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY) {
-  throw new Error('Missing env.NEXT_PUBLIC_SUPABASE_ANON_KEY')
-}
+export const API_URL = process.env.NEXT_PUBLIC_API_URL;
 
-export const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL,
-  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY,
-  {
-    auth: {
-      persistSession: true,
-      autoRefreshToken: true,
-      detectSessionInUrl: true
-    }
+export async function fetchWithAuth(endpoint, options = {}) {
+  // Get the current session
+  const { data: { session } } = await supabase.auth.getSession();
+  
+  // Get the access token
+  const token = session?.access_token;
+
+  // Prepare headers
+  const headers = {
+    'Content-Type': 'application/json',
+    ...(token && { 'Authorization': `Bearer ${token}` }),
+    ...options.headers,
+  };
+
+  // Make the request
+  const response = await fetch(`${API_URL}${endpoint}`, {
+    ...options,
+    headers,
+  });
+
+  // Handle unauthorized error
+  if (response.status === 401) {
+    // Optionally redirect to login
+    window.location.href = '/signin';
+    throw new Error('Unauthorized - Please log in');
   }
-)
 
-// Add a debug check to verify the client is working
-try {
-  const { data, error } = await supabase.auth.getSession()
-  console.log('Supabase client initialized successfully')
-} catch (error) {
-  console.error('Error initializing Supabase client:', error)
+  if (!response.ok) {
+    const error = await response.json().catch(() => ({}));
+    throw new Error(error.message || response.statusText);
+  }
+
+  return response.json();
 }
-
-export default supabase

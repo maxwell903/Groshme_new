@@ -2,6 +2,7 @@
 import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/router';
+import { fetchWithAuth } from '@/utils/api';
 const API_URL = process.env.NEXT_PUBLIC_API_URL
 
 const RecipeNavigation = ({ activePage }) => {
@@ -37,20 +38,15 @@ const RecipeNavigation = ({ activePage }) => {
 
 const AddRecipe = () => {
   const router = useRouter();
-  const [backPath, setBackPath] = useState('/');
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState(null);
   const [recipe, setRecipe] = useState({
     name: '',
     description: '',
     instructions: '',
     prep_time: '',
-    ingredients: [{ 
-      name: '', 
-      quantity: '', 
-      unit: ''
-    }]
+    ingredients: [{ name: '', quantity: '', unit: '' }]
   });
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState(null);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -58,16 +54,13 @@ const AddRecipe = () => {
     setError(null);
 
     try {
-      const response = await fetch(`${API_URL}/api/recipe`, {
+      await fetchWithAuth('/api/recipe', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
         body: JSON.stringify({
           name: recipe.name,
           description: recipe.description,
           instructions: recipe.instructions,
-          prep_time: recipe.prep_time,
+          prep_time: parseInt(recipe.prep_time),
           ingredients: recipe.ingredients.map(ingredient => ({
             name: ingredient.name,
             quantity: parseFloat(ingredient.quantity),
@@ -76,11 +69,7 @@ const AddRecipe = () => {
         }),
       });
 
-      if (!response.ok) {
-        throw new Error('Failed to add recipe');
-      }
-
-      router.push('/');
+      router.push('/all-recipes');
     } catch (err) {
       setError(err.message);
     } finally {
