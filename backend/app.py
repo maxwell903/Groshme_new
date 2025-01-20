@@ -16,7 +16,7 @@ from sqlalchemy import func # type: ignore
 from receipt_parser import parse_receipt  # Add at top with other imports
 import mysql.connector # type: ignore
 from mysql.connector import Error # type: ignore
-
+from functools import wraps
 from email.mime.text import MIMEText
 import base64
 import os
@@ -37,38 +37,31 @@ CORS(app, resources={
     }
 })
 
+JWT_SECRET = os.environ.get('JWT_SECRET')
+
 def auth_required(f):
     @wraps(f)
     def decorated(*args, **kwargs):
         auth_header = request.headers.get('Authorization')
         
         if not auth_header:
-            print("No authorization header found")  # Debug log
             return jsonify({'error': 'No authorization header'}), 401
             
         try:
-            # Extract token
-            if not auth_header.startswith('Bearer '):
-                print("Invalid token format")  # Debug log
-                return jsonify({'error': 'Invalid token format'}), 401
-                
             token = auth_header.replace('Bearer ', '')
             
-            # Decode and verify token
+            # Use your Supabase JWT secret here
             decoded = jwt.decode(
                 token,
-                algorithms=["HS256"],
-                options={"verify_signature": False}  # We trust Supabase's token
+                JWT_SECRET,
+                algorithms=["HS256"]
             )
             
-            # Store user_id in Flask's g object
-            g.user_id = decoded.get('sub')  # Supabase stores user ID in 'sub' claim
-            print(f"Authenticated user_id: {g.user_id}")  # Debug log
-            
+            g.user_id = decoded.get('sub')
             return f(*args, **kwargs)
             
         except Exception as e:
-            print(f"Auth error: {str(e)}")  # Debug log
+            print(f"Auth error: {str(e)}")
             return jsonify({'error': 'Invalid token'}), 401
             
     return decorated
