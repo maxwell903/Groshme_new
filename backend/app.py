@@ -27,14 +27,46 @@ from werkzeug.utils import secure_filename
 
 
 app = Flask(__name__)
+# Update CORS configuration
 CORS(app, resources={
     r"/api/*": {
-        "origins": ["http://localhost:3000", "https://groshmebeta.netlify.app", "https://groshmebeta-05487aa160b2.herokuapp.com"],
+        "origins": [
+            "http://localhost:3000",
+            "https://groshmebeta.netlify.app",
+            "https://groshmebeta-05487aa160b2.herokuapp.com"
+        ],
         "methods": ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
-        "allow_headers": ["Content-Type", "Authorization", "Accept"],
-        "supports_credentials": True
+        "allow_headers": ["Content-Type", "Authorization", "Access-Control-Allow-Credentials"],
+        "supports_credentials": True,
+        "expose_headers": ["Content-Range", "X-Content-Range"]
     }
 })
+
+# Add OPTIONS handler for preflight requests
+@app.route('/api/recipe', methods=['OPTIONS'])
+def handle_recipe_preflight():
+    response = jsonify({'status': 'ok'})
+    response.headers.add('Access-Control-Allow-Origin', 'https://groshmebeta.netlify.app')
+    response.headers.add('Access-Control-Allow-Headers', 'Content-Type,Authorization')
+    response.headers.add('Access-Control-Allow-Methods', 'GET,POST,PUT,DELETE,OPTIONS')
+    response.headers.add('Access-Control-Allow-Credentials', 'true')
+    return response
+
+# Add a general preflight handler for all API routes
+@app.after_request
+def after_request(response):
+    allowed_origins = [
+        "http://localhost:3000",
+        "https://groshmebeta.netlify.app",
+        "https://groshmebeta-05487aa160b2.herokuapp.com"
+    ]
+    origin = request.headers.get('Origin')
+    if origin in allowed_origins:
+        response.headers.add('Access-Control-Allow-Origin', origin)
+        response.headers.add('Access-Control-Allow-Headers', 'Content-Type,Authorization')
+        response.headers.add('Access-Control-Allow-Methods', 'GET,POST,PUT,DELETE,OPTIONS')
+        response.headers.add('Access-Control-Allow-Credentials', 'true')
+    return response
 
 # Supabase PostgreSQL connection
 SUPABASE_URL = 'https://bvgnlxznztqggtqswovg.supabase.co'
@@ -260,8 +292,13 @@ def upgrade():
     op.create_foreign_key('fk_recipe_user', 'recipe', 'users', ['user_id'], ['id'])
 
 from functools import wraps
-from flask import request, jsonify
-from supabase import create_client, Client
+from flask import request, jsonify, g
+import jwt
+from supabase import create_client
+from supabase.client import Client
+
+SUPABASE_URL = 'https://bvgnlxznztqggtqswovg.supabase.co'
+SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImJ2Z25seHpuenRxZ2d0cXN3b3ZnIiwicm9sZSI6ImFub24iLCJpYXQiOjE3MzQ5MDI1ODIsImV4cCI6MjA1MDQ3ODU4Mn0.I8alzEBJYt_D1PDZHvuyZzLzlAEANTGkeR3IRyp1gCc'
 
 supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
 
@@ -272,26 +309,30 @@ def auth_required(f):
         
         if not auth_header:
             return jsonify({'error': 'No authorization header'}), 401
-            
+
         try:
-            # Check if it starts with 'Bearer '
+            # Extract token from 'Bearer <token>'
             if not auth_header.startswith('Bearer '):
-                return jsonify({'error': 'Invalid authorization header format'}), 401
-                
+                return jsonify({'error': 'Invalid token format'}), 401
+            
             token = auth_header.split(' ')[1]
             
-            # Verify the token with Supabase
+            # Verify token with Supabase
             user = supabase.auth.get_user(token)
+            if not user:
+                raise Exception('Invalid token')
             
-            # Add user info to request object
-            request.user_id = user.id
+            # Store user_id in Flask's g object for access in route handlers
+            g.user_id = user.id
             return f(*args, **kwargs)
             
         except Exception as e:
-            print(f"Auth error: {str(e)}")  # Add logging
+            print(f"Auth error: {str(e)}")
             return jsonify({'error': 'Invalid token'}), 401
             
     return decorated
+
+
     
 
 @app.route('/api/budget-register/<uuid:register_id>', methods=['DELETE'])
@@ -1511,6 +1552,25 @@ class Recipe(db.Model):
     instructions = db.Column(db.Text)
     prep_time = db.Column(db.Integer)
     created_date = db.Column(db.DateTime, default=db.func.current_timestamp())
+    user = db.relationship('User', backref=db.backref('recipes', lazy=True))
+    ingredient_quantities = db.relationship(
+        'RecipeIngredientQuantity',
+        backref='recipe',
+        lazy=True,
+        cascade='all, delete-orphan'
+        
+        )
+
+    def to_dict(self):
+        return {
+            'id': self.id,
+            'name': self.name,
+            'description': self.description,
+            'instructions': self.instructions,
+            'prep_time': self.prep_time,
+            'created_date': self.created_date.isoformat() if self.created_date else None,
+            'ingredients': [qty.to_dict() for qty in self.ingredient_quantities]
+        }
     
    
     ingredient_quantities = db.relationship(
@@ -1521,12 +1581,19 @@ class Recipe(db.Model):
     )
 
 class RecipeIngredientQuantity(db.Model):
-    __tablename__ = 'recipe_ingredient_quantities'
-    id = db.Column(db.Integer, primary_key=True, autoincrement=True)
+    id = db.Column(db.Integer, primary_key=True)
     recipe_id = db.Column(db.Integer, db.ForeignKey('recipe.id', ondelete='CASCADE'), nullable=False)
     ingredient_id = db.Column(db.Integer, db.ForeignKey('ingredients.id', ondelete='CASCADE'), nullable=False)
     quantity = db.Column(db.Float, nullable=False)
     unit = db.Column(db.String(20))
+
+    def to_dict(self):
+        return {
+            'id': self.id,
+            'ingredient_name': self.ingredient.name,
+            'quantity': self.quantity,
+            'unit': self.unit
+        }
 
 
 # Add this near the top with other model definitions
@@ -1555,15 +1622,16 @@ class RecipeIngredientNutrition(db.Model):
 
 
 class Ingredient(db.Model):
-    __tablename__ = 'ingredients'
-    id = db.Column(db.Integer, primary_key=True, autoincrement=True)
+    id = db.Column(db.Integer, primary_key=True)
     name = db.Column(db.String(100), nullable=False, unique=True)
-    recipes = db.relationship(
-        'Recipe',
-        secondary='recipe_ingredient_quantities',
-        backref=db.backref('ingredients', lazy=True),
-        overlaps="ingredient_quantities,recipe_quantities"
-    )
+    created_by = db.Column(UUID(as_uuid=True), db.ForeignKey('users.id'))
+    created_date = db.Column(db.DateTime, default=db.func.current_timestamp())
+    
+    def to_dict(self):
+        return {
+            'id': self.id,
+            'name': self.name
+        }
 
 class Menu(db.Model):
     id = db.Column(db.Integer, primary_key=True)
@@ -2484,8 +2552,15 @@ def logout():
 @app.route('/api/recipes', methods=['GET'])
 @auth_required
 def get_recipes():
-    recipes = Recipe.query.filter_by(user_id=request.user_id).all()
-    return jsonify({'recipes': [recipe.to_dict() for recipe in recipes]})
+    try:
+        # Only get recipes for the authenticated user
+        recipes = Recipe.query.filter_by(user_id=g.user_id).all()
+        return jsonify({
+            'recipes': [recipe.to_dict() for recipe in recipes]
+        })
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
 
 # Migration for existing data
 def migrate_existing_data():
@@ -2499,15 +2574,15 @@ def migrate_existing_data():
 def add_recipe():
     try:
         data = request.json
-        data['user_id'] = request.user_id
+        user_id = g.user_id  # Get the authenticated user's ID
         
-        # Create the recipe
+        # Create the recipe with user_id
         new_recipe = Recipe(
             name=data['name'],
             description=data['description'],
             instructions=data['instructions'],
             prep_time=int(data['prep_time']),
-            user_id=uuid.UUID('bc6ae242-c238-4a6b-a884-2fd1fc03ed72')
+            user_id=user_id  # Associate recipe with user
         )
         db.session.add(new_recipe)
         db.session.flush()
@@ -2520,7 +2595,10 @@ def add_recipe():
             ).first()
             
             if not ingredient:
-                ingredient = Ingredient(name=ingredient_data['name'])
+                ingredient = Ingredient(
+                    name=ingredient_data['name'],
+                    created_by=user_id  # Track who created the ingredient
+                )
                 db.session.add(ingredient)
                 db.session.flush()
             
@@ -2532,20 +2610,7 @@ def add_recipe():
                 unit=ingredient_data['unit']
             )
             db.session.add(quantity)
-            db.session.flush()
             
-            # Add nutrition data if provided
-            if ingredient_data.get('nutritionData'):
-                nutrition = RecipeIngredientNutrition(
-                    recipe_ingredient_quantities_id=quantity.id,
-                    protein_grams=ingredient_data['nutritionData'].get('protein_grams'),
-                    fat_grams=ingredient_data['nutritionData'].get('fat_grams'),
-                    carbs_grams=ingredient_data['nutritionData'].get('carbs_grams'),
-                    serving_size=ingredient_data['nutritionData'].get('serving_size'),
-                    serving_unit=ingredient_data['nutritionData'].get('serving_unit')
-                )
-                db.session.add(nutrition)
-        
         db.session.commit()
         return jsonify({
             'message': 'Recipe added successfully',
@@ -3457,6 +3522,41 @@ def search():
     except Exception as e:
         print(f"Search error: {str(e)}")
         return jsonify({'error': str(e), 'results': [], 'count': 0}), 500
+    
+
+@app.route('/api/recipe/<int:recipe_id>', methods=['GET', 'PUT', 'DELETE'])
+@auth_required
+def manage_recipe(recipe_id):
+    try:
+        # Get recipe and verify ownership
+        recipe = Recipe.query.filter_by(
+            id=recipe_id, 
+            user_id=g.user_id
+        ).first_or_404()
+        
+        if request.method == 'GET':
+            return jsonify(recipe.to_dict())
+            
+        elif request.method == 'PUT':
+            data = request.json
+            recipe.name = data['name']
+            recipe.description = data['description']
+            recipe.instructions = data['instructions']
+            recipe.prep_time = data['prep_time']
+            
+            # Update ingredients...
+            
+            db.session.commit()
+            return jsonify({'message': 'Recipe updated successfully'})
+            
+        elif request.method == 'DELETE':
+            db.session.delete(recipe)
+            db.session.commit()
+            return jsonify({'message': 'Recipe deleted successfully'})
+            
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'error': str(e)}), 500
 
     
 @app.route('/api/recipe/<int:recipe_id>', methods=['PUT'])
