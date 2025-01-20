@@ -108,6 +108,16 @@ def allowed_file(filename):
     return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
 
 
+# Models updates
+class User(db.Model):
+    __tablename__ = 'users'
+    id = db.Column(UUID(as_uuid=True), primary_key=True)
+    email = db.Column(db.String, unique=True, nullable=False)
+    created_at = db.Column(db.DateTime, default=db.func.current_timestamp())
+    recipes = db.relationship('Recipe', backref='user', lazy=True)
+
+
+
 class MealPrepWeek(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     start_day = db.Column(db.String(20), nullable=False)
@@ -238,11 +248,41 @@ class IncomeEntry(db.Model):
         }
     # Add migration for new fields
 def upgrade():
-    op.add_column('income_entries', sa.Column('parent_id', UUID(as_uuid=True)))
-    op.add_column('income_entries', sa.Column('is_subaccount', sa.Boolean(), default=False))
-    op.create_foreign_key('fk_parent_budget', 
-                         'income_entries', 'income_entries',
-                         ['parent_id'], ['id'])
+    op.create_table(
+        'users',
+        sa.Column('id', sa.UUID(), primary_key=True),
+        sa.Column('email', sa.String(), unique=True, nullable=False),
+        sa.Column('created_at', sa.DateTime(), default=sa.func.current_timestamp())
+    )
+
+    # Add user_id foreign keys to relevant tables
+    op.add_column('recipe', sa.Column('user_id', sa.UUID(), nullable=False))
+    op.create_foreign_key('fk_recipe_user', 'recipe', 'users', ['user_id'], ['id'])
+
+from functools import wraps
+from flask import request, jsonify
+from supabase import create_client, Client
+
+supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
+
+def auth_required(f):
+    @wraps(f)
+    def decorated(*args, **kwargs):
+        auth_header = request.headers.get('Authorization')
+        if not auth_header:
+            return jsonify({'error': 'No authorization header'}), 401
+            
+        try:
+            # Verify JWT with Supabase
+            token = auth_header.split(' ')[1]
+            user = supabase.auth.get_user(token)
+            # Add user_id to request object
+            request.user_id = user.id
+            return f(*args, **kwargs)
+        except Exception as e:
+            return jsonify({'error': 'Invalid token'}), 401
+            
+    return decorated
     
 
 @app.route('/api/budget-register/<uuid:register_id>', methods=['DELETE'])
@@ -1456,7 +1496,7 @@ class MealPlan(db.Model):
 
 class Recipe(db.Model):
     id = db.Column(db.Integer, primary_key=True)
-    user_id = db.Column(db.UUID, nullable=False, default='bc6ae242-c238-4a6b-a884-2fd1fc03ed72')
+    user_id = db.Column(UUID(as_uuid=True), db.ForeignKey('users.id'), nullable=False)
     name = db.Column(db.String(100), nullable=False)
     description = db.Column(db.Text)
     instructions = db.Column(db.Text)
@@ -2384,12 +2424,73 @@ def delete_grocery_item(list_id, item_id):
     except Exception as e:
         print(f"Error deleting grocery item: {str(e)}")
         return jsonify({'error': str(e)}), 500
+    
+@app.route('/api/auth/user', methods=['POST'])
+def create_user():
+    try:
+        data = request.json
+        user_id = data['user_id']
+        
+        # Create user record
+        user = User(id=user_id, email=data['email'])
+        db.session.add(user)
+        
+        # Add default recipe
+        default_recipe = Recipe(
+            user_id=user_id,
+            name='Getting Started Recipe',
+            description='Welcome! Here\'s how to create recipes...',
+            instructions='Step 1...'
+        )
+        db.session.add(default_recipe)
+        
+        db.session.commit()
+        return jsonify({'message': 'User created successfully'})
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'error': str(e)}), 500
+    
+@app.route('/api/auth/validate', methods=['POST'])
+def validate_token():
+    token = request.headers.get('Authorization')
+    if not token:
+        return jsonify({'valid': False}), 401
+    try:
+        user = supabase.auth.get_user(token.split(' ')[1])
+        return jsonify({'valid': True, 'user': user})
+    except:
+        return jsonify({'valid': False}), 401
+    
+@app.route('/api/auth/logout', methods=['POST'])
+@auth_required
+def logout():
+    try:
+        supabase.auth.sign_out()
+        return jsonify({'message': 'Logged out successfully'})
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
 
+
+# Update all existing routes
+@app.route('/api/recipes', methods=['GET'])
+@auth_required
+def get_recipes():
+    recipes = Recipe.query.filter_by(user_id=request.user_id).all()
+    return jsonify({'recipes': [recipe.to_dict() for recipe in recipes]})
+
+# Migration for existing data
+def migrate_existing_data():
+    """Migrate existing recipes to default user"""
+    default_user_id = 'bc6ae242-c238-4a6b-a884-2fd1fc03ed72'
+    Recipe.query.filter_by(user_id=None).update({'user_id': default_user_id})
+    db.session.commit()
 
 @app.route('/api/recipe', methods=['POST'])
+@auth_required
 def add_recipe():
     try:
         data = request.json
+        data['user_id'] = request.user_id
         
         # Create the recipe
         new_recipe = Recipe(
@@ -4116,7 +4217,13 @@ def add_ingredient_nutrition(recipe_id, ingredient_index):
         return jsonify({'error': str(e)}), 500
     
 @app.route('/api/recipe/<int:recipe_id>', methods=['GET'])
+@auth_required
 def get_recipe(recipe_id):
+    recipe = Recipe.query.filter_by(
+        id=recipe_id, 
+        user_id=request.user_id
+    ).first_or_404()
+    
     try:
         # Create the database engine using Supabase credentials
         db_url = 'postgresql://postgres.bvgnlxznztqggtqswovg:RecipeFinder123!@aws-0-us-east-2.pooler.supabase.com:5432/postgres'
@@ -4609,13 +4716,6 @@ def create_cors_response():
     response.headers.add('Access-Control-Allow-Methods', 'POST, OPTIONS')
     return response, 200
 
-@app.route('/api/logout', methods=['POST'])
-def logout():
-    # Clear the token file
-    token_path = os.path.join('instance', 'token.json')
-    if os.path.exists(token_path):
-        os.remove(token_path)
-    return jsonify({'message': 'Logged out successfully'}), 200
 
 
 
