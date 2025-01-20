@@ -1,26 +1,33 @@
-// _app.js
-import { useState } from 'react';
+import { createClient } from '@supabase/supabase-js';
+import { useState, useEffect } from 'react';
 
-import { SessionContextProvider } from '@supabase/auth-helpers-react';
-import { AuthProvider } from '@/contexts/AuthContext';
-import '@/styles/globals.css';
-
-
-import { createPagesSupabaseClient } from '@/lib/supabaseClient';
-
-
-
-export default function App({ Component, pageProps }) {
-  const [supabaseClient] = useState(() => createPagesSupabaseClient());
-
-  return (
-    <SessionContextProvider
-      supabaseClient={supabaseClient}
-      initialSession={pageProps.initialSession}
-    >
-      <AuthProvider>
-        <Component {...pageProps} />
-      </AuthProvider>
-    </SessionContextProvider>
+function MyApp({ Component, pageProps }) {
+  const [supabase] = useState(() => 
+    createClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL, 
+      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
+    )
   );
+
+  useEffect(() => {
+    // Safe session handling
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(
+      (event, session) => {
+        try {
+          console.log('Auth state changed:', event, session);
+          // Handle session changes safely
+        } catch (error) {
+          console.error('Error in auth state change:', error);
+        }
+      }
+    );
+
+    return () => {
+      subscription.unsubscribe();
+    };
+  }, [supabase]);
+
+  return <Component {...pageProps} />;
 }
+
+export default MyApp;

@@ -1,15 +1,44 @@
 import { createClient } from '@supabase/supabase-js';
 
-// Make sure to export the client
+// Explicit error handling and logging
 export const supabaseClient = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL,
-  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
+  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY,
+  {
+    // Add additional configuration options
+    auth: {
+      persistSession: true,
+      // Add more detailed error handling
+      onError: (error) => {
+        console.error('Supabase Auth Error:', error);
+      }
+    }
+  }
 );
 
-// If you want to create separate clients for different purposes
-export const createPagesSupabaseClient = () => {
-  return createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
-  );
+// Create a safe wrapper for state change emitters
+export const createStateChangeEmitter = () => {
+  const stateChangeEmitters = new Map();
+
+  return {
+    register: (key, callback) => {
+      if (typeof callback !== 'function') {
+        console.error(`Invalid callback for key: ${key}`);
+        return;
+      }
+      stateChangeEmitters.set(key, { callback });
+    },
+    emit: (key, ...args) => {
+      const emitter = stateChangeEmitters.get(key);
+      if (emitter && typeof emitter.callback === 'function') {
+        try {
+          emitter.callback(...args);
+        } catch (error) {
+          console.error(`Error in emitter for key ${key}:`, error);
+        }
+      } else {
+        console.warn(`No valid emitter found for key: ${key}`);
+      }
+    }
+  };
 };
