@@ -3,6 +3,7 @@ import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/router';
 import { debounce } from 'lodash';
+import { fetchApi, API_URL } from '@/utils/api';
 const API_URL = process.env.NEXT_PUBLIC_API_URL
 import ProtectedRoute from '@/components/ProtectedRoute';
 
