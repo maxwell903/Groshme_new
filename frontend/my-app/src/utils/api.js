@@ -1,9 +1,9 @@
-
-import { supabase } from '@/lib/supabaseClient';
+import { supabaseClient } from '@/lib/supabaseClient';
 
 export const API_URL = 'https://groshmebeta-05487aa160b2.herokuapp.com';
+
 export const fetchApi = async (endpoint, options = {}) => {
-  const session = await supabase.auth.getSession();
+  const session = await supabaseClient(options.userId).auth.getSession();
   const token = session?.data?.session?.access_token;
 
   const headers = {
@@ -27,34 +27,34 @@ export const fetchApi = async (endpoint, options = {}) => {
 
 // Supabase specific functions
 export const supabaseApi = {
-  async addItem(data) {
-    const { supabase } = await import('@/lib/supabaseClient');
-    return supabase
+  async addItem(userId, data) {
+    const client = supabaseClient(userId);
+    return client
       .from('items')
       .insert([data])
       .select();
   },
 
-  async getItems() {
-    const { supabase } = await import('@/lib/supabaseClient');
-    return supabase
+  async getItems(userId) {
+    const client = supabaseClient(userId);
+    return client
       .from('items')
       .select('*')
       .order('created_at', { ascending: false });
   },
 
-  async updateItem(id, data) {
-    const { supabase } = await import('@/lib/supabaseClient');
-    return supabase
+  async updateItem(userId, id, data) {
+    const client = supabaseClient(userId);
+    return client
       .from('items')
       .update(data)
       .eq('id', id)
       .select();
   },
 
-  async deleteItem(id) {
-    const { supabase } = await import('@/lib/supabaseClient');
-    return supabase
+  async deleteItem(userId, id) {
+    const client = supabaseClient(userId);
+    return client
       .from('items')
       .delete()
       .eq('id', id);

@@ -46,7 +46,7 @@ export default function App({ Component, pageProps }) {
       initialSession={pageProps.initialSession}
     >
       <AuthProvider>
-        <Component {...pageProps} />
+        <Component {...pageProps} userId={pageProps.userId} />
       </AuthProvider>
     </SessionContextProvider>
   );
