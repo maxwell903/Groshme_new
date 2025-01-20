@@ -3,10 +3,6 @@ import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/router';
 import { fetchWithAuth } from '@/utils/fetch';
-const API_URL = process.env.NEXT_PUBLIC_API_URL;
-
-
-
 
 const AddRecipe = () => {
   const router = useRouter();
@@ -26,26 +22,44 @@ const AddRecipe = () => {
     setBackPath(prevPath);
   }, []);
 
+  const validateIngredients = (ingredients) => {
+    return ingredients.every(ingredient => 
+      ingredient.name.trim() !== '' && 
+      !isNaN(ingredient.quantity) && 
+      ingredient.quantity > 0
+    );
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     setLoading(true);
     setError(null);
 
     try {
-      // First create the recipe payload
+      // Validate ingredients
+      if (!validateIngredients(recipe.ingredients)) {
+        throw new Error('Please fill in all ingredient fields with valid values');
+      }
+
+      // Create the recipe payload
       const recipePayload = {
-        name: recipe.name,
-        description: recipe.description,
-        instructions: recipe.instructions,
+        name: recipe.name.trim(),
+        description: recipe.description.trim(),
+        instructions: recipe.instructions.trim(),
         prep_time: parseInt(recipe.prep_time),
         ingredients: recipe.ingredients.map(ingredient => ({
-          name: ingredient.name,
+          name: ingredient.name.trim(),
           quantity: parseFloat(ingredient.quantity),
-          unit: ingredient.unit
-        }))
+          unit: ingredient.unit.trim()
+        })).filter(ingredient => ingredient.name !== '')
       };
 
-      // Send the request using fetchWithAuth
+      // Validate that there is at least one ingredient
+      if (recipePayload.ingredients.length === 0) {
+        throw new Error('At least one ingredient is required');
+      }
+
+      // Send the authenticated request
       await fetchWithAuth('/api/recipe', {
         method: 'POST',
         body: JSON.stringify(recipePayload)
@@ -78,16 +92,17 @@ const AddRecipe = () => {
   };
 
   const removeIngredientField = (index) => {
+    // Don't remove if it's the last ingredient
+    if (recipe.ingredients.length === 1) {
+      return;
+    }
     const newIngredients = recipe.ingredients.filter((_, i) => i !== index);
     setRecipe({ ...recipe, ingredients: newIngredients });
   };
 
   return (
     <div className="min-h-screen bg-gray-50">
-     
       <div className="max-w-6xl mx-auto px-4 py-8">
-        
-
         <div className="max-w-6xl mx-auto px-4 py-8">
           <h1 className="text-3xl font-bold text-gray-900 mb-8">Add New Recipe</h1>
 
@@ -150,7 +165,7 @@ const AddRecipe = () => {
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-gray-700">Ingredients</label>
+              <label className="block text-sm font-medium text-gray-700 mb-2">Ingredients</label>
               <div className="space-y-2">
                 {recipe.ingredients.map((ingredient, index) => (
                   <div key={index} className="flex gap-2 items-center">
