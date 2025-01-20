@@ -22,7 +22,9 @@ export const AuthProvider = ({ children }) => {
     );
 
     return () => {
-      authListener?.unsubscribe();
+      if (authListener) {
+        supabase.auth.onAuthStateChange(authListener, null);
+      }
     };
   }, [session, supabase]);
 
