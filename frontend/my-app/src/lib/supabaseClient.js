@@ -1,20 +1,11 @@
+// supabaseClient.js
 import { createClient } from '@supabase/supabase-js';
 
-export const supabaseClient = (userId) => {
-  const supabaseUrl = 'https://bvgnlxznztqggtqswovg.supabase.co';
-  const supabaseKey = userId;
+const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 
-  if (!supabaseUrl || !supabaseKey) {
-    throw new Error('Missing Supabase environment variables');
-  }
+if (!supabaseUrl || !supabaseKey) {
+  throw new Error('Missing Supabase environment variables');
+}
 
-  return createClient(supabaseUrl, supabaseKey, {
-    auth: {
-      persistSession: true,
-      autoRefreshToken: true,
-    },
-    db: {
-      schema: 'public'
-    }
-  });
-};
+export const supabase = createClient(supabaseUrl, supabaseKey);
