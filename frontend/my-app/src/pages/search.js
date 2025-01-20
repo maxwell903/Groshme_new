@@ -10,36 +10,7 @@ export default function Search() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
 
-  const RecipeNavigation = ({ activePage }) => {
-    return (
-      <div className="flex gap-4 mb-4">
-        <Link 
-        href="/all-recipes"
-        className={`px-4 py-2 rounded ${
-          activePage === '' ? 'bg-gray-600 text-white' : 'bg-gray-200 text-gray-700 hover:bg-blue-600 hover:text-white'
-        }`}
-      >
-        All Recipes
-      </Link>
-      <Link 
-        href="/search"
-        className={`px-4 py-2 rounded ${
-          activePage === 'search' ? 'bg-blue-600 text-white' : 'bg-gray-200 text-gray-700 hover:bg-blue-600 hover:text-white'
-        }`}
-      >
-        Search By Ingredient
-      </Link>
-      <Link 
-        href="/add-recipe"
-        className={`px-4 py-2 rounded ${
-          activePage === 'add' ? 'bg-blue-600 text-white': 'bg-gray-200 text-gray-700 hover:bg-blue-600 hover:text-white'
-        }`}
-      >
-        Add New Recipe
-      </Link>
-      </div>
-    );
-  };
+  
 
   // Function to perform the search
   const performSearch = async (ingredients) => {

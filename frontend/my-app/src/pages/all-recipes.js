@@ -7,36 +7,7 @@ import { debounce } from 'lodash';
 const API_URL = process.env.NEXT_PUBLIC_API_URL
 import ProtectedRoute from '@/components/ProtectedRoute';
 
-const RecipeNavigation = ({ activePage }) => {
-  return (
-    <div className="flex gap-4 mb-4">
-      <Link 
-        href="/all-recipes"
-        className={`px-4 py-2 rounded ${
-          activePage === 'all' ? 'bg-blue-600 text-white' : 'bg-blue-600 text-white hover:bg-blue-600 hover:text-white'
-        }`}
-      >
-        All Recipes
-      </Link>
-      <Link 
-        href="/search"
-        className={`px-4 py-2 rounded ${
-          activePage === 'search' ? 'bg-blue-600 text-white' : 'bg-gray-200 text-gray-700 hover:bg-blue-600 hover:text-white'
-        }`}
-      >
-        Search By Ingredient
-      </Link>
-      <Link 
-        href="/add-recipe"
-        className={`px-4 py-2 rounded ${
-          activePage === 'this thing is weird' ? 'bg-blue-600 text-white': 'bg-gray-200 text-gray-700 hover:bg-blue-600 hover:text-white'
-        }`}
-      >
-        Add New Recipe
-      </Link>
-    </div>
-  );
-};
+
 
 const SearchInput = ({ value, onChange }) => {
   return (
