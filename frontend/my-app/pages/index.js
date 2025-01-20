@@ -4,8 +4,10 @@ import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/router';
 import { Plus, X, Search, ChevronDown, ChevronUp, Check } from 'lucide-react';
-import { supabase } from '../src/lib/supabaseClient'
+import { supabase } from '@/lib/supabaseClient'
 import { fetchApi} from '@/utils/api';
+import { useAuth } from '@/contexts/AuthContext';
+
 const API_URL = process.env.NEXT_PUBLIC_API_URL
 
 import emailjs from '@emailjs/browser';
@@ -353,6 +355,14 @@ const EmailToMyselfButton = () => {
 
 export default function Home() {
 
+  const handleSignOut = async () => {
+    try {
+      await supabase.auth.signOut();
+    } catch (error) {
+      console.error('Error signing out:', error);
+    }
+  };
+
 
   const handleSignUp = async (e) => {
     e.preventDefault()
@@ -420,6 +430,19 @@ export default function Home() {
 
   return (
     <div className="min-h-screen bg-gray-50">
+        <div className="absolute top-0 right-0 p-4 flex items-center gap-4">
+        {user && (
+          <>
+            <span className="text-gray-600">{user.email}</span>
+            <button
+              onClick={handleSignOut}
+              className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors"
+            >
+              Sign Out
+            </button>
+          </>
+        )}
+      </div>
       <div className="relative bg-white">
         <div className="absolute inset-0 bg-gradient-to-br from-blue-50 to-blue-100" />
         <div className="relative mx-auto max-w-6xl px-4 sm:px-6 lg:px-8 py-20">
