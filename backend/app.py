@@ -129,7 +129,28 @@ app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 db = SQLAlchemy(app)
 migrate = Migrate(app, db)
 
-
+@auth_required
+def decorated(*args, **kwargs):
+    auth_header = request.headers.get('Authorization')
+    
+    if not auth_header:
+        return jsonify({'error': 'No authorization header'}), 401
+        
+    try:
+        token = auth_header.replace('Bearer ', '')
+        
+        # Decode JWT token from Supabase
+        decoded = jwt.decode(
+            token,
+            jwt_secret_key,  # Add your JWT secret key here
+            algorithms=["HS256"]
+        )
+        
+        g.user_id = decoded['sub']  # Supabase stores user ID in 'sub' claim
+        return f(*args, **kwargs)
+        
+    except jwt.InvalidTokenError:
+        return jsonify({'error': 'Invalid token'}), 401
 
 
 def get_vision_credentials():
@@ -2624,13 +2645,15 @@ def migrate_existing_data():
 def add_recipe():
     try:
         data = request.json
-        user_id = g.user_id
+        user_id = g.user_id  # Get authenticated user's ID
+        
+        # Add debug logging
+        print(f"Creating recipe for user: {user_id}")
         
         engine = create_engine(db_url, poolclass=NullPool)
         
         with engine.connect() as connection:
             with connection.begin():
-                # Insert recipe
                 result = connection.execute(
                     text("""
                         INSERT INTO recipe (
@@ -2639,64 +2662,27 @@ def add_recipe():
                         ) VALUES (
                             :name, :description, :instructions,
                             :prep_time, :user_id, CURRENT_TIMESTAMP
-                        ) RETURNING id
+                        ) RETURNING id, user_id
                     """),
                     {
                         "name": data['name'],
                         "description": data['description'],
                         "instructions": data['instructions'],
                         "prep_time": int(data['prep_time']),
-                        "user_id": user_id
+                        "user_id": user_id  # Pass the user_id here
                     }
                 )
                 
-                recipe_id = result.fetchone()[0]
-                print(f"Created recipe with ID: {recipe_id}")
-                
-                # Batch insert ingredients
-                ingredient_values = []
-                for ingredient in data['ingredients']:
-                    # First, create or get ingredient
-                    ing_result = connection.execute(
-                        text("""
-                            INSERT INTO ingredients (name)
-                            VALUES (:name)
-                            ON CONFLICT (name) DO UPDATE 
-                            SET name = EXCLUDED.name
-                            RETURNING id
-                        """),
-                        {"name": ingredient['name']}
-                    )
-                    ingredient_id = ing_result.fetchone()[0]
-                    
-                    # Add to values for batch insert
-                    ingredient_values.append({
-                        "recipe_id": recipe_id,
-                        "ingredient_id": ingredient_id,
-                        "quantity": float(ingredient['quantity']),
-                        "unit": ingredient['unit']
-                    })
-                
-                # Batch insert quantities
-                if ingredient_values:
-                    connection.execute(
-                        text("""
-                            INSERT INTO recipe_ingredient_quantities 
-                            (recipe_id, ingredient_id, quantity, unit)
-                            VALUES (:recipe_id, :ingredient_id, :quantity, :unit)
-                        """),
-                        ingredient_values
-                    )
+                new_recipe = result.fetchone()
+                print(f"Created recipe with ID: {new_recipe.id} for user: {new_recipe.user_id}")
                 
                 return jsonify({
-                    'message': 'Recipe added successfully',
-                    'recipe_id': recipe_id
+                    'message': 'Recipe created successfully',
+                    'recipe_id': new_recipe.id
                 }), 201
                 
     except Exception as e:
-        print(f"Error adding recipe: {str(e)}")
-        import traceback
-        traceback.print_exc()
+        print(f"Error creating recipe: {str(e)}")
         return jsonify({'error': str(e)}), 500
 
 

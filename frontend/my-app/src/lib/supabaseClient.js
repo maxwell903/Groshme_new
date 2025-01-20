@@ -29,7 +29,7 @@ export const supabaseClient = (userId) => {
     },
     global: {
       headers: {
-        'x-user-id': userId
+        'x-user-id': userId  // This header isn't being used by your backend
       }
     }
   });
