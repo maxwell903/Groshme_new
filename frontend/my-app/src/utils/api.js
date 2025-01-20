@@ -25,7 +25,6 @@ export const fetchApi = async (endpoint, options = {}) => {
   return response.json();
 };
 
-// Supabase specific functions
 export const supabaseApi = {
   async addItem(userId, data) {
     const client = supabaseClient(userId);
@@ -34,7 +33,6 @@ export const supabaseApi = {
       .insert([data])
       .select();
   },
-
   async getItems(userId) {
     const client = supabaseClient(userId);
     return client
