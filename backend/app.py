@@ -22,7 +22,7 @@ import base64
 import os
 from werkzeug.utils import secure_filename
 from config import Config
-
+import traceback  # Make sure this is imported at the top of your file
 
 
 
@@ -208,7 +208,7 @@ class User(db.Model):
     email = db.Column(db.String, unique=True, nullable=False)
     created_at = db.Column(db.DateTime, default=db.func.current_timestamp())
     recipes = db.relationship('Recipe', backref='user', lazy=True)
-
+    user_recipes = db.relationship('Recipe', backref='owner', lazy=True)
 
 
 class MealPrepWeek(db.Model):
@@ -1585,14 +1585,14 @@ class Recipe(db.Model):
     instructions = db.Column(db.Text)
     prep_time = db.Column(db.Integer)
     created_date = db.Column(db.DateTime, default=db.func.current_timestamp())
-    user = db.relationship('User', backref=db.backref('recipes', lazy=True))
+    
+
     ingredient_quantities = db.relationship(
         'RecipeIngredientQuantity',
         backref='recipe',
         lazy=True,
         cascade='all, delete-orphan'
-        
-        )
+    )
 
     def to_dict(self):
         return {
@@ -1604,29 +1604,22 @@ class Recipe(db.Model):
             'created_date': self.created_date.isoformat() if self.created_date else None,
             'ingredients': [qty.to_dict() for qty in self.ingredient_quantities]
         }
-    
-   
-    ingredient_quantities = db.relationship(
-        'RecipeIngredientQuantity',
-        backref='recipe',
-        lazy=True,
-        cascade='all, delete-orphan'
-    )
 
 class RecipeIngredientQuantity(db.Model):
+    __tablename__ = 'recipe_ingredient_quantities'
     id = db.Column(db.Integer, primary_key=True)
-    recipe_id = db.Column(db.Integer, db.ForeignKey('recipe.id', ondelete='CASCADE'), nullable=False)
-    ingredient_id = db.Column(db.Integer, db.ForeignKey('ingredients.id', ondelete='CASCADE'), nullable=False)
-    quantity = db.Column(db.Float, nullable=False)
-    unit = db.Column(db.String(20))
-
-    def to_dict(self):
-        return {
-            'id': self.id,
-            'ingredient_name': self.ingredient.name,
-            'quantity': self.quantity,
-            'unit': self.unit
-        }
+    recipe_id = db.Column(db.Integer, db.ForeignKey('recipe.id'), nullable=False)
+    ingredient_id = db.Column(db.Integer, db.ForeignKey('ingredients.id'), nullable=False)
+    
+    # Explicitly define the relationship with clear foreign key
+    nutrition = db.relationship(
+        'RecipeIngredientNutrition', 
+        back_populates='recipe_ingredient', 
+        uselist=False, 
+        cascade='all, delete-orphan',
+        # Explicitly specify the foreign key
+        primaryjoin='RecipeIngredientQuantity.id == RecipeIngredientNutrition.recipe_ingredient_quantities_id'
+    )
 
 
 # Add this near the top with other model definitions
@@ -1639,19 +1632,31 @@ class RecipeIngredient3(db.Model):
 class RecipeIngredientNutrition(db.Model):
     __tablename__ = 'recipe_ingredient_nutrition'
     id = db.Column(db.Integer, primary_key=True)
-    recipe_ingredient_quantities_id = db.Column(db.Integer, 
-                                              db.ForeignKey('recipe_ingredient_quantities.id', ondelete='CASCADE'), 
-                                              nullable=False)
+    recipe_ingredient_quantities_id = db.Column(
+        db.Integer, 
+        db.ForeignKey('recipe_ingredient_quantities.id', ondelete='CASCADE'), 
+        nullable=False,
+        index=True  # Add an index for performance
+    )
+
+    recipe_ingredient = db.relationship(
+        'RecipeIngredientQuantity', 
+        back_populates='nutrition',
+        # Explicitly specify the foreign key
+        primaryjoin='RecipeIngredientNutrition.recipe_ingredient_quantities_id == RecipeIngredientQuantity.id'
+    )
     protein_grams = db.Column(db.Float, nullable=True)
     fat_grams = db.Column(db.Float, nullable=True)
     carbs_grams = db.Column(db.Float, nullable=True)
     serving_size = db.Column(db.Float, nullable=True)
     serving_unit = db.Column(db.String(20), nullable=True)
     
-    recipe_ingredient = db.relationship('RecipeIngredientQuantity', 
-                                      backref=db.backref('nutrition', 
-                                                       uselist=False, 
-                                                       cascade='all, delete-orphan'))
+    
+    
+    recipe_ingredient = db.relationship(
+        'RecipeIngredientQuantity', 
+        back_populates='nutrition'
+    )
 
 
 class Ingredient(db.Model):
@@ -4329,45 +4334,69 @@ def get_recipe_ingredients(recipe_id):
 def add_ingredient_nutrition(recipe_id, ingredient_index):
     try:
         data = request.json
-        print(f"Received nutrition data: {data}")  # Debug log
+        print(f"Received nutrition data: {data}")
         
-        # Get the recipe ingredient quantity record by index
+        # Get quantity records
         quantity_records = RecipeIngredientQuantity.query.filter_by(recipe_id=recipe_id).all()
         
+        print(f"Total Quantity Records: {len(quantity_records)}")
+        for idx, record in enumerate(quantity_records):
+            print(f"Record {idx}: ID={record.id}, Ingredient ID={record.ingredient_id}")
+        
         if ingredient_index >= len(quantity_records):
-            print(f"Invalid index: {ingredient_index}, total records: {len(quantity_records)}")
-            return jsonify({'error': 'Invalid ingredient index'}), 400
+            return jsonify({
+                'error': 'Invalid ingredient index', 
+                'total_records': len(quantity_records)
+            }), 400
             
         quantity_record = quantity_records[ingredient_index]
-        print(f"Found quantity record: {quantity_record.id}")
-
-        # First delete any existing nutrition record
-        RecipeIngredientNutrition.query.filter_by(
+        
+        # Check if nutrition already exists and delete if it does
+        existing_nutrition = RecipeIngredientNutrition.query.filter_by(
             recipe_ingredient_quantities_id=quantity_record.id
-        ).delete()
+        ).first()
+        
+        if existing_nutrition:
+            db.session.delete(existing_nutrition)
+            db.session.flush()
         
         # Create new nutrition record
         nutrition = RecipeIngredientNutrition(
             recipe_ingredient_quantities_id=quantity_record.id,
-            protein_grams=data.get('protein_grams', 0),
-            fat_grams=data.get('fat_grams', 0),
-            carbs_grams=data.get('carbs_grams', 0),
-            serving_size=data.get('serving_size', 0),
+            protein_grams=float(data.get('protein_grams', 0)),
+            fat_grams=float(data.get('fat_grams', 0)),
+            carbs_grams=float(data.get('carbs_grams', 0)),
+            serving_size=float(data.get('serving_size', 0)),
             serving_unit=data.get('serving_unit', '')
         )
         
         db.session.add(nutrition)
         db.session.commit()
         
-        print("Successfully saved nutrition data")
-        return jsonify({'message': 'Nutrition info added successfully'}), 200
+        return jsonify({
+            'message': 'Nutrition info added successfully',
+            'nutrition': {
+                'protein_grams': nutrition.protein_grams,
+                'fat_grams': nutrition.fat_grams,
+                'carbs_grams': nutrition.carbs_grams,
+                'serving_size': nutrition.serving_size,
+                'serving_unit': nutrition.serving_unit
+            }
+        }), 200
         
     except Exception as e:
         db.session.rollback()
+        # More comprehensive error logging
+        import traceback
         print(f"Error adding nutrition info: {str(e)}")
-        return jsonify({'error': str(e)}), 500
+        print(traceback.format_exc())
+        return jsonify({
+            'error': 'Failed to add nutrition',
+            'details': str(e),
+            'traceback': traceback.format_exc()
+        }), 500
     
-import traceback  # Make sure this is imported at the top of your file
+
 
 @app.route('/api/recipe/<int:recipe_id>', methods=['GET'])
 @auth_required
