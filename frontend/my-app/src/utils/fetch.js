@@ -1,16 +1,8 @@
-export const fetchWithAuth = async (endpoint, options = {}) => {
-  // Try to get token from localStorage first
-  let token = localStorage.getItem('access_token');
-  
-  // If no token in localStorage, try to get from current session
-  if (!token) {
-    const { data: { session } } = await supabase.auth.getSession();
-    if (session?.access_token) {
-      token = session.access_token;
-      localStorage.setItem('access_token', token);
-    }
-  }
-  
+const fetchWithAuth = async (endpoint, options = {}) => {
+  // Always get the current session first
+  const { data: { session } } = await supabase.auth.getSession();
+  const token = session?.access_token;
+
   if (!token) {
     console.error('No authentication token found');
     throw new Error('No authentication token found');
