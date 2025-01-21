@@ -3,6 +3,7 @@ import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/router';
 import { fetchWithAuth } from '@/utils/fetch';
+import ProtectedRoute from '@/components/ProtectedRoute';
 const API_URL = process.env.NEXT_PUBLIC_API_URL
 
 export default function Menus() {
