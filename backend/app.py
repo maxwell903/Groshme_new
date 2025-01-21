@@ -1673,8 +1673,11 @@ class Ingredient(db.Model):
 
 class Menu(db.Model):
     id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(UUID(as_uuid=True), db.ForeignKey('users.id'), nullable=False)
     name = db.Column(db.String(100), nullable=False)
     created_date = db.Column(db.DateTime, default=db.func.current_timestamp())
+    user = db.relationship('User', backref=db.backref('menus', lazy=True))
+
 
 class MenuRecipe(db.Model):
     id = db.Column(db.Integer, primary_key=True)
@@ -2870,18 +2873,21 @@ from flask import jsonify, request
 DB_URL = 'postgresql://postgres.bvgnlxznztqggtqswovg:RecipeFinder123!@aws-0-us-east-2.pooler.supabase.com:5432/postgres'
 
 @app.route('/api/menus', methods=['GET'])
+@auth_required
 def get_menus():
     try:
-        engine = create_engine(DB_URL, poolclass=NullPool)
+        user_id = g.user_id  # Get authenticated user's ID
+        engine = create_engine(db_url, poolclass=NullPool)
         
         with engine.connect() as connection:
             result = connection.execute(text("""
                 SELECT m.id, m.name, COUNT(mr.recipe_id) as recipe_count
                 FROM menu m
                 LEFT JOIN menu_recipe mr ON m.id = mr.menu_id
+                WHERE m.user_id = :user_id
                 GROUP BY m.id, m.name
                 ORDER BY m.name
-            """))
+            """), {"user_id": user_id})
 
             menus_data = [{
                 'id': row.id,
@@ -2894,20 +2900,18 @@ def get_menus():
         print(f"Error fetching menus: {str(e)}")
         return jsonify({'error': str(e)}), 500
 
+
 @app.route('/api/menus', methods=['POST'])
+@auth_required
 def create_menu():
     try:
         data = request.json
+        user_id = g.user_id  # Get authenticated user's ID
+        
         if not data or 'name' not in data:
             return jsonify({'error': 'Menu name is required'}), 400
 
-        # Default user ID used in your application
-        default_user_id = 'bc6ae242-c238-4a6b-a884-2fd1fc03ed72'
-
-        # Create connection to Supabase PostgreSQL
-        db_url = 'postgresql://postgres.bvgnlxznztqggtqswovg:RecipeFinder123!@aws-0-us-east-2.pooler.supabase.com:5432/postgres'
-        engine = create_engine(db_url, poolclass=NullPool)
-
+        engine = create_engine(db_url)
         with engine.connect() as connection:
             # Start a transaction
             with connection.begin():
@@ -2920,7 +2924,7 @@ def create_menu():
                     """),
                     {
                         "name": data['name'],
-                        "user_id": default_user_id
+                        "user_id": user_id
                     }
                 )
                 
@@ -2934,7 +2938,7 @@ def create_menu():
             }), 201
 
     except Exception as e:
-        print(f"Error creating menu: {str(e)}")  # Add logging
+        print(f"Error creating menu: {str(e)}")
         return jsonify({'error': str(e)}), 500
 
 @app.route('/api/menus/<int:menu_id>/recipes', methods=['GET'])
@@ -3072,26 +3076,34 @@ def add_recipe_to_menu(menu_id):
         return jsonify({'error': str(e)}), 500
 
 @app.route('/api/menus/<int:menu_id>', methods=['DELETE'])
+@auth_required
 def delete_menu(menu_id):
     try:
+        user_id = g.user_id
         engine = create_engine(db_url, poolclass=NullPool)
         
         with engine.connect() as connection:
             with connection.begin():
-                # First delete all menu_recipe associations
+                # Verify menu belongs to user
+                menu_check = connection.execute(
+                    text("SELECT id FROM menu WHERE id = :menu_id AND user_id = :user_id"),
+                    {"menu_id": menu_id, "user_id": user_id}
+                ).fetchone()
+                
+                if not menu_check:
+                    return jsonify({'error': 'Menu not found or unauthorized'}), 404
+
+                # Delete menu recipes first
                 connection.execute(
                     text("DELETE FROM menu_recipe WHERE menu_id = :menu_id"),
                     {"menu_id": menu_id}
                 )
                 
-                # Then delete the menu itself
-                result = connection.execute(
-                    text("DELETE FROM menu WHERE id = :menu_id RETURNING id"),
+                # Delete the menu
+                connection.execute(
+                    text("DELETE FROM menu WHERE id = :menu_id"),
                     {"menu_id": menu_id}
                 )
-                
-                if not result.rowcount:
-                    return jsonify({'error': 'Menu not found'}), 404
                 
             return jsonify({'message': 'Menu deleted successfully'}), 200
             

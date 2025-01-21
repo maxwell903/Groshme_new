@@ -4,6 +4,8 @@ import { useRouter } from 'next/router';
 import Link from 'next/link';
 const API_URL = process.env.NEXT_PUBLIC_API_URL
 import { useCallback } from 'react';
+import { fetchWithAuth } from '@/utils/fetch';
+import ProtectedRoute from '@/components/ProtectedRoute';
 
 export default function MenuDetail() {
   const router = useRouter();
@@ -21,18 +23,7 @@ export default function MenuDetail() {
     if (!menuId) return;
     
     try {
-      const response = await fetch(`${API_URL}/api/menus/${menuId}/recipes`, {
-        headers: {
-          'Accept': 'application/json',
-          'Content-Type': 'application/json',
-        }
-      });
-
-      if (!response.ok) {
-        throw new Error('Failed to fetch menu recipes');
-      }
-
-      const data = await response.json();
+      const data = await fetchWithAuth(`/api/menus/${menuId}/recipes`);
       setMenu({ name: data.menu_name });
       setRecipes(data.recipes || []);
       setError(null);
@@ -43,6 +34,7 @@ export default function MenuDetail() {
       setLoading(false);
     }
   };
+
 
   const fetchFridgeItems = async () => {
     try {
@@ -63,23 +55,16 @@ export default function MenuDetail() {
     }
   }, [menuId]);
 
+  
+
   const handleDeleteMenu = async () => {
     if (!menuId || isDeleting) return;
 
     try {
       setIsDeleting(true);
-      const response = await fetch(`${API_URL}/api/menus/${menuId}`, {
-        method: 'DELETE',
-        headers: {
-          'Accept': 'application/json',
-          'Content-Type': 'application/json',
-        },
+      await fetchWithAuth(`/api/menus/${menuId}`, {
+        method: 'DELETE'
       });
-
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error || 'Failed to delete menu');
-      }
 
       router.push('/menus');
     } catch (err) {
@@ -92,18 +77,10 @@ export default function MenuDetail() {
 
   const handleRemoveRecipe = async (recipeId) => {
     try {
-      const response = await fetch(`${API_URL}/api/menus/${menuId}/recipes/${recipeId}`, {
-        method: 'DELETE',
-        headers: {
-          'Content-Type': 'application/json'
-        }
+      await fetchWithAuth(`/api/menus/${menuId}/recipes/${recipeId}`, {
+        method: 'DELETE'
       });
 
-      if (!response.ok) {
-        throw new Error('Failed to remove recipe from menu');
-      }
-
-      // Refresh menu recipes
       fetchMenuRecipes();
     } catch (error) {
       console.error('Error removing recipe:', error);

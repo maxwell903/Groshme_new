@@ -16,7 +16,57 @@ export default function Menus() {
   const [groceryLists, setGroceryLists] = useState([]);
   const [fridgeItems, setFridgeItems] = useState([]);
   const router = useRouter();
-  const [isDeleting, setIsDeleting] = useState(false);
+
+  const fetchMenus = async () => {
+    try {
+      const data = await fetchWithAuth('/api/menus');
+      setMenus(data.menus);
+      setError(null);
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleCreateMenu = async (e) => {
+    e.preventDefault();
+    if (!newMenuName.trim()) {
+      setError('Menu name is required');
+      return;
+    }
+
+    try {
+      setError(null);
+      await fetchWithAuth('/api/menus', {
+        method: 'POST',
+        body: JSON.stringify({ name: newMenuName.trim() })
+      });
+
+      setNewMenuName('');
+      setShowCreateForm(false);
+      await fetchMenus();
+    } catch (err) {
+      console.error('Error creating menu:', err);
+      setError(err.message);
+    }
+  };
+
+  const handleDeleteMenu = async (menuId) => {
+    if (!menuId || isDeleting) return;
+
+    if (confirm('Are you sure you want to delete this Menu?')) {
+      try {
+        await fetchWithAuth(`/api/menus/${menuId}`, {
+          method: 'DELETE'
+        });
+        await fetchMenus();
+      } catch (err) {
+        console.error('Error deleting menu:', err);
+        setError(err.message);
+      }
+    }
+  };
 
 
   useEffect(() => {
@@ -34,43 +84,8 @@ export default function Menus() {
     }
   };
 
-  const fetchMenus = async () => {
-    try {
-      const data = await fetchWithAuth('/api/menus');
-      setMenus(data.menus);
-      setError(null);
-    } catch (err) {
-      console.error('Error fetching menus:', err);
-      setError(err.message);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const handleCreateMenu = async (e) => {
-    e.preventDefault();
-    if (!newMenuName.trim()) {
-      setError('Menu name is required');
-      return;
-    }
   
-    try {
-      setError(null);
-      const data = await fetchWithAuth('/api/menus', {
-        method: 'POST',
-        body: JSON.stringify({ name: newMenuName.trim() }),
-      });
   
-      console.log('Menu created successfully:', data);
-      
-      setNewMenuName('');
-      setShowCreateForm(false);
-      await fetchMenus(); // Refresh the menu list
-    } catch (err) {
-      console.error('Error creating menu:', err);
-      setError(err.message);
-    }
-  };
 
   const handleShowModal = async (menuId) => {
     try {
@@ -127,27 +142,7 @@ export default function Menus() {
     }
   };
 
-  const handleDeleteMenu = async (menuId) => {
-    if (!menuId) {
-      console.error('No menu ID provided');
-      return;
-    }
-  
-    if (confirm('Are you sure you want to delete this Menu?')) {
-      try {
-        setIsDeleting(true);
-        await fetchWithAuth(`/api/menus/${menuId}`, { method: 'DELETE' });
-  
-        // Refresh the menus list
-        await fetchMenus();
-      } catch (error) {
-        console.error('Error deleting menu:', error);
-        setError('Failed to delete menu: ' + error.message);
-      } finally {
-        setIsDeleting(false);
-      }
-    }
-  };
+
 
 
   if (loading) {
@@ -161,6 +156,7 @@ export default function Menus() {
   }
 
   return (
+    <ProtectedRoute>
     <div className="min-h-screen bg-gray-50">
       <nav className="bg-white shadow-sm">
         <div className="max-w-6xl mx-auto px-4 py-4">
@@ -341,5 +337,6 @@ export default function Menus() {
         )}
       </div>
     </div>
+    </ProtectedRoute>
   );
 }
