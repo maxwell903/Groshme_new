@@ -2870,12 +2870,8 @@ from flask import jsonify, request
 DB_URL = 'postgresql://postgres.bvgnlxznztqggtqswovg:RecipeFinder123!@aws-0-us-east-2.pooler.supabase.com:5432/postgres'
 
 @app.route('/api/menus', methods=['GET'])
-@auth_required
 def get_menus():
     try:
-        # Use the authenticated user's ID from g object
-        user_id = g.user_id
-        
         engine = create_engine(DB_URL, poolclass=NullPool)
         
         with engine.connect() as connection:
@@ -2883,10 +2879,9 @@ def get_menus():
                 SELECT m.id, m.name, COUNT(mr.recipe_id) as recipe_count
                 FROM menu m
                 LEFT JOIN menu_recipe mr ON m.id = mr.menu_id
-                WHERE m.user_id = :user_id
                 GROUP BY m.id, m.name
                 ORDER BY m.name
-            """), {"user_id": user_id})
+            """))
 
             menus_data = [{
                 'id': row.id,
@@ -2900,17 +2895,17 @@ def get_menus():
         return jsonify({'error': str(e)}), 500
 
 @app.route('/api/menus', methods=['POST'])
-@auth_required
 def create_menu():
     try:
         data = request.json
         if not data or 'name' not in data:
             return jsonify({'error': 'Menu name is required'}), 400
 
-        # Use the authenticated user's ID
-        user_id = g.user_id
+        # Default user ID used in your application
+        default_user_id = 'bc6ae242-c238-4a6b-a884-2fd1fc03ed72'
 
         # Create connection to Supabase PostgreSQL
+        db_url = 'postgresql://postgres.bvgnlxznztqggtqswovg:RecipeFinder123!@aws-0-us-east-2.pooler.supabase.com:5432/postgres'
         engine = create_engine(db_url, poolclass=NullPool)
 
         with engine.connect() as connection:
@@ -2925,7 +2920,7 @@ def create_menu():
                     """),
                     {
                         "name": data['name'],
-                        "user_id": user_id
+                        "user_id": default_user_id
                     }
                 )
                 
