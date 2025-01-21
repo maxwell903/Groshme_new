@@ -3,8 +3,8 @@ import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/router';
 import { fetchWithAuth } from '@/utils/fetch';
+import { useAuth } from '@/contexts/AuthContext';
 import ProtectedRoute from '@/components/ProtectedRoute';
-const API_URL = process.env.NEXT_PUBLIC_API_URL
 
 export default function Menus() {
   const [menus, setMenus] = useState([]);
@@ -15,15 +15,47 @@ export default function Menus() {
   const [showGroceryListModal, setShowGroceryListModal] = useState(false);
   const [selectedMenuId, setSelectedMenuId] = useState(null);
   const [groceryLists, setGroceryLists] = useState([]);
-  const [fridgeItems, setFridgeItems] = useState([]);
   const router = useRouter();
+  const { user } = useAuth(); // Get authenticated user
+
+  useEffect(() => {
+    // Only fetch menus if user is authenticated
+    if (user) {
+      fetchMenus();
+      fetchFridgeItems();
+    }
+  }, [user]); // Add user as dependency
+
+  // ... rest of your existing code for handleCreateMenu, handleDeleteMenu, etc.
+  
+  if (!user) {
+    return (
+      <div className="flex h-screen items-center justify-center">
+        <div className="rounded-lg bg-white p-8 shadow-lg">
+          <p className="text-gray-600">Please sign in to view your menus</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (loading) {
+    return (
+      <div className="flex h-screen items-center justify-center">
+        <div className="rounded-lg bg-white p-8 shadow-lg">
+          <p className="text-gray-600">Loading menus...</p>
+        </div>
+      </div>
+    );
+  }
 
   const fetchMenus = async () => {
     try {
+      // Use fetchWithAuth which will include the auth token
       const data = await fetchWithAuth('/api/menus');
       setMenus(data.menus);
       setError(null);
     } catch (err) {
+      console.error('Error fetching menus:', err);
       setError(err.message);
     } finally {
       setLoading(false);
@@ -70,10 +102,7 @@ export default function Menus() {
   };
 
 
-  useEffect(() => {
-    fetchMenus();
-    fetchFridgeItems();
-  }, []);
+  
 
   const fetchFridgeItems = async () => {
     try {
