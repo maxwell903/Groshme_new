@@ -35,11 +35,11 @@ export default function Menus() {
 
   const fetchMenus = async () => {
     try {
-      const response = await fetch(`${API_URL}/api/menus`);
-      if (!response.ok) throw new Error('Failed to fetch menus');
-      const data = await response.json();
+      const data = await fetchWithAuth('/api/menus');
       setMenus(data.menus);
+      setError(null);
     } catch (err) {
+      console.error('Error fetching menus:', err);
       setError(err.message);
     } finally {
       setLoading(false);
@@ -55,21 +55,11 @@ export default function Menus() {
   
     try {
       setError(null);
-      const response = await fetch(`${API_URL}/api/menus`, {
+      const data = await fetchWithAuth('/api/menus', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Accept': 'application/json'
-        },
         body: JSON.stringify({ name: newMenuName.trim() }),
       });
   
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error || 'Failed to create menu');
-      }
-  
-      const data = await response.json();
       console.log('Menu created successfully:', data);
       
       setNewMenuName('');
@@ -77,7 +67,7 @@ export default function Menus() {
       await fetchMenus(); // Refresh the menu list
     } catch (err) {
       console.error('Error creating menu:', err);
-      setError(err.message || 'Failed to create menu');
+      setError(err.message);
     }
   };
 
@@ -145,25 +135,7 @@ export default function Menus() {
     if (confirm('Are you sure you want to delete this Menu?')) {
       try {
         setIsDeleting(true);
-        console.log('Attempting to delete menu:', menuId); // Debug log
-  
-        const response = await fetch(`${API_URL}/api/menus/${menuId}`, {
-          method: 'DELETE',
-          headers: {
-            'Accept': 'application/json',
-            'Content-Type': 'application/json',
-            'Access-Control-Allow-Origin': '*'
-          },
-          mode: 'cors',
-          credentials: 'same-origin'
-        });
-  
-        if (!response.ok) {
-          const errorData = await response.json();
-          throw new Error(errorData.message || 'Failed to delete menu');
-        }
-  
-        console.log('Menu deleted successfully'); // Debug log
+        await fetchWithAuth(`/api/menus/${menuId}`, { method: 'DELETE' });
   
         // Refresh the menus list
         await fetchMenus();
@@ -175,6 +147,7 @@ export default function Menus() {
       }
     }
   };
+
 
   if (loading) {
     return (
