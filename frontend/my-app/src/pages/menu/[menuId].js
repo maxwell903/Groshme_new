@@ -1,6 +1,5 @@
 // pages/menu/[menuId].js
 import React from 'react';
-import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/router';
 import { fetchWithAuth } from '@/utils/fetch';
