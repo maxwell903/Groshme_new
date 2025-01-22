@@ -2869,19 +2869,25 @@ from flask import jsonify, request
 # Supabase connection string
 DB_URL = 'postgresql://postgres.bvgnlxznztqggtqswovg:RecipeFinder123!@aws-0-us-east-2.pooler.supabase.com:5432/postgres'
 
+
+
 @app.route('/api/menus', methods=['GET'])
+@auth_required  # This decorator ensures user is authenticated
 def get_menus():
     try:
-        engine = create_engine(DB_URL, poolclass=NullPool)
+        user_id = g.user_id  # Get authenticated user's ID from auth decorator
+        engine = create_engine(db_url, poolclass=NullPool)
         
         with engine.connect() as connection:
+            # Modified query to include user filtering
             result = connection.execute(text("""
                 SELECT m.id, m.name, COUNT(mr.recipe_id) as recipe_count
                 FROM menu m
                 LEFT JOIN menu_recipe mr ON m.id = mr.menu_id
+                WHERE m.user_id = :user_id  -- Filter by user_id
                 GROUP BY m.id, m.name
                 ORDER BY m.name
-            """))
+            """), {"user_id": user_id})
 
             menus_data = [{
                 'id': row.id,
@@ -2895,38 +2901,34 @@ def get_menus():
         return jsonify({'error': str(e)}), 500
 
 @app.route('/api/menus', methods=['POST'])
+@auth_required
 def create_menu():
     try:
         data = request.json
+        user_id = g.user_id  # Get authenticated user's ID
+        
         if not data or 'name' not in data:
             return jsonify({'error': 'Menu name is required'}), 400
 
-        # Default user ID used in your application
-        default_user_id = 'bc6ae242-c238-4a6b-a884-2fd1fc03ed72'
-
-        # Create connection to Supabase PostgreSQL
-        db_url = 'postgresql://postgres.bvgnlxznztqggtqswovg:RecipeFinder123!@aws-0-us-east-2.pooler.supabase.com:5432/postgres'
         engine = create_engine(db_url, poolclass=NullPool)
 
         with engine.connect() as connection:
-            # Start a transaction
-            with connection.begin():
-                # Insert the menu with user_id
-                result = connection.execute(
-                    text("""
-                        INSERT INTO menu (name, user_id)
-                        VALUES (:name, :user_id)
-                        RETURNING id, name
-                    """),
-                    {
-                        "name": data['name'],
-                        "user_id": default_user_id
-                    }
-                )
-                
-                new_menu = result.fetchone()
-                if not new_menu:
-                    raise Exception('Failed to create menu')
+            # Insert menu with user_id
+            result = connection.execute(
+                text("""
+                    INSERT INTO menu (name, user_id)
+                    VALUES (:name, :user_id)
+                    RETURNING id, name
+                """),
+                {
+                    "name": data['name'],
+                    "user_id": user_id
+                }
+            )
+            
+            new_menu = result.fetchone()
+            if not new_menu:
+                raise Exception('Failed to create menu')
 
             return jsonify({
                 'id': new_menu.id,
@@ -2934,24 +2936,31 @@ def create_menu():
             }), 201
 
     except Exception as e:
-        print(f"Error creating menu: {str(e)}")  # Add logging
+        print(f"Error creating menu: {str(e)}")
         return jsonify({'error': str(e)}), 500
 
+
 @app.route('/api/menus/<int:menu_id>/recipes', methods=['GET'])
+@auth_required
 def get_menu_recipes(menu_id):
     try:
+        user_id = g.user_id
         engine = create_engine(db_url, poolclass=NullPool)
         
         with engine.connect() as connection:
-            # First get menu name
+            # First verify menu belongs to user
             menu_result = connection.execute(
-                text("SELECT name FROM menu WHERE id = :menu_id"),
-                {"menu_id": menu_id}
+                text("""
+                    SELECT name 
+                    FROM menu 
+                    WHERE id = :menu_id AND user_id = :user_id
+                """),
+                {"menu_id": menu_id, "user_id": user_id}
             ).fetchone()
             
             if not menu_result:
-                return jsonify({'error': 'Menu not found'}), 404
-                
+                return jsonify({'error': 'Menu not found or unauthorized'}), 404
+
             # Get recipes with nutrition data
             result = connection.execute(text("""
                 WITH RecipeIngredients AS (
@@ -3027,9 +3036,11 @@ def get_menu_recipes(menu_id):
                 'menu_name': menu_result.name,
                 'recipes': recipes_data
             })
+
     except Exception as e:
         print(f"Error fetching menu recipes: {str(e)}")
         return jsonify({'error': str(e)}), 500
+
 
 @app.route('/api/menus/<int:menu_id>/recipes', methods=['POST'])
 def add_recipe_to_menu(menu_id):
@@ -3072,26 +3083,44 @@ def add_recipe_to_menu(menu_id):
         return jsonify({'error': str(e)}), 500
 
 @app.route('/api/menus/<int:menu_id>', methods=['DELETE'])
+@auth_required
 def delete_menu(menu_id):
     try:
+        user_id = g.user_id
         engine = create_engine(db_url, poolclass=NullPool)
         
         with engine.connect() as connection:
             with connection.begin():
-                # First delete all menu_recipe associations
+                # First verify the menu belongs to the user
+                menu_check = connection.execute(
+                    text("""
+                        SELECT id FROM menu 
+                        WHERE id = :menu_id AND user_id = :user_id
+                    """),
+                    {"menu_id": menu_id, "user_id": user_id}
+                ).fetchone()
+                
+                if not menu_check:
+                    return jsonify({'error': 'Menu not found or unauthorized'}), 404
+
+                # Delete menu recipes first
                 connection.execute(
                     text("DELETE FROM menu_recipe WHERE menu_id = :menu_id"),
                     {"menu_id": menu_id}
                 )
                 
-                # Then delete the menu itself
+                # Then delete the menu
                 result = connection.execute(
-                    text("DELETE FROM menu WHERE id = :menu_id RETURNING id"),
-                    {"menu_id": menu_id}
+                    text("""
+                        DELETE FROM menu 
+                        WHERE id = :menu_id AND user_id = :user_id
+                        RETURNING id
+                    """),
+                    {"menu_id": menu_id, "user_id": user_id}
                 )
                 
                 if not result.rowcount:
-                    return jsonify({'error': 'Menu not found'}), 404
+                    return jsonify({'error': 'Menu not found or unauthorized'}), 404
                 
             return jsonify({'message': 'Menu deleted successfully'}), 200
             
@@ -3101,11 +3130,25 @@ def delete_menu(menu_id):
 
 
 @app.route('/api/menus/<int:menu_id>/recipes/<int:recipe_id>', methods=['DELETE'])
+@auth_required
 def remove_recipe_from_menu(menu_id, recipe_id):
     try:
+        user_id = g.user_id
         engine = create_engine(db_url, poolclass=NullPool)
         
         with engine.connect() as connection:
+            # First verify menu belongs to user
+            menu_check = connection.execute(
+                text("""
+                    SELECT id FROM menu 
+                    WHERE id = :menu_id AND user_id = :user_id
+                """),
+                {"menu_id": menu_id, "user_id": user_id}
+            ).fetchone()
+            
+            if not menu_check:
+                return jsonify({'error': 'Menu not found or unauthorized'}), 404
+
             result = connection.execute(
                 text("""
                     DELETE FROM menu_recipe

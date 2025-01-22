@@ -5,6 +5,9 @@ import Link from 'next/link';
 import NutritionModal from '@/components/NutritionModal';
 import { ChevronDown, ChevronUp, Plus, Edit, Trash, X, Check } from 'lucide-react';
 import ProtectedRoute from '@/components/ProtectedRoute';
+import { fetchWithAuth } from '@/utils/fetch';
+import { useAuth } from '@/contexts/AuthContext';
+
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL
 
@@ -102,6 +105,7 @@ export default function RecipePage() {
   const [isNutritionModalOpen, setIsNutritionModalOpen] = useState(false);
   const [selectedIngredient, setSelectedIngredient] = useState(null);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
+  const { user, loading: authLoading } = useAuth();
 
 
 
@@ -168,16 +172,7 @@ export default function RecipePage() {
 
   const fetchRecipe = async () => {
     try {
-      const response = await fetch(`${API_URL}/api/recipe/${id}`, {
-        headers: {
-          'Authorization': `Bearer ${localStorage.getItem('access_token')}`
-        }
-      });
-      
-      if (!response.ok) 
-        throw new Error('Failed to fetch recipe data');
-      
-      const recipeData = await response.json();
+      const recipeData = await fetchWithAuth(`/api/recipe/${id}`);
       setRecipe(recipeData);
     } catch (error) {
       setError(error.message);
@@ -185,51 +180,44 @@ export default function RecipePage() {
       setLoading(false);
     }
   };
-
+  
   const fetchMenus = async () => {
     try {
-      const response = await fetch(`${API_URL}/api/menus`);
-      if (!response.ok) {
-        throw new Error('Failed to fetch menus');
-      }
-      const data = await response.json();
+      const data = await fetchWithAuth('/api/menus');
       setMenus(data.menus || []);
     } catch (error) {
       console.error('Error fetching menus:', error);
       setError('Failed to fetch menus');
     }
   };
-
+  
   const fetchGroceryLists = async () => {
     try {
-      const response = await fetch(`${API_URL}/api/grocery-lists`);
-      const data = await response.json();
+      const data = await fetchWithAuth('/api/grocery-lists');
       setGroceryLists(data.lists);
     } catch (error) {
       console.error('Error fetching grocery lists:', error);
     }
   };
-
+  
   const fetchFridgeItems = async () => {
     try {
-      const response = await fetch(`${API_URL}/api/fridge`);
-      const data = await response.json();
-      setFridgeItems(data.ingredients || []);
+      const response = await fetchWithAuth('/api/fridge');
+      if (response.success) {
+        setFridgeItems(response.ingredients || []);
+      }
     } catch (error) {
       console.error('Error fetching fridge items:', error);
     }
   };
-
+  
   const handleAddToMenu = async (menuId) => {
     setAddingToMenu(true);
     try {
-      const response = await fetch(`${API_URL}/api/menus/${menuId}/recipes`, {
+      await fetchWithAuth(`/api/menus/${menuId}/recipes`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ recipe_id: id }),
       });
-
-      if (!response.ok) throw new Error('Failed to add recipe to menu');
       setShowMenuDropdown(false);
     } catch (error) {
       setError(error.message);
@@ -237,47 +225,33 @@ export default function RecipePage() {
       setAddingToMenu(false);
     }
   };
-
+  
   const handleAddToGroceryList = async (listId) => {
     if (!recipe) return;
     
     try {
-      // Add recipe name as header
-      await fetch(`${API_URL}/api/grocery-lists/${listId}/items`, {
+      await fetchWithAuth(`/api/grocery-lists/${listId}/items`, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${localStorage.getItem('access_token')}`
-        },
         body: JSON.stringify({ name: `**${recipe.name}**` }),
       });
-
-      // Add each ingredient with proper formatting
+  
       for (const ingredient of recipe.ingredients) {
         const inFridge = fridgeItems.some(item => 
           item.name.toLowerCase() === ingredient.name.toLowerCase() && 
           item.quantity > 0
         );
         
-        // Add ingredient with bullet point prefix and quantity/unit details
-        await fetch(`${API_URL}/api/grocery-lists/${listId}/items`, {
+        await fetchWithAuth(`/api/grocery-lists/${listId}/items`, {
           method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${localStorage.getItem('access_token')}`
-          },
           body: JSON.stringify({
             name: `${inFridge ? '✓' : '•'} ${ingredient.name}`,
             quantity: ingredient.quantity,
             unit: ingredient.unit
           }),
         });
-
-        // Add to fridge tracking if not already present
-        await fetch(`${API_URL}/api/fridge/add`, {
+  
+        await fetchWithAuth(`/api/fridge/add`, {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          
           body: JSON.stringify({
             name: ingredient.name,
             quantity: 0,
@@ -285,7 +259,7 @@ export default function RecipePage() {
           }),
         });
       }
-
+  
       setShowGroceryListModal(false);
       router.push('/grocerylistId');
     } catch (error) {
@@ -293,7 +267,7 @@ export default function RecipePage() {
       setError('Failed to add recipe to grocery list');
     }
   };
-
+  
   const handleDeleteRecipe = async () => {
     if (!confirm('Are you sure you want to delete this recipe?')) {
       return;
@@ -301,19 +275,48 @@ export default function RecipePage() {
   
     try {
       setIsDeleting(true);
-      const response = await fetch(`${API_URL}/api/recipe/${id}`, {
+      await fetchWithAuth(`/api/recipe/${id}`, {
         method: 'DELETE',
       });
-  
-      if (!response.ok) {
-        throw new Error('Failed to delete recipe');
-      }
-  
       router.push('/');
     } catch (error) {
       setError(error.message);
     } finally {
       setIsDeleting(false);
+    }
+  };
+  
+  // Update the EditRecipeModal handleSubmit function
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    setIsSubmitting(true);
+    setError(null);
+  
+    try {
+      const response = await fetchWithAuth(`/api/recipe/${recipe.id}`, {
+        method: 'PUT',
+        body: JSON.stringify({
+          name: formData.name,
+          description: formData.description,
+          instructions: formData.instructions,
+          prep_time: parseInt(formData.prep_time),
+          ingredients: formData.ingredients.map(ing => ({
+            name: ing.name,
+            quantity: parseFloat(ing.quantity),
+            unit: ing.unit,
+            nutrition: ing.nutrition
+          }))
+        })
+      });
+  
+      // Call onSave with the updated data
+      onSave(response);
+      onClose();
+    } catch (error) {
+      console.error('Error updating recipe:', error);
+      setError('Failed to update recipe. Please try again.');
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
@@ -413,6 +416,8 @@ const EditRecipeModal = ({ recipe, onClose, onSave }) => {
       ingredients: prev.ingredients.filter((_, index) => index !== indexToRemove)
     }));
   };
+
+  
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
@@ -627,6 +632,21 @@ const getBackLabel = (path) => {
     }
   }, [showMenuDropdown]);
   
+
+  if (authLoading) {
+    return (
+      <div className="flex h-screen items-center justify-center">
+        <div className="rounded-lg bg-white p-8 shadow-lg">
+          <p className="text-gray-600">Loading...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (!user) {
+    router.push('/signin');
+    return null;
+  }
 
   if (loading) {
     return (
