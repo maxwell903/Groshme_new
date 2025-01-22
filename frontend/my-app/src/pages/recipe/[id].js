@@ -4,7 +4,8 @@ import { useRouter } from 'next/router';
 import Link from 'next/link';
 import NutritionModal from '@/components/NutritionModal';
 import { ChevronDown, ChevronUp, Plus, Edit, Trash, X, Check } from 'lucide-react';
-import { fetchWithAuth } from '@/utils/fetch';
+import ProtectedRoute from '@/components/ProtectedRoute';
+
 const API_URL = process.env.NEXT_PUBLIC_API_URL
 
 const NavigationBar = () => {
@@ -103,15 +104,7 @@ export default function RecipePage() {
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
 
 
-  const fetchRecipe = async (id) => {
-    try {
-      const data = await fetchWithAuth(`/api/recipe/${id}`);
-      return data;
-    } catch (error) {
-      console.error('Error fetching recipe:', error);
-      throw error;
-    }
-  };
+
 
   const NutritionInfo = ({ nutrition, quantity }) => {
     if (!nutrition) return null;
@@ -173,7 +166,25 @@ export default function RecipePage() {
     }
   };
 
-  
+  const fetchRecipe = async () => {
+    try {
+      const response = await fetch(`${API_URL}/api/recipe/${id}`, {
+        headers: {
+          'Authorization': `Bearer ${localStorage.getItem('access_token')}`
+        }
+      });
+      
+      if (!response.ok) 
+        throw new Error('Failed to fetch recipe data');
+      
+      const recipeData = await response.json();
+      setRecipe(recipeData);
+    } catch (error) {
+      setError(error.message);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const fetchMenus = async () => {
     try {
