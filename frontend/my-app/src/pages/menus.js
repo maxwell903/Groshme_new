@@ -22,7 +22,10 @@ export default function Menus() {
   const { user } = useAuth();
 
   const fetchMenus = async () => {
+    if (!user) return;
+    
     try {
+      setLoading(true);
       const data = await fetchWithAuth('/api/menus');
       setMenus(data.menus);
       setError(null);
@@ -35,11 +38,12 @@ export default function Menus() {
   };
 
   const fetchFridgeItems = async () => {
+    if (!user) return;
+    
     try {
-      const response = await fetch(`${API_URL}/api/fridge`);
-      const data = await response.json();
-      if (data.success) {
-        setFridgeItems(data.ingredients || []);
+      const response = await fetchWithAuth(`/api/fridge`);
+      if (response.success) {
+        setFridgeItems(response.ingredients || []);
       }
     } catch (error) {
       console.error('Error fetching fridge items:', error);
@@ -47,14 +51,19 @@ export default function Menus() {
   };
 
   useEffect(() => {
-    if (user) {
+    if (user && !authLoading) {
       fetchMenus();
       fetchFridgeItems();
     }
-  }, [user]);
+  }, [user, authLoading]);
 
   const handleCreateMenu = async (e) => {
     e.preventDefault();
+    if (!user) {
+      setError('You must be logged in to create a menu');
+      return;
+    }
+    
     if (!newMenuName.trim()) {
       setError('Menu name is required');
       return;
@@ -77,6 +86,11 @@ export default function Menus() {
   };
 
   const handleDeleteMenu = async (menuId) => {
+    if (!user) {
+      setError('You must be logged in to delete a menu');
+      return;
+    }
+    
     if (!menuId || isDeleting) return;
 
     if (confirm('Are you sure you want to delete this Menu?')) {
@@ -145,34 +159,20 @@ export default function Menus() {
     }
   };
   
+  if (authLoading) {
+    return (
+      <div className="flex h-screen items-center justify-center">
+        <div className="rounded-lg bg-white p-8 shadow-lg">
+          <p className="text-gray-600">Loading...</p>
+        </div>
+      </div>
+    );
+  }
+
   if (!user) {
-    return (
-      <div className="flex h-screen items-center justify-center">
-        <div className="rounded-lg bg-white p-8 shadow-lg">
-          <p className="text-gray-600">Please sign in to view your menus</p>
-        </div>
-      </div>
-    );
+    router.push('/signin');
+    return null;
   }
-
-  if (loading) {
-    return (
-      <div className="flex h-screen items-center justify-center">
-        <div className="rounded-lg bg-white p-8 shadow-lg">
-          <p className="text-gray-600">Loading menus...</p>
-        </div>
-      </div>
-    );
-  }
-
-  
-
-
-
-
-
-
-
 
   if (loading) {
     return (
