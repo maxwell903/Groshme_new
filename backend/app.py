@@ -4405,6 +4405,9 @@ def get_recipe(recipe_id):
         # Use the authenticated user's ID from g object
         user_id = g.user_id
         print(f"Fetching recipe {recipe_id} for user {user_id}")  # Debug print
+        recipe = Recipe.query.filter_by(id=recipe_id, user_id=user_id).first()
+        if not recipe:
+            return jsonify({'error': 'Recipe not found'}), 404
         
         # Create the database engine using Supabase credentials
         engine = create_engine(db_url, poolclass=NullPool)
