@@ -1,42 +1,52 @@
 export const fetchWithAuth = async (endpoint, options = {}) => {
-  // Try to get token from localStorage first
-  let token = localStorage.getItem('access_token');
-  
-  // If no token in localStorage, try to get from current session
-  if (!token) {
-    const { data: { session } } = await supabase.auth.getSession();
-    if (session?.access_token) {
-      token = session.access_token;
-      localStorage.setItem('access_token', token);
-    }
-  }
-  
-  if (!token) {
-    console.error('No authentication token found');
-    throw new Error('No authentication token found');
-  }
+  const maxRetries = 10;
+  let attempts = 0;
 
-  const defaultHeaders = {
-    'Content-Type': 'application/json',
-    'Authorization': `Bearer ${token}`
-  };
-
-  const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}${endpoint}`, {
-    ...options,
-    headers: {
-      ...defaultHeaders,
-      ...options.headers
-    }
-  });
-
-  if (!response.ok) {
+  while (attempts < maxRetries) {
     try {
-      const errorData = await response.json();
-      throw new Error(errorData.error || 'An error occurred');
-    } catch (e) {
-      throw new Error('An error occurred while processing the request');
+      // Try to get token from localStorage first
+      let token = localStorage.getItem('access_token');
+      
+      // If no token in localStorage, try to get from current session
+      if (!token) {
+        const { data: { session } } = await supabase.auth.getSession();
+        if (session?.access_token) {
+          token = session.access_token;
+          localStorage.setItem('access_token', token);
+        }
+      }
+      
+      if (!token) {
+        throw new Error('No authentication token found');
+      }
+
+      const defaultHeaders = {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${token}`
+      };
+
+      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}${endpoint}`, {
+        ...options,
+        headers: {
+          ...defaultHeaders,
+          ...options.headers
+        }
+      });
+
+      if (!response.ok) {
+        // If unauthorized, clear token and retry
+        if (response.status === 401) {
+          localStorage.removeItem('access_token');
+          attempts++;
+          continue;
+        }
+        throw new Error('Request failed');
+      }
+
+      return response.json();
+    } catch (error) {
+      if (attempts === maxRetries - 1) throw error;
+      attempts++;
     }
   }
-
-  return response.json();
 };

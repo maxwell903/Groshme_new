@@ -1,10 +1,10 @@
 // pages/menu/[menuId].js
+import React from 'react';
 import { useState, useEffect } from 'react';
-import { useRouter } from 'next/router';
 import Link from 'next/link';
-const API_URL = process.env.NEXT_PUBLIC_API_URL
-import { useCallback } from 'react';
+import { useRouter } from 'next/router';
 import { fetchWithAuth } from '@/utils/fetch';
+import { useAuth } from '@/contexts/AuthContext';
 import ProtectedRoute from '@/components/ProtectedRoute';
 
 export default function MenuDetail() {
