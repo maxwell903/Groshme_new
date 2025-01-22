@@ -2900,6 +2900,7 @@ def get_menus():
         print(f"Error fetching menus: {str(e)}")
         return jsonify({'error': str(e)}), 500
 
+
 @app.route('/api/menus', methods=['POST'])
 @auth_required
 def create_menu():
@@ -2913,27 +2914,30 @@ def create_menu():
         engine = create_engine(db_url, poolclass=NullPool)
 
         with engine.connect() as connection:
-            # Insert menu with user_id
-            result = connection.execute(
-                text("""
-                    INSERT INTO menu (name, user_id)
-                    VALUES (:name, :user_id)
-                    RETURNING id, name
-                """),
-                {
-                    "name": data['name'],
-                    "user_id": user_id
-                }
-            )
-            
-            new_menu = result.fetchone()
-            if not new_menu:
-                raise Exception('Failed to create menu')
+            with connection.begin():  # Start a transaction
+                # Insert menu with user_id
+                result = connection.execute(
+                    text("""
+                        INSERT INTO menu (name, user_id, created_date)
+                        VALUES (:name, :user_id, CURRENT_TIMESTAMP)
+                        RETURNING id, name, created_date
+                    """),
+                    {
+                        "name": data['name'],
+                        "user_id": user_id
+                    }
+                )
+                
+                new_menu = result.fetchone()
+                if not new_menu:
+                    raise Exception('Failed to create menu')
 
-            return jsonify({
-                'id': new_menu.id,
-                'name': new_menu.name
-            }), 201
+                return jsonify({
+                    'id': new_menu.id,
+                    'name': new_menu.name,
+                    'created_date': new_menu.created_date.isoformat() if new_menu.created_date else None,
+                    'recipe_count': 0
+                }), 201
 
     except Exception as e:
         print(f"Error creating menu: {str(e)}")
