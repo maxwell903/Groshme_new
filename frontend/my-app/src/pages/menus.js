@@ -19,7 +19,7 @@ export default function Menus() {
   const [fridgeItems, setFridgeItems] = useState([]);
   const [isDeleting, setIsDeleting] = useState(false);
   const router = useRouter();
-  const { user } = useAuth();
+  const { user, loading: authLoading } = useAuth();
 
   const fetchMenus = async () => {
     if (!user) return;
@@ -27,7 +27,7 @@ export default function Menus() {
     try {
       setLoading(true);
       const data = await fetchWithAuth('/api/menus');
-      setMenus(data.menus);
+      setMenus(data.menus || []);
       setError(null);
     } catch (err) {
       console.error('Error fetching menus:', err);
@@ -73,7 +73,8 @@ export default function Menus() {
       setError(null);
       await fetchWithAuth('/api/menus', {
         method: 'POST',
-        body: JSON.stringify({ name: newMenuName.trim() })
+        body: JSON.stringify({ name: newMenuName.trim(), user_id: user.id })
+       
       });
 
       setNewMenuName('');
@@ -123,11 +124,21 @@ export default function Menus() {
 
   const addToGroceryList = async (listId) => {
     try {
-      const menuResponse = await fetch(`${API_URL}/api/menus/${selectedMenuId}/recipes`);
+      const menuResponse = await fetchWithAuth(`/api/menus/${selectedMenuId}/recipes`);
       const menuData = await menuResponse.json();
       
+      // Add menu as a header
+      await fetchWithAuth(`/api/grocery-lists/${listId}/items`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ name: `### ${menuData.menu_name || 'Menu'} ###` }),
+      });
+
       for (const recipe of menuData.recipes) {
-        await fetch(`${API_URL}/api/grocery-lists/${listId}/items`, {
+        // Add recipe name as subheader
+        await fetchWithAuth(`/api/grocery-lists/${listId}/items`, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
@@ -135,12 +146,13 @@ export default function Menus() {
           body: JSON.stringify({ name: `**${recipe.name}**` }),
         });
         
+        // Add ingredients
         for (const ingredient of recipe.ingredients) {
           const inFridge = fridgeItems.some(item => 
             item.name.toLowerCase() === ingredient.toLowerCase() && item.quantity > 0
           );
           
-          await fetch(`${API_URL}/api/grocery-lists/${listId}/items`, {
+          await fetchWithAuth(`/api/grocery-lists/${listId}/items`, {
             method: 'POST',
             headers: {
               'Content-Type': 'application/json',
@@ -156,6 +168,7 @@ export default function Menus() {
       router.push('/grocerylistId');
     } catch (error) {
       console.error('Error adding menu to grocery list:', error);
+      setError('Failed to add menu to grocery list');
     }
   };
   
