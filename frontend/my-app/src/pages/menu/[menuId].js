@@ -6,6 +6,7 @@ import { useRouter } from 'next/router';
 import { fetchWithAuth } from '@/utils/fetch';
 import { useAuth } from '@/contexts/AuthContext';
 import ProtectedRoute from '@/components/ProtectedRoute';
+import { useState, useEffect, useCallback } from 'react';
 
 export default function MenuDetail() {
   const router = useRouter();
