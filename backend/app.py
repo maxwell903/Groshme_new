@@ -3173,9 +3173,11 @@ def remove_recipe_from_menu(menu_id, recipe_id):
         return jsonify({'error': str(e)}), 500
 
 @app.route('/api/fridge/add', methods=['POST'])
+@auth_required
 def add_fridge_item():
     try:
         data = request.json
+        user_id = g.user_id  # Get authenticated user's ID
         
         # Clean the name
         name = data.get('name', '').strip()
@@ -3190,7 +3192,7 @@ def add_fridge_item():
         
         engine = create_engine(db_url, poolclass=NullPool)
         with engine.connect() as connection:
-            # Check if item already exists
+            # Check if item already exists for this user
             result = connection.execute(
                 text("""
                     SELECT id, quantity, unit, price_per 
@@ -3200,7 +3202,7 @@ def add_fridge_item():
                 """),
                 {
                     "name": name,
-                    "user_id": "bc6ae242-c238-4a6b-a884-2fd1fc03ed72"
+                    "user_id": user_id
                 }
             )
             existing_item = result.fetchone()
@@ -3213,13 +3215,14 @@ def add_fridge_item():
                         SET quantity = :quantity,
                             unit = :unit,
                             price_per = :price_per
-                        WHERE id = :id
+                        WHERE id = :id AND user_id = :user_id
                     """),
                     {
                         "id": existing_item.id,
                         "quantity": float(data.get('quantity', existing_item.quantity or 0)),
                         "unit": data.get('unit', existing_item.unit),
-                        "price_per": float(data.get('price_per', existing_item.price_per or 0))
+                        "price_per": float(data.get('price_per', existing_item.price_per or 0)),
+                        "user_id": user_id
                     }
                 )
                 item_id = existing_item.id
@@ -3236,7 +3239,7 @@ def add_fridge_item():
                         "quantity": float(data.get('quantity', 0)),
                         "unit": data.get('unit', ''),
                         "price_per": float(data.get('price_per', 0)),
-                        "user_id": "bc6ae242-c238-4a6b-a884-2fd1fc03ed72"
+                        "user_id": user_id
                     }
                 )
                 item_id = result.fetchone()[0]
@@ -3245,8 +3248,14 @@ def add_fridge_item():
             
             # Return the updated/created item
             result = connection.execute(
-                text("SELECT * FROM fridge_item WHERE id = :id"),
-                {"id": item_id}
+                text("""
+                    SELECT * FROM fridge_item 
+                    WHERE id = :id AND user_id = :user_id
+                """),
+                {
+                    "id": item_id,
+                    "user_id": user_id
+                }
             )
             item = result.fetchone()
             
@@ -3267,7 +3276,6 @@ def add_fridge_item():
             'success': False,
             'error': str(e)
         }), 500
-
 
 @app.route('/api/fridge/parse-receipt', methods=['POST'])
 def parse_receipt():
@@ -3302,44 +3310,7 @@ def parse_receipt():
         print(f"Error in parse_receipt: {str(e)}")
         return jsonify({'error': str(e)}), 500
 
-@app.route('/api/fridge', methods=['GET'])
-def get_fridge_items():
-    try:
-        engine = create_engine(db_url, poolclass=NullPool)
-        
-        with engine.connect() as connection:
-            # Query fridge items
-            result = connection.execute(
-                text("""
-                    SELECT id, name, quantity, unit, price_per
-                    FROM fridge_item
-                    WHERE user_id = :user_id
-                    ORDER BY name
-                """),
-                {"user_id": "bc6ae242-c238-4a6b-a884-2fd1fc03ed72"}  # Default user ID
-            )
-            
-            items = []
-            for row in result:
-                items.append({
-                    'id': row.id,
-                    'name': row.name,
-                    'quantity': float(row.quantity) if row.quantity is not None else 0,
-                    'unit': row.unit or '',
-                    'price_per': float(row.price_per) if row.price_per is not None else 0
-                })
-            
-            return jsonify({
-                'success': True,
-                'ingredients': items
-            })
-            
-    except Exception as e:
-        print(f"Error fetching fridge items: {str(e)}")
-        return jsonify({
-            'success': False,
-            'error': str(e)
-        }), 500
+
     
 
 
@@ -3392,9 +3363,53 @@ def create_grocery_list():
         return jsonify({'error': str(e)}), 500
     
 
+@app.route('/api/fridge', methods=['GET'])
+@auth_required
+def get_fridge_items():
+    try:
+        user_id = g.user_id  # Get authenticated user's ID
+        engine = create_engine(db_url, poolclass=NullPool)
+        
+        with engine.connect() as connection:
+            # Query fridge items for specific user
+            result = connection.execute(
+                text("""
+                    SELECT id, name, quantity, unit, price_per
+                    FROM fridge_item
+                    WHERE user_id = :user_id
+                    ORDER BY name
+                """),
+                {"user_id": user_id}
+            )
+            
+            items = []
+            for row in result:
+                items.append({
+                    'id': row.id,
+                    'name': row.name,
+                    'quantity': float(row.quantity) if row.quantity is not None else 0,
+                    'unit': row.unit or '',
+                    'price_per': float(row.price_per) if row.price_per is not None else 0
+                })
+            
+            return jsonify({
+                'success': True,
+                'ingredients': items
+            })
+            
+    except Exception as e:
+        print(f"Error fetching fridge items: {str(e)}")
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+    
+
 @app.route('/api/fridge/<int:item_id>', methods=['DELETE'])
+@auth_required
 def delete_fridge_item(item_id):
     try:
+        user_id = g.user_id  # Get authenticated user's ID
         engine = create_engine(db_url, poolclass=NullPool)
         
         with engine.connect() as connection:
@@ -3407,14 +3422,14 @@ def delete_fridge_item(item_id):
                 """),
                 {
                     "id": item_id,
-                    "user_id": "bc6ae242-c238-4a6b-a884-2fd1fc03ed72"
+                    "user_id": user_id
                 }
             )
             
             if not result.fetchone():
                 return jsonify({
                     'success': False,
-                    'error': 'Item not found'
+                    'error': 'Item not found or unauthorized'
                 }), 404
             
             connection.commit()
@@ -3430,11 +3445,12 @@ def delete_fridge_item(item_id):
             'success': False,
             'error': str(e)
         }), 500
-
     
 @app.route('/api/fridge/<int:item_id>', methods=['PUT'])
+@auth_required
 def update_fridge_item(item_id):
     try:
+        user_id = g.user_id  # Get authenticated user's ID
         data = request.json
         engine = create_engine(db_url, poolclass=NullPool)
         
@@ -3447,14 +3463,14 @@ def update_fridge_item(item_id):
                 """),
                 {
                     "id": item_id,
-                    "user_id": "bc6ae242-c238-4a6b-a884-2fd1fc03ed72"
+                    "user_id": user_id
                 }
             )
             
             if not result.fetchone():
                 return jsonify({
                     'success': False,
-                    'error': 'Item not found'
+                    'error': 'Item not found or unauthorized'
                 }), 404
             
             # Update the item
@@ -3464,10 +3480,11 @@ def update_fridge_item(item_id):
                     SET quantity = COALESCE(:quantity, quantity),
                         unit = COALESCE(:unit, unit),
                         price_per = COALESCE(:price_per, price_per)
-                    WHERE id = :id
+                    WHERE id = :id AND user_id = :user_id
                 """),
                 {
                     "id": item_id,
+                    "user_id": user_id,
                     "quantity": float(data.get('quantity')) if 'quantity' in data else None,
                     "unit": data.get('unit'),
                     "price_per": float(data.get('price_per')) if 'price_per' in data else None
@@ -3478,8 +3495,11 @@ def update_fridge_item(item_id):
             
             # Return updated item
             result = connection.execute(
-                text("SELECT * FROM fridge_item WHERE id = :id"),
-                {"id": item_id}
+                text("SELECT * FROM fridge_item WHERE id = :id AND user_id = :user_id"),
+                {
+                    "id": item_id,
+                    "user_id": user_id
+                }
             )
             item = result.fetchone()
             
@@ -3503,19 +3523,21 @@ def update_fridge_item(item_id):
 
 
 @app.route('/api/fridge/clear', methods=['POST'])
+@auth_required
 def clear_fridge():
     try:
+        user_id = g.user_id  # Get authenticated user's ID
         engine = create_engine(db_url, poolclass=NullPool)
         
         with engine.connect() as connection:
-            # Set all quantities to 0 for the user's items
+            # Set all quantities to 0 for the user's items only
             connection.execute(
                 text("""
                     UPDATE fridge_item 
                     SET quantity = 0
                     WHERE user_id = :user_id
                 """),
-                {"user_id": "bc6ae242-c238-4a6b-a884-2fd1fc03ed72"}
+                {"user_id": user_id}
             )
             
             connection.commit()
