@@ -2,7 +2,39 @@ import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { useRouter } from 'next/router';
 import Link from 'next/link';
 import { ChevronDown, ChevronUp, Plus, X } from 'lucide-react';
+import { useAuth } from '@/contexts/AuthContext';
+import { fetchWithAuth } from '@/utils/fetch';
+import ProtectedRoute from '@/components/ProtectedRoute';
 const API_URL = process.env.NEXT_PUBLIC_API_URL
+
+const fetchWithAuth = async (url, options = {}) => {
+  const token = localStorage.getItem('access_token');
+  if (!token) {
+    throw new Error('No authentication token found');
+  }
+
+  const headers = {
+    'Content-Type': 'application/json',
+    'Authorization': `Bearer ${token}`,
+    ...options.headers
+  };
+
+  const response = await fetch(url, {
+    ...options,
+    headers
+  });
+
+  if (!response.ok) {
+    if (response.status === 401) {
+      // Handle unauthorized error - redirect to login
+      window.location.href = '/signin';
+      throw new Error('Please sign in to continue');
+    }
+    throw new Error('Failed to fetch data');
+  }
+
+  return response.json();
+};
 
 // Helper component for inventory rows
 const InventoryRow = React.memo(({ item, isEven, onUpdate }) => {
@@ -13,17 +45,14 @@ const InventoryRow = React.memo(({ item, isEven, onUpdate }) => {
   const handleUpdate = async (updateData) => {
     try {
       setIsUpdating(true);
-      const response = await fetch(`${API_URL}/api/fridge/${item.id}`, {
+      await fetchWithAuth(`${API_URL}/api/fridge/${item.id}`, {
         method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ 
           ...item, 
           ...updateData,
           unit: localUnit 
         })
       });
-
-      if (!response.ok) throw new Error('Failed to update item');
       await onUpdate?.();
     } catch (error) {
       console.error('Error updating item:', error);
@@ -35,12 +64,9 @@ const InventoryRow = React.memo(({ item, isEven, onUpdate }) => {
   const handleDelete = async () => {
     if (window.confirm(`Are you sure you want to delete ${item.name} from your fridge?`)) {
       try {
-        const response = await fetch(`${API_URL}/api/fridge/${item.id}`, {
-          method: 'DELETE',
-          headers: { 'Content-Type': 'application/json' }
+        await fetchWithAuth(`${API_URL}/api/fridge/${item.id}`, {
+          method: 'DELETE'
         });
-
-        if (!response.ok) throw new Error('Failed to delete item');
         await onUpdate?.();
       } catch (error) {
         console.error('Error deleting item:', error);
@@ -118,13 +144,21 @@ export default function InventoryView() {
   const [newItem, setNewItem] = useState({ name: '', quantity: 0, unit: '' });
   const [processingResults, setProcessingResults] = useState(null);
   const [inventoryFilter, setInventoryFilter] = useState('inStock');
-  const router = useRouter();
   const [selectedGroceryList, setSelectedGroceryList] = useState(null);
   const [showAddInventory, setShowAddInventory] = useState(false);
   const [groceryLists, setGroceryLists] = useState([]);
   const [showGroceryLists, setShowGroceryLists] = useState(false);
   const [selectedGroceryListItems, setSelectedGroceryListItems] = useState(null);
   const [showGroceryListItems, setShowGroceryListItems] = useState(false);
+  const { user, loading: authLoading } = useAuth();
+  const router = useRouter();
+  
+
+  useEffect(() => {
+    if (!authLoading && !user) {
+      router.push('/signin');
+    }
+  }, [user, authLoading, router]);
 
   const handleGroceryListSelect = useCallback(async (list) => {
     try {
@@ -224,25 +258,20 @@ export default function InventoryView() {
   // Initial data fetch
   useEffect(() => {
     const fetchInitialData = async () => {
+      if (!user) return;
+      
       try {
         const [recipesRes, menusRes, fridgeRes, groceryListsRes] = await Promise.all([
-          fetch(`${API_URL}/api/all-recipes`),
-          fetch(`${API_URL}/api/menus`),
-          fetch(`${API_URL}/api/fridge`),
-          fetch(`${API_URL}/api/grocery-lists`)
+          fetchWithAuth(`${API_URL}/api/all-recipes`),
+          fetchWithAuth(`${API_URL}/api/menus`),
+          fetchWithAuth(`${API_URL}/api/fridge`),
+          fetchWithAuth(`${API_URL}/api/grocery-lists`)
         ]);
 
-        const [recipesData, menusData, fridgeData, groceryListsData] = await Promise.all([
-          recipesRes.json(),
-          menusRes.json(),
-          fridgeRes.json(),
-          groceryListsRes.json()
-        ]);
-
-        setRecipes(recipesData.recipes || []);
-        setMenus(menusData.menus || []);
-        setFridgeItems(fridgeData.ingredients || []);
-        setGroceryLists(groceryListsData.lists || []);
+        setRecipes(recipesRes.recipes || []);
+        setMenus(menusRes.menus || []);
+        setFridgeItems(fridgeRes.ingredients || []);
+        setGroceryLists(groceryListsRes.lists || []);
         setLoading(false);
       } catch (error) {
         console.error('Error fetching initial data:', error);
@@ -251,37 +280,42 @@ export default function InventoryView() {
     };
 
     fetchInitialData();
-  }, []);
+  }, [user]);
+
 
   // Handle inventory updates
   const handleInventoryUpdate = useCallback(async () => {
     try {
-      const response = await fetch(`${API_URL}/api/fridge`);
-      const data = await response.json();
+      const data = await fetchWithAuth(`${API_URL}/api/fridge`);
       setFridgeItems(data.ingredients || []);
     } catch (error) {
       console.error('Error refreshing inventory:', error);
     }
   }, []);
 
-  // Handle manual item addition
+  // Handle manual item addition with auth
   const handleManualAdd = useCallback(async (e) => {
     e.preventDefault();
     try {
-      const response = await fetch(`${API_URL}/api/fridge/add`, {
+      await fetchWithAuth(`${API_URL}/api/fridge/add`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(newItem)
       });
       
-      if (response.ok) {
-        await handleInventoryUpdate();
-        setNewItem({ name: '', quantity: 0, unit: '' });
-      }
+      await handleInventoryUpdate();
+      setNewItem({ name: '', quantity: 0, unit: '' });
     } catch (error) {
       console.error('Error adding item:', error);
     }
   }, [newItem, handleInventoryUpdate]);
+
+  if (authLoading || loading) {
+    return (
+      <div className="flex h-screen items-center justify-center">
+        <div className="text-lg">Loading...</div>
+      </div>
+    );
+  }
 
   // Handle text parsing
   const handleTextParse = useCallback(async (text) => {
