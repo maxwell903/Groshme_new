@@ -5,6 +5,7 @@ import { useRouter } from 'next/router';
 import { fetchWithAuth } from '@/utils/fetch';
 import { useAuth } from '@/contexts/AuthContext';
 import ProtectedRoute from '@/components/ProtectedRoute';
+const API_URL = process.env.NEXT_PUBLIC_API_URL;
 
 export default function Menus() {
   const [menus, setMenus] = useState([]);
@@ -15,42 +16,13 @@ export default function Menus() {
   const [showGroceryListModal, setShowGroceryListModal] = useState(false);
   const [selectedMenuId, setSelectedMenuId] = useState(null);
   const [groceryLists, setGroceryLists] = useState([]);
+  const [fridgeItems, setFridgeItems] = useState([]);
+  const [isDeleting, setIsDeleting] = useState(false);
   const router = useRouter();
-  const { user } = useAuth(); // Get authenticated user
-
-  useEffect(() => {
-    // Only fetch menus if user is authenticated
-    if (user) {
-      fetchMenus();
-      fetchFridgeItems();
-    }
-  }, [user]); // Add user as dependency
-
-  // ... rest of your existing code for handleCreateMenu, handleDeleteMenu, etc.
-  
-  if (!user) {
-    return (
-      <div className="flex h-screen items-center justify-center">
-        <div className="rounded-lg bg-white p-8 shadow-lg">
-          <p className="text-gray-600">Please sign in to view your menus</p>
-        </div>
-      </div>
-    );
-  }
-
-  if (loading) {
-    return (
-      <div className="flex h-screen items-center justify-center">
-        <div className="rounded-lg bg-white p-8 shadow-lg">
-          <p className="text-gray-600">Loading menus...</p>
-        </div>
-      </div>
-    );
-  }
+  const { user } = useAuth();
 
   const fetchMenus = async () => {
     try {
-      // Use fetchWithAuth which will include the auth token
       const data = await fetchWithAuth('/api/menus');
       setMenus(data.menus);
       setError(null);
@@ -61,6 +33,25 @@ export default function Menus() {
       setLoading(false);
     }
   };
+
+  const fetchFridgeItems = async () => {
+    try {
+      const response = await fetch(`${API_URL}/api/fridge`);
+      const data = await response.json();
+      if (data.success) {
+        setFridgeItems(data.ingredients || []);
+      }
+    } catch (error) {
+      console.error('Error fetching fridge items:', error);
+    }
+  };
+
+  useEffect(() => {
+    if (user) {
+      fetchMenus();
+      fetchFridgeItems();
+    }
+  }, [user]);
 
   const handleCreateMenu = async (e) => {
     e.preventDefault();
@@ -90,6 +81,7 @@ export default function Menus() {
 
     if (confirm('Are you sure you want to delete this Menu?')) {
       try {
+        setIsDeleting(true);
         await fetchWithAuth(`/api/menus/${menuId}`, {
           method: 'DELETE'
         });
@@ -97,25 +89,11 @@ export default function Menus() {
       } catch (err) {
         console.error('Error deleting menu:', err);
         setError(err.message);
+      } finally {
+        setIsDeleting(false);
       }
     }
   };
-
-
-  
-
-  const fetchFridgeItems = async () => {
-    try {
-      const response = await fetch(`${API_URL}/api/fridge`);
-      const data = await response.json();
-      setFridgeItems(data.ingredients || []);
-    } catch (error) {
-      console.error('Error fetching fridge items:', error);
-    }
-  };
-
-  
-  
 
   const handleShowModal = async (menuId) => {
     try {
@@ -131,13 +109,10 @@ export default function Menus() {
 
   const addToGroceryList = async (listId) => {
     try {
-      // First fetch all recipes for this menu
       const menuResponse = await fetch(`${API_URL}/api/menus/${selectedMenuId}/recipes`);
       const menuData = await menuResponse.json();
       
-      // Create formatted items for the grocery list
       for (const recipe of menuData.recipes) {
-        // Add recipe name
         await fetch(`${API_URL}/api/grocery-lists/${listId}/items`, {
           method: 'POST',
           headers: {
@@ -146,20 +121,18 @@ export default function Menus() {
           body: JSON.stringify({ name: `**${recipe.name}**` }),
         });
         
-        // Add ingredients with color indicators
         for (const ingredient of recipe.ingredients) {
           const inFridge = fridgeItems.some(item => 
             item.name.toLowerCase() === ingredient.toLowerCase() && item.quantity > 0
           );
           
-          const color = inFridge ? 'text-green-600' : 'text-red-600';
           await fetch(`${API_URL}/api/grocery-lists/${listId}/items`, {
             method: 'POST',
             headers: {
               'Content-Type': 'application/json',
             },
             body: JSON.stringify({ 
-              name: `<span class="${color}">  • ${ingredient}</span>` 
+              name: `${inFridge ? '✓' : '•'} ${ingredient}`,
             }),
           });
         }
@@ -171,6 +144,32 @@ export default function Menus() {
       console.error('Error adding menu to grocery list:', error);
     }
   };
+  
+  if (!user) {
+    return (
+      <div className="flex h-screen items-center justify-center">
+        <div className="rounded-lg bg-white p-8 shadow-lg">
+          <p className="text-gray-600">Please sign in to view your menus</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (loading) {
+    return (
+      <div className="flex h-screen items-center justify-center">
+        <div className="rounded-lg bg-white p-8 shadow-lg">
+          <p className="text-gray-600">Loading menus...</p>
+        </div>
+      </div>
+    );
+  }
+
+  
+
+
+
+
 
 
 
