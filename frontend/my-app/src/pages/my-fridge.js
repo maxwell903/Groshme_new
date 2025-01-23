@@ -20,9 +20,8 @@ const InventoryRow = React.memo(({ item, isEven, onUpdate }) => {
   const handleUpdate = async (updateData) => {
     try {
       setIsUpdating(true);
-      await fetch(`/api/fridge/${item.id}`, {
+      await fetchWithAuth(`/api/fridge/${item.id}`, {
         method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ 
           ...item, 
           ...updateData,
@@ -42,9 +41,8 @@ const InventoryRow = React.memo(({ item, isEven, onUpdate }) => {
       return;
     }
     try {
-      await fetch(`/api/fridge/${item.id}`, {
-        method: 'DELETE',
-        headers: { 'Content-Type': 'application/json' }
+      await fetchWithAuth(`/api/fridge/${item.id}`, {
+        method: 'DELETE'
       });
       await onUpdate?.();
     } catch (error) {
@@ -70,6 +68,11 @@ const InventoryRow = React.memo(({ item, isEven, onUpdate }) => {
           value={localQuantity}
           onChange={(e) => setLocalQuantity(parseFloat(e.target.value) || 0)}
           onBlur={() => handleUpdate({ quantity: localQuantity })}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter') {
+              e.target.blur();
+            }
+          }}
           className={`w-24 text-center rounded border px-2 py-1 ${isUpdating ? 'bg-gray-100' : ''}`}
           disabled={isUpdating}
           min="0"
@@ -83,6 +86,11 @@ const InventoryRow = React.memo(({ item, isEven, onUpdate }) => {
           value={localUnit}
           onChange={(e) => setLocalUnit(e.target.value)}
           onBlur={() => handleUpdate({ unit: localUnit })}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter') {
+              e.target.blur();
+            }
+          }}
           className={`w-24 text-right rounded border px-2 py-1 ${isUpdating ? 'bg-gray-100' : ''}`}
           disabled={isUpdating}
         />
