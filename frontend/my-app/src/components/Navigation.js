@@ -3,6 +3,7 @@ import Link from 'next/link';
 import { useRouter } from 'next/router';
 import { useAuth } from '../contexts/AuthContext';
 import { LogOut, User } from 'lucide-react';
+import viewMode from 'meal-prep';
 
 const Navigation = () => {
   const { user, signOut } = useAuth();
@@ -16,6 +17,8 @@ const Navigation = () => {
       console.error('Error signing out:', error);
     }
   };
+
+  const viewmodeForMealprep = '';
 
   return (
     <nav className="bg-white shadow-sm">
@@ -66,10 +69,32 @@ const Navigation = () => {
               Menus
             </Link>
             <Link 
+              onClick={viewmodeForMealprep = 'meal-prep'}
+              href="/meal-prep"
+              viewMode = 'meal-prep'
+              className="text-gray-600 hover:text-gray-800"
+            >
+              Meal Plans
+            </Link>
+            <Link 
+              href="/gym"
+              className="text-gray-600 hover:text-gray-800"
+            >
+              Workouts
+            </Link>
+            <Link 
+              onClick={viewmodeForMealprep = 'workout'}
+              href="/meal-prep"
+              viewMode = 'workout'
+              className="text-gray-600 hover:text-gray-800"
+            >
+              Sets
+            </Link>
+            <Link 
               href="/my-bills"
               className="text-gray-600 hover:text-gray-800"
             >
-              Budgeting For Faye Only
+              Budgets
             </Link>
           </div>
 
