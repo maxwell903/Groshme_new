@@ -4,9 +4,9 @@ import Link from 'next/link';
 import { Plus, ChevronUp, ChevronDown, Trash, Layers } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { fetchWithAuth } from '@/utils/fetch';
-import { RecipeSelectionModal } from './RecipeSelectionModal';
-import { MenuSelectionModal } from './MenuSelectionModal';
-import GroceryItem from './GroceryItem';
+
+
+
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL
 
