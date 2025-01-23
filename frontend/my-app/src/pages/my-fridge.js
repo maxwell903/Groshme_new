@@ -7,34 +7,7 @@ import { fetchWithAuth } from '@/utils/fetch';
 import ProtectedRoute from '@/components/ProtectedRoute';
 const API_URL = process.env.NEXT_PUBLIC_API_URL
 
-const fetchWithAuth = async (url, options = {}) => {
-  const token = localStorage.getItem('access_token');
-  if (!token) {
-    throw new Error('No authentication token found');
-  }
 
-  const headers = {
-    'Content-Type': 'application/json',
-    'Authorization': `Bearer ${token}`,
-    ...options.headers
-  };
-
-  const response = await fetch(url, {
-    ...options,
-    headers
-  });
-
-  if (!response.ok) {
-    if (response.status === 401) {
-      // Handle unauthorized error - redirect to login
-      window.location.href = '/signin';
-      throw new Error('Please sign in to continue');
-    }
-    throw new Error('Failed to fetch data');
-  }
-
-  return response.json();
-};
 
 // Helper component for inventory rows
 const InventoryRow = React.memo(({ item, isEven, onUpdate }) => {
@@ -347,6 +320,7 @@ export default function InventoryView() {
   }, [handleTextParse]);
 
   return (
+    <ProtectedRoute>
     <div className="min-h-screen bg-gray-50">
       {/* Navigation */}
       <nav className="bg-white shadow-sm">
@@ -415,25 +389,23 @@ export default function InventoryView() {
     </button>
 
     <button
-      onClick={async () => {
-        if (confirm('Are you sure you want to clear all quantities? Items will move to "Need to Get"')) {
-          try {
-            const response = await fetch(`${API_URL}/api/fridge/clear`, {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' }
-            });
-
-            if (!response.ok) throw new Error('Failed to clear quantities');
-            await handleInventoryUpdate();
-          } catch (error) {
-            console.error('Error clearing quantities:', error);
-          }
-        }
-      }}
-      className="bg-red-600 text-white px-4 py-2 rounded-lg hover:bg-red-700 transition-colors"
-    >
-      Clear All Quantities
-    </button>
+  onClick={async () => {
+    if (confirm('Are you sure you want to clear all quantities? Items will move to "Need to Get"')) {
+      try {
+        await fetchWithAuth(`${API_URL}/api/fridge/clear`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' }
+        });
+        await handleInventoryUpdate();
+      } catch (error) {
+        console.error('Error clearing quantities:', error);
+      }
+    }
+  }}
+  className="bg-red-600 text-white px-4 py-2 rounded-lg hover:bg-red-700 transition-colors"
+>
+  Clear All Quantities
+</button>
   </div>
 
   {showAddInventory && (
@@ -793,5 +765,6 @@ export default function InventoryView() {
         </div>
       </div>
     </div>
+    </ProtectedRoute>
   );
 }

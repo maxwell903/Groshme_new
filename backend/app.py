@@ -3179,16 +3179,12 @@ def add_fridge_item():
         data = request.json
         user_id = g.user_id  # Get authenticated user's ID
         
-        # Clean the name
         name = data.get('name', '').strip()
         if not name:
             return jsonify({
                 'success': False,
                 'error': 'Name is required'
             }), 400
-            
-        # Remove any formatting markers
-        name = re.sub(r'\[(red|green)\]•\s*', '', name)
         
         engine = create_engine(db_url, poolclass=NullPool)
         with engine.connect() as connection:
