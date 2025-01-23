@@ -69,7 +69,7 @@ const Navigation = () => {
               Menus
             </Link>
             <Link 
-              onClick={viewmodeForMealprep = 'meal-prep'}
+              onClick={viewmodeForMealprep = "meal-prep"}
               href="/meal-prep"
               viewMode = 'meal-prep'
               className="text-gray-600 hover:text-gray-800"
