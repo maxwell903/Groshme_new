@@ -69,9 +69,9 @@ const Navigation = () => {
               Menus
             </Link>
             <Link 
-              onClick={viewmodeForMealprep = "meal-prep"}
+              
               href="/meal-prep"
-              viewMode = 'meal-prep'
+              
               className="text-gray-600 hover:text-gray-800"
             >
               Meal Plans
@@ -83,9 +83,9 @@ const Navigation = () => {
               Workouts
             </Link>
             <Link 
-              onClick={viewmodeForMealprep = 'workout'}
+              
               href="/meal-prep"
-              viewMode = 'workout'
+              
               className="text-gray-600 hover:text-gray-800"
             >
               Sets
