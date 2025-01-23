@@ -3309,15 +3309,16 @@ def parse_receipt():
 
     
 
-
 @app.route('/api/grocery-lists', methods=['POST'])
+@auth_required
 def create_grocery_list():
     try:
         data = request.json
-        default_user_id = 'bc6ae242-c238-4a6b-a884-2fd1fc03ed72'  # Same default user ID as used in recipes
+        user_id = g.user_id  # Get authenticated user's ID
         
-        # Create new list in Supabase/PostgreSQL
-        with db.engine.connect() as connection:
+        # Create new list in PostgreSQL
+        engine = create_engine(db_url, poolclass=NullPool)
+        with engine.connect() as connection:
             # Insert the grocery list with user_id
             result = connection.execute(
                 text("""
@@ -3327,7 +3328,7 @@ def create_grocery_list():
                 """),
                 {
                     "name": data['name'],
-                    "user_id": default_user_id
+                    "user_id": user_id
                 }
             )
             list_id = result.fetchone()[0]
@@ -3357,6 +3358,7 @@ def create_grocery_list():
     except Exception as e:
         print(f"Error creating grocery list: {str(e)}")
         return jsonify({'error': str(e)}), 500
+
     
 
 @app.route('/api/fridge', methods=['GET'])
@@ -3852,36 +3854,66 @@ def delete_recipe_ingredient(recipe_id, ingredient_id):
         print(f"Error deleting ingredient: {str(e)}")
         return jsonify({'error': str(e)}), 500
     
-# This should be the ONLY get_grocery_list route in your file
 @app.route('/api/grocery-lists/<int:list_id>', methods=['GET'])
+@auth_required
 def get_grocery_list(list_id):
     try:
-        grocery_list = GroceryList.query.get_or_404(list_id)
-        items_data = [{
-            'id': item.id,
-            'name': item.name,
-            'list_id': item.list_id,
-            'quantity': float(item.quantity) if item.quantity is not None else 0,
-            'unit': item.unit or '',
-            'price_per': float(item.price_per) if item.price_per is not None else 0,
-            'total': float(item.quantity * item.price_per) if item.quantity is not None and item.price_per is not None else 0
-        } for item in grocery_list.items]
-        
-        return jsonify({
-            'id': grocery_list.id,
-            'name': grocery_list.name,
-            'items': items_data
-        })
+        user_id = g.user_id
+        engine = create_engine(db_url, poolclass=NullPool)
+
+        with engine.connect() as connection:
+            # First verify the list belongs to the user
+            list_result = connection.execute(
+                text("""
+                    SELECT id, name, user_id
+                    FROM grocery_list
+                    WHERE id = :list_id AND user_id = :user_id
+                """),
+                {
+                    "list_id": list_id,
+                    "user_id": user_id
+                }
+            ).fetchone()
+
+            if not list_result:
+                return jsonify({'error': 'Grocery list not found or unauthorized'}), 404
+
+            # Get all items for the list
+            items_result = connection.execute(
+                text("""
+                    SELECT id, name, quantity, unit, price_per, total
+                    FROM grocery_item
+                    WHERE list_id = :list_id
+                    ORDER BY name
+                """),
+                {"list_id": list_id}
+            )
+
+            items_data = [{
+                'id': item.id,
+                'name': item.name,
+                'quantity': float(item.quantity) if item.quantity is not None else 0,
+                'unit': item.unit or '',
+                'price_per': float(item.price_per) if item.price_per is not None else 0,
+                'total': float(item.total) if item.total is not None else 0
+            } for item in items_result]
+
+            return jsonify({
+                'id': list_result.id,
+                'name': list_result.name,
+                'items': items_data
+            })
+
     except Exception as e:
         print(f"Error fetching grocery list: {str(e)}")
         return jsonify({'error': str(e)}), 500
 
 # Other routes that should remain (make sure there's only one of each)
 @app.route('/api/grocery-lists', methods=['GET'])
+@auth_required
 def get_grocery_lists():
     try:
-        # Create connection to Supabase PostgreSQL
-        db_url = 'postgresql://postgres.bvgnlxznztqggtqswovg:RecipeFinder123!@aws-0-us-east-2.pooler.supabase.com:5432/postgres'
+        user_id = g.user_id  # Get authenticated user's ID
         engine = create_engine(db_url, poolclass=NullPool)
 
         with engine.connect() as connection:
@@ -3901,15 +3933,16 @@ def get_grocery_lists():
                 FROM grocery_list gl
                 LEFT JOIN grocery_item gi ON gl.id = gi.list_id
                 WHERE gl.user_id = :user_id
-                GROUP BY gl.id
-            """), {"user_id": "bc6ae242-c238-4a6b-a884-2fd1fc03ed72"})  
+                GROUP BY gl.id, gl.name
+                ORDER BY gl.created_date DESC
+            """), {"user_id": user_id})  
 
             lists_data = []
             for row in result:
                 lists_data.append({
                     'id': row.id,
                     'name': row.name,
-                    'items': row.items
+                    'items': row.items if isinstance(row.items, list) else []
                 })
 
             return jsonify({'lists': lists_data})
@@ -4192,39 +4225,54 @@ def condense_grocery_list(list_id):
 
 
 @app.route('/api/grocery-lists/<int:list_id>/items', methods=['POST'])
+@auth_required
 def add_item_to_list(list_id):
     try:
+        user_id = g.user_id
         data = request.json
+        
         if not data or 'name' not in data:
             return jsonify({'error': 'Name is required'}), 400
 
-        # Create connection to Supabase PostgreSQL
-        db_url = 'postgresql://postgres.bvgnlxznztqggtqswovg:RecipeFinder123!@aws-0-us-east-2.pooler.supabase.com:5432/postgres'
-        engine = create_engine(db_url)
+        engine = create_engine(db_url, poolclass=NullPool)
 
         with engine.connect() as connection:
-            # Start a transaction
-            with connection.begin():
-                # Insert the new item into the grocery_item table
-                result = connection.execute(
-                    text("""
-                        INSERT INTO grocery_item (list_id, name, quantity, unit, price_per, total)
-                        VALUES (:list_id, :name, :quantity, :unit, :price_per, :total)
-                        RETURNING id, name, quantity, unit, price_per, total
-                    """),
-                    {
-                        "list_id": list_id,
-                        "name": data['name'],
-                        "quantity": float(data.get('quantity', 0)),
-                        "unit": data.get('unit', ''),
-                        "price_per": float(data.get('price_per', 0)),
-                        "total": float(data.get('quantity', 0)) * float(data.get('price_per', 0))
-                    }
-                )
+            # First verify the list belongs to the user
+            list_check = connection.execute(
+                text("""
+                    SELECT id FROM grocery_list
+                    WHERE id = :list_id AND user_id = :user_id
+                """),
+                {
+                    "list_id": list_id,
+                    "user_id": user_id
+                }
+            ).fetchone()
 
-                new_item = result.fetchone()
+            if not list_check:
+                return jsonify({'error': 'Grocery list not found or unauthorized'}), 404
 
-            # Commit the transaction
+            # Insert the new item
+            result = connection.execute(
+                text("""
+                    INSERT INTO grocery_item 
+                    (list_id, name, quantity, unit, price_per, total)
+                    VALUES (
+                        :list_id, :name, :quantity, :unit, :price_per,
+                        :quantity * :price_per
+                    )
+                    RETURNING id, name, quantity, unit, price_per, total
+                """),
+                {
+                    "list_id": list_id,
+                    "name": data['name'],
+                    "quantity": float(data.get('quantity', 0)),
+                    "unit": data.get('unit', ''),
+                    "price_per": float(data.get('price_per', 0))
+                }
+            )
+
+            new_item = result.fetchone()
             connection.commit()
 
             return jsonify({

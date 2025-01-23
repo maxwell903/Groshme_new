@@ -179,11 +179,18 @@ const GroceryItem = ({ item, listId, onUpdate, onDelete, onToggleMarked }) => {
         updatedData.total = updatedData.quantity * updatedData.price_per;
       }
 
-      const response = await fetchWithAuth(`/api/grocery-lists/${listId}/items/${item.id}`, {
-        method: 'PUT',
-        body: JSON.stringify(updatedData)
-      });
-
+      const response = await fetchWithAuth(
+        `/api/grocery-lists/${listId}/items/${item.id}`,
+        {
+          method: 'PUT', 
+          body: JSON.stringify(updatedData)
+        }
+      );
+      
+      if (!response.ok) {
+        throw new Error('Failed to update item');
+      }
+      
       const data = await response.json();
       setLocalData(data.item);
       onUpdate();
