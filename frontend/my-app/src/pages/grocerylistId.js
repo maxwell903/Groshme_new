@@ -566,13 +566,7 @@ export default function GroceryListsPage() {
 
   return (
     <div className="min-h-screen bg-gray-50">
-      <nav className="bg-white shadow-sm">
-        <div className="max-w-6xl mx-auto px-4 py-4">
-          <Link href="/" className="text-blue-600 hover:text-blue-800">
-            ← Back
-          </Link>
-        </div>
-      </nav>
+      
 
       <div className="bg-white border-b">
         <div className="max-w-6xl mx-auto px-4 py-1">

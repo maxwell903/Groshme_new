@@ -59,6 +59,12 @@ const Navigation = () => {
             >
               Fridge
             </Link>
+            <Link 
+              href="/menus"
+              className="text-gray-600 hover:text-gray-800"
+            >
+              Menus
+            </Link>
           </div>
 
           {/* Right side - User profile and sign out */}
