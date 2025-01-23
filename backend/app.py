@@ -3317,7 +3317,6 @@ def create_grocery_list():
         user_id = g.user_id  # Get authenticated user's ID
         
         # Create new list in PostgreSQL
-        engine = create_engine(db_url, poolclass=NullPool)
         with engine.connect() as connection:
             # Insert the grocery list with user_id
             result = connection.execute(

@@ -47,6 +47,18 @@ const Navigation = () => {
             >
               Add Recipe
             </Link>
+            <Link 
+              href="/grocerylistId"
+              className="text-gray-600 hover:text-gray-800"
+            >
+              Lists
+            </Link>
+            <Link 
+              href="/my-fridge"
+              className="text-gray-600 hover:text-gray-800"
+            >
+              Fridge
+            </Link>
           </div>
 
           {/* Right side - User profile and sign out */}
