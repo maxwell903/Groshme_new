@@ -5,16 +5,24 @@ import { ChevronDown, ChevronUp, Plus, X } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { fetchWithAuth } from '@/utils/fetch';
 
+
+
 const InventoryRow = React.memo(({ item, isEven, onUpdate }) => {
   const [isUpdating, setIsUpdating] = useState(false);
-  const [localQuantity, setLocalQuantity] = useState(parseFloat(item.quantity) || 0);
+  const [localQuantity, setLocalQuantity] = useState(item.quantity);
   const [localUnit, setLocalUnit] = useState(item.unit || '');
+
+  useEffect(() => {
+    setLocalQuantity(item.quantity);
+    setLocalUnit(item.unit || '');
+  }, [item]);
 
   const handleUpdate = async (updateData) => {
     try {
       setIsUpdating(true);
-      await fetchWithAuth(`/api/fridge/${item.id}`, {
+      await fetch(`/api/fridge/${item.id}`, {
         method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ 
           ...item, 
           ...updateData,
@@ -30,54 +38,52 @@ const InventoryRow = React.memo(({ item, isEven, onUpdate }) => {
   };
 
   const handleDelete = async () => {
-    if (window.confirm(`Are you sure you want to delete ${item.name} from your fridge?`)) {
-      try {
-        await fetchWithAuth(`/api/fridge/${item.id}`, {
-          method: 'DELETE'
-        });
-        await onUpdate?.();
-      } catch (error) {
-        console.error('Error deleting item:', error);
-      }
+    if (!window.confirm(`Are you sure you want to delete ${item.name}?`)) {
+      return;
+    }
+    try {
+      await fetch(`/api/fridge/${item.id}`, {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' }
+      });
+      await onUpdate?.();
+    } catch (error) {
+      console.error('Error deleting item:', error);
     }
   };
 
-  useEffect(() => {
-    setLocalQuantity(item.quantity);
-    setLocalUnit(item.unit || '');
-  }, [item]);
-
   return (
-    <div className={`grid grid-cols-3 p-4 border-b ${isEven ? 'bg-gray-50' : 'bg-white'}`}>
-      <div className="w-36 flex items-start gap-2 pr-2">
+    <div className={`grid grid-cols-[2fr_1fr_1fr] items-center gap-4 p-4 border-b ${isEven ? 'bg-gray-50' : 'bg-white'}`}>
+      <div className="flex items-center gap-2">
         <button
           onClick={handleDelete}
           className="text-red-500 hover:text-red-700 transition-colors"
-          title="Delete item"
         >
           <X size={20} />
         </button>
-        <div className="text-sm break-words">{item.name}</div>
+        <span className="text-sm">{item.name}</span>
       </div>
-      <div className="flex items-center justify-center w-24">
+      
+      <div className="flex justify-center">
         <input
           type="number"
           value={localQuantity}
           onChange={(e) => setLocalQuantity(parseFloat(e.target.value) || 0)}
           onBlur={() => handleUpdate({ quantity: localQuantity })}
-          className={`w-16 rounded border px-2 py-1 ${isUpdating ? 'bg-gray-100' : ''}`}
+          className={`w-24 text-center rounded border px-2 py-1 ${isUpdating ? 'bg-gray-100' : ''}`}
+          disabled={isUpdating}
           min="0"
           step="0.1"
-          disabled={isUpdating}
         />
       </div>
-      <div className="flex items-center justify-end">
+      
+      <div className="flex justify-end">
         <input
           type="text"
           value={localUnit}
           onChange={(e) => setLocalUnit(e.target.value)}
           onBlur={() => handleUpdate({ unit: localUnit })}
-          className={`w-20 rounded border px-2 pr-1 text-right ${isUpdating ? 'bg-gray-100' : ''}`}
+          className={`w-24 text-right rounded border px-2 py-1 ${isUpdating ? 'bg-gray-100' : ''}`}
           disabled={isUpdating}
         />
       </div>
@@ -252,11 +258,11 @@ export default function AuthenticatedFridge() {
             </button>
           </div>
 
-          <div className="grid grid-cols-[36fr_24fr_20fr] gap-4 mb-4 px-4 font-semibold text-gray-700">
-            <div className="pl-8">Item</div>
-            <div className="text-center">Quantity</div>
-            <div className="text-right">Unit</div>
-          </div>
+          <div className="grid grid-cols-[2fr_1fr_1fr] gap-4 mb-4 px-4 text-sm font-semibold text-gray-700">
+      <div>Item</div>
+      <div className="text-center">Quantity</div>
+      <div className="text-right">Unit</div>
+    </div>
 
           <div className="divide-y">
             {getFilteredInventory().map((item, index) => (
