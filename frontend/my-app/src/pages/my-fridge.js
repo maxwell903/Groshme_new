@@ -149,6 +149,35 @@ export default function InventoryView() {
     }
   }, []);
 
+  const handleTextParse = useCallback(async (text) => {
+    try {
+      const response = await fetch(`${API_URL}/api/fridge/parse-receipt`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ receipt_text: text })
+      });
+      
+      const data = await response.json();
+      if (response.ok) {
+        setProcessingResults(data);
+        await handleInventoryUpdate();
+        setPastedText('');
+      }
+    } catch (error) {
+      console.error('Error parsing text:', error);
+    }
+  }, [handleInventoryUpdate]);
+
+  // Handle file upload
+  const handleFileUpload = useCallback(async (e) => {
+    const file = e.target.files[0];
+    if (file) {
+      const text = await file.text();
+      handleTextParse(text);
+    }
+  }, [handleTextParse]);
+
+
   // Add a helper function to check if names match (case-insensitive)
   const namesMatch = useCallback((name1, name2) => {
     return name1.toLowerCase().includes(name2.toLowerCase()) || 
@@ -291,34 +320,7 @@ export default function InventoryView() {
   }
 
   // Handle text parsing
-  const handleTextParse = useCallback(async (text) => {
-    try {
-      const response = await fetch(`${API_URL}/api/fridge/parse-receipt`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ receipt_text: text })
-      });
-      
-      const data = await response.json();
-      if (response.ok) {
-        setProcessingResults(data);
-        await handleInventoryUpdate();
-        setPastedText('');
-      }
-    } catch (error) {
-      console.error('Error parsing text:', error);
-    }
-  }, [handleInventoryUpdate]);
-
-  // Handle file upload
-  const handleFileUpload = useCallback(async (e) => {
-    const file = e.target.files[0];
-    if (file) {
-      const text = await file.text();
-      handleTextParse(text);
-    }
-  }, [handleTextParse]);
-
+  
   return (
     <ProtectedRoute>
     <div className="min-h-screen bg-gray-50">
