@@ -65,6 +65,12 @@ const Navigation = () => {
             >
               Menus
             </Link>
+            <Link 
+              href="/my-bills"
+              className="text-gray-600 hover:text-gray-800"
+            >
+              Budgeting For Faye Only
+            </Link>
           </div>
 
           {/* Right side - User profile and sign out */}
