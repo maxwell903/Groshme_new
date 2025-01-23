@@ -200,52 +200,7 @@ export default function Menus() {
   return (
     <ProtectedRoute>
     <div className="min-h-screen bg-gray-50">
-      <nav className="bg-white shadow-sm">
-        <div className="max-w-6xl mx-auto px-4 py-4">
-          <Link href="/" className="text-blue-600 hover:text-blue-800">
-            ← Back to Home
-          </Link>
-        </div>
-      </nav>
-      <div className="bg-white border-b">
-  <div className="max-w-6xl mx-auto px-4 py-1">
-  <div className="flex justify-between items-center mb-6">
-    <div className="flex gap-4">
-      <Link
-        href="/my-fridge"
-        className={`px-4 py-2 rounded-lg ${
-          router.pathname === '/my-fridge' ? 'bg-blue-600 text-white' : 'bg-gray-200 text-gray-700 hover:bg-blue-600 hover:text-gray-100'
-        }`}
-      >
-        My Fridge
-      </Link>
-      <Link
-        href="/grocerylistId"
-        className={`px-4 py-2 rounded-lg ${
-          router.pathname === '/grocerylistId' ? 'bg-blue-600 text-white' : 'bg-gray-200 text-gray-700 hover:bg-blue-600 hover:text-gray-100'
-        }`}
-      >
-        Grocery Lists
-      </Link>
-      <Link
-        href="/menus"
-        className={`px-4 py-2 rounded-lg ${
-          router.pathname === '/menus' ? 'bg-blue-600 text-white' : 'bg-gray-200 text-gray-700 hover:bg-blue-600 hover:text-gray-100'
-        }`}
-      >
-        My Menus
-      </Link>
-    </div>
-    <Link
-      href="/meal-prep"
-      className="px-4 py-2 rounded-lg bg-gray-200 text-gray-700 hover:bg-blue-600 hover:text-gray-100"
-    >
-      Meal Prep & Fitness
-    </Link>
-  </div>
-</div>
-</div>
-
+      
       <div className="mx-auto max-w-6xl px-4 py-8">
         <div className="flex justify-between items-center mb-8">
           <h1 className="text-3xl font-bold text-gray-900">My Menus</h1>
