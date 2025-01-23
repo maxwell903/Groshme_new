@@ -252,10 +252,10 @@ export default function AuthenticatedFridge() {
             </button>
           </div>
 
-          <div className="grid grid-cols-[1fr_auto_auto] gap-4 mb-4 px-4 font-semibold text-gray-700">
-            <div>Item</div>
-            <div>Quantity</div>
-            <div>Unit</div>
+          <div className="grid grid-cols-[36fr_24fr_20fr] gap-4 mb-4 px-4 font-semibold text-gray-700">
+            <div className="pl-8">Item</div>
+            <div className="text-center">Quantity</div>
+            <div className="text-right">Unit</div>
           </div>
 
           <div className="divide-y">
