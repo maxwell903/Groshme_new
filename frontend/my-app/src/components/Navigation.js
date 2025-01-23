@@ -3,7 +3,7 @@ import Link from 'next/link';
 import { useRouter } from 'next/router';
 import { useAuth } from '../contexts/AuthContext';
 import { LogOut, User } from 'lucide-react';
-import viewMode from 'meal-prep';
+
 
 const Navigation = () => {
   const { user, signOut } = useAuth();
