@@ -1,7 +1,13 @@
-import React, { useState, useEffect } from 'react';
-import { ChevronDown, ChevronUp, Plus, Edit, Trash, X, Check, Layers } from 'lucide-react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/router';
 import Link from 'next/link';
+import { Plus, ChevronUp, ChevronDown, Trash, Layers } from 'lucide-react';
+import { useAuth } from '@/contexts/AuthContext';
+import { fetchWithAuth } from '@/utils/fetch';
+import { RecipeSelectionModal } from './RecipeSelectionModal';
+import { MenuSelectionModal } from './MenuSelectionModal';
+import GroceryItem from './GroceryItem';
+
 const API_URL = process.env.NEXT_PUBLIC_API_URL
 
 // Modal Components
@@ -118,6 +124,7 @@ const GroceryItem = ({ item, listId, onUpdate, onDelete, onToggleMarked }) => {
   const isMenuHeader = item.name.startsWith('###');
   const isRecipeHeader = item.name.startsWith('**');
   const isMarkedForDeletion = item.name.startsWith('✓');
+  
   const [localData, setLocalData] = useState({
     quantity: parseFloat(item.quantity) || 0,
     unit: item.unit || '',
@@ -126,52 +133,32 @@ const GroceryItem = ({ item, listId, onUpdate, onDelete, onToggleMarked }) => {
   });
 
   const handleDelete = async () => {
-    // For recipe/menu headers or regular items, perform full deletion
     if (isRecipeHeader || isMenuHeader) {
       try {
-        const response = await fetch(`${API_URL}/api/grocery-lists/${listId}/items/${item.id}`, {
-          method: 'DELETE',
-          headers: { 
-            'Content-Type': 'application/json',
-            'Accept': 'application/json'
-          }
+        await fetchWithAuth(`/api/grocery-lists/${listId}/items/${item.id}`, {
+          method: 'DELETE'
         });
 
-        if (!response.ok) {
-          const errorData = await response.json();
-          throw new Error(errorData.error || 'Failed to delete item');
-        }
-
-        // If it's a recipe header, also delete all items until the next header
-        if (isRecipeHeader || isMenuHeader) {
-          // This will trigger the parent to refresh the list
-          if (typeof onUpdate === 'function') {
-            onUpdate();
-          }
-        } else if (typeof onDelete === 'function') {
-          onDelete(item.id);
+        // If it's a recipe or menu header, refresh the entire list
+        if (typeof onUpdate === 'function') {
+          onUpdate();
         }
       } catch (error) {
         console.error('Error deleting item:', error);
         alert('Failed to delete item. Please try again.');
       }
     } else {
-      // For regular items, just toggle the checkmark
+      // For regular items, toggle the checkmark
       const isChecked = item.name.startsWith('✓');
       const toggledName = isChecked ? 
-        item.name.substring(2) : // Remove the checkmark
-        '✓ ' + item.name;       // Add the checkmark
+        item.name.substring(2) : // Remove checkmark
+        '✓ ' + item.name;       // Add checkmark
 
       try {
-        const response = await fetch(`${API_URL}/api/grocery-lists/${listId}/items/${item.id}`, {
+        await fetchWithAuth(`/api/grocery-lists/${listId}/items/${item.id}`, {
           method: 'PUT',
-          headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ ...localData, name: toggledName })
         });
-
-        if (!response.ok) {
-          throw new Error('Failed to update item');
-        }
 
         if (typeof onUpdate === 'function') {
           onUpdate();
@@ -192,19 +179,13 @@ const GroceryItem = ({ item, listId, onUpdate, onDelete, onToggleMarked }) => {
         updatedData.total = updatedData.quantity * updatedData.price_per;
       }
 
-      const response = await fetch(`${API_URL}/api/grocery-lists/${listId}/items/${item.id}`, {
+      const response = await fetchWithAuth(`/api/grocery-lists/${listId}/items/${item.id}`, {
         method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(updatedData)
       });
 
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error || 'Failed to update item');
-      }
-
-      const responseData = await response.json();
-      setLocalData(responseData.item);
+      const data = await response.json();
+      setLocalData(data.item);
       onUpdate();
     } catch (error) {
       console.error('Error updating item:', error);
@@ -219,8 +200,6 @@ const GroceryItem = ({ item, listId, onUpdate, onDelete, onToggleMarked }) => {
       total: parseFloat(item.total) || 0
     });
   }, [item]);
-
-  
 
   return (
     <tr className={`border-b ${
@@ -305,7 +284,15 @@ const GroceryItem = ({ item, listId, onUpdate, onDelete, onToggleMarked }) => {
       ) : (
         <>
           <td colSpan="4"></td>
-          <td></td>
+          <td className="py-2 px-4">
+            <button
+              onClick={handleDelete}
+              className="text-red-500 hover:text-red-700"
+              aria-label="Delete header"
+            >
+              <X size={20} />
+            </button>
+          </td>
         </>
       )}
     </tr>
@@ -324,63 +311,57 @@ export default function GroceryListsPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [newItemName, setNewItemName] = useState('');
-  const router = useRouter();
   const [fridgeItems, setFridgeItems] = useState([]);
 
-  const fetchFridgeItems = async () => {
+  const router = useRouter();
+  const { user, loading: authLoading } = useAuth();
+
+  const fetchFridgeItems = useCallback(async () => {
     try {
-      const response = await fetch(`${API_URL}/api/fridge`);
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error || 'Failed to fetch fridge items');
-      }
-      const data = await response.json();
-      if (!data.success) {
-        throw new Error(data.error || 'Failed to fetch fridge items');
-      }
+      const data = await fetchWithAuth('/api/fridge');
       setFridgeItems(data.ingredients || []);
     } catch (error) {
       console.error('Error fetching fridge items:', error);
       setError('Failed to fetch fridge items. ' + error.message);
-      // Return empty array to prevent undefined errors
       setFridgeItems([]);
     }
-  };
+  }, []);
 
-  // Fetch all lists and their items
-  const fetchData = async () => {
+  const fetchData = useCallback(async () => {
     try {
-      const response = await fetch(`${API_URL}/api/grocery-lists`);
-      const data = await response.json();
+      const data = await fetchWithAuth('/api/grocery-lists');
       setLists(data.lists || []);
-      setLoading(false);
+      setError(null);
     } catch (err) {
       console.error('Error fetching lists:', err);
       setError('Failed to load grocery lists');
+    } finally {
       setLoading(false);
     }
-  };
+  }, []);
 
   useEffect(() => {
+    if (!authLoading && !user) {
+      router.push('/signin');
+      return;
+    }
+
     const fetchInitialData = async () => {
       try {
         setLoading(true);
-        setError(null); // Clear any existing errors
+        setError(null);
         
-        // Fetch data in parallel but handle errors independently
         const results = await Promise.allSettled([
           fetchData(),
           fetchFridgeItems()
         ]);
         
-        // Check for any errors
         results.forEach((result, index) => {
           if (result.status === 'rejected') {
             console.error(`Error in fetch ${index}:`, result.reason);
             setError(prev => prev ? `${prev}\n${result.reason.message}` : result.reason.message);
           }
         });
-        
       } catch (error) {
         console.error('Error fetching initial data:', error);
         setError('Failed to fetch data: ' + error.message);
@@ -388,24 +369,22 @@ export default function GroceryListsPage() {
         setLoading(false);
       }
     };
-  
-    fetchInitialData();
-  }, []);
 
-  // Handlers for various actions
+    if (user) {
+      fetchInitialData();
+    }
+  }, [user, authLoading, router, fetchData, fetchFridgeItems]);
+
   const handleCreateList = async (e) => {
     e.preventDefault();
     try {
-      const response = await fetch(`${API_URL}/api/grocery-lists`, {
+      await fetchWithAuth('/api/grocery-lists', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           name: newList.name,
           items: []
         })
       });
-
-      if (!response.ok) throw new Error('Failed to create list');
       
       await fetchData();
       setNewList({ name: '', items: [] });
@@ -416,33 +395,14 @@ export default function GroceryListsPage() {
   };
 
   const handleDeleteList = async (listId) => {
-    if (!listId) {
-      console.error('No list ID provided');
-      return;
-    }
+    if (!listId) return;
   
     if (confirm('Delete this list?')) {
       try {
-        const response = await fetch(`${API_URL}/api/grocery-lists/${listId}`, {
-          method: 'DELETE',
-          headers: {
-            'Accept': 'application/json',
-            'Content-Type': 'application/json'
-          }
+        await fetchWithAuth(`/api/grocery-lists/${listId}`, {
+          method: 'DELETE'
         });
-  
-        // Check if response is JSON
-        const contentType = response.headers.get("content-type");
-        if (contentType && contentType.indexOf("application/json") !== -1) {
-          const data = await response.json();
-          if (!response.ok) {
-            throw new Error(data.error || 'Failed to delete list');
-          }
-        } else if (!response.ok) {
-          throw new Error('Failed to delete list');
-        }
-  
-        // Refresh the lists after successful deletion
+        
         await fetchData();
       } catch (err) {
         console.error('Error deleting list:', err);
@@ -455,12 +415,8 @@ export default function GroceryListsPage() {
     if (!newItemName.trim()) return;
     
     try {
-      const response = await fetch(`${API_URL}/api/grocery-lists/${expandedList}/items`, {
+      await fetchWithAuth(`/api/grocery-lists/${expandedList}/items`, {
         method: 'POST',
-        headers: { 
-          'Content-Type': 'application/json',
-          'Accept': 'application/json'
-        },
         body: JSON.stringify({ 
           name: newItemName,
           quantity: 0,
@@ -469,11 +425,6 @@ export default function GroceryListsPage() {
         })
       });
   
-      if (!response.ok) {
-        const error = await response.json();
-        throw new Error(error.error || 'Failed to add item');
-      }
-      
       setNewItemName('');
       setShowAddItem(false);
       await fetchData();
@@ -487,26 +438,10 @@ export default function GroceryListsPage() {
     if (!expandedList || !itemId) return;
     
     try {
-      const response = await fetch(`${API_URL}/api/grocery-lists/${expandedList}/items/${itemId}`, {
-        method: 'DELETE',
-        headers: { 
-          'Content-Type': 'application/json',
-          'Accept': 'application/json'
-        }
+      await fetchWithAuth(`/api/grocery-lists/${expandedList}/items/${itemId}`, {
+        method: 'DELETE'
       });
   
-      // Check if response is JSON
-      const contentType = response.headers.get("content-type");
-      if (contentType && contentType.indexOf("application/json") !== -1) {
-        const data = await response.json();
-        if (!response.ok) {
-          throw new Error(data.error || 'Failed to delete item');
-        }
-      } else if (!response.ok) {
-        throw new Error('Failed to delete item');
-      }
-  
-      // Refresh data after successful deletion
       await fetchData();
     } catch (error) {
       console.error('Error deleting item:', error);
@@ -515,22 +450,19 @@ export default function GroceryListsPage() {
   };
 
   const fetchRecipeIngredientDetails = async (recipeId) => {
-    const response = await fetch(`${API_URL}/api/recipe/${recipeId}/ingredients`);
-    if (!response.ok) {
+    try {
+      const data = await fetchWithAuth(`/api/recipe/${recipeId}/ingredients`);
+      return data;
+    } catch (error) {
       throw new Error('Failed to fetch recipe ingredient details');
     }
-    return await response.json();
   };
-  
 
   const handleAddFromRecipe = async (recipe) => {
     try {
       // First add the recipe name as header
-      await fetch(`${API_URL}/api/grocery-lists/${expandedList}/items`, {
+      await fetchWithAuth(`/api/grocery-lists/${expandedList}/items`, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
         body: JSON.stringify({ name: `**${recipe.name}**` }),
       });
   
@@ -544,11 +476,8 @@ export default function GroceryListsPage() {
           item.quantity > 0
         );
         
-        await fetch(`${API_URL}/api/grocery-lists/${expandedList}/items`, {
+        await fetchWithAuth(`/api/grocery-lists/${expandedList}/items`, {
           method: 'POST',
-          headers: {
-            'Content-Type': 'application/json', 
-          },
           body: JSON.stringify({
             name: `${inFridge ? '✓' : '•'} ${ingredient.name}`,
             quantity: ingredient.quantity,
@@ -567,31 +496,20 @@ export default function GroceryListsPage() {
  
   const handleAddFromMenu = async (menuId) => {
     try {
-      // Fetch all menu recipes with ingredient details
-      const response = await fetch(`${API_URL}/api/menus/${menuId}/recipes`);
-      if (!response.ok) {
-        throw new Error('Failed to fetch menu recipes');
-      }
-      
-      const menuData = await response.json();
+      // Fetch menu recipes with ingredient details
+      const menuData = await fetchWithAuth(`/api/menus/${menuId}/recipes`);
       
       // Add menu name as header
-      await fetch(`${API_URL}/api/grocery-lists/${expandedList}/items`, {
+      await fetchWithAuth(`/api/grocery-lists/${expandedList}/items`, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
         body: JSON.stringify({ name: `### ${menuData.menu_name} ###` }),
       });
   
       // Process each recipe
       for (const recipe of menuData.recipes) {
         // Add recipe name
-        await fetch(`${API_URL}/api/grocery-lists/${expandedList}/items`, {
+        await fetchWithAuth(`/api/grocery-lists/${expandedList}/items`, {
           method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
           body: JSON.stringify({ name: `**${recipe.name}**` }),
         });
   
@@ -604,11 +522,8 @@ export default function GroceryListsPage() {
             item.quantity > 0
           );
   
-          await fetch(`${API_URL}/api/grocery-lists/${expandedList}/items`, {
+          await fetchWithAuth(`/api/grocery-lists/${expandedList}/items`, {
             method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-            },
             body: JSON.stringify({
               name: `${inFridge ? '✓' : '•'} ${ingredient.name}`,
               quantity: ingredient.quantity,
@@ -626,8 +541,6 @@ export default function GroceryListsPage() {
     }
   };
 
-
-  // Calculate totals for a list
   const calculateListTotal = (items) => {
     return items.reduce((sum, item) => {
       const quantity = parseFloat(item.quantity) || 0;
@@ -636,7 +549,7 @@ export default function GroceryListsPage() {
     }, 0);
   };
 
-  if (loading) {
+  if (loading || authLoading) {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
         <div className="text-lg">Loading...</div>
@@ -653,111 +566,97 @@ export default function GroceryListsPage() {
           </Link>
         </div>
       </nav>
+
       <div className="bg-white border-b">
-      <div className="max-w-6xl mx-auto px-4 py-1">
-  <div className="flex justify-between items-center mb-6">
-    <div className="flex gap-4">
-      <Link
-        href="/my-fridge"
-        className={`px-4 py-2 rounded-lg ${
-          router.pathname === '/my-fridge' ? 'bg-blue-600 text-white' : 'bg-gray-200 text-gray-700 hover:bg-blue-600 hover:text-gray-100'
-        }`}
-      >
-        My Fridge
-      </Link>
-      <Link
-        href="/grocerylistId"
-        className={`px-4 py-2 rounded-lg ${
-          router.pathname === '/grocerylistId' ? 'bg-blue-600 text-white' : 'bg-gray-200 text-gray-700 hover:bg-blue-600 hover:text-gray-100'
-        }`}
-      >
-        Grocery Lists
-      </Link>
-      <Link
-        href="/menus"
-        className={`px-4 py-2 rounded-lg ${
-          router.pathname === '/menus' ? 'bg-blue-600 text-white' : 'bg-gray-200 text-gray-700 hover:bg-blue-600 hover:text-gray-100'
-        }`}
-      >
-        My Menus
-      </Link>
-    </div>
-    <Link
-      href="/meal-prep"
-      className={`px-4 py-2 rounded-lg ${
-        router.pathname === '/meal-prep' ? 'bg-blue-600 text-white' : 'bg-gray-200 text-gray-700 hover:bg-blue-600 hover:text-gray-100'
-      }`}
-    >
-      Meal Prep & Fitness
-    </Link>
-  </div>
-  </div>
-</div>
-
+        <div className="max-w-6xl mx-auto px-4 py-1">
+          <div className="flex justify-between items-center mb-6">
+            <div className="flex gap-4">
+              <Link
+                href="/my-fridge"
+                className={`px-4 py-2 rounded-lg ${
+                  router.pathname === '/my-fridge' ? 'bg-blue-600 text-white' : 'bg-gray-200 text-gray-700 hover:bg-blue-600 hover:text-gray-100'
+                }`}
+              >
+                My Fridge
+              </Link>
+              <Link
+                href="/grocerylistId"
+                className={`px-4 py-2 rounded-lg ${
+                  router.pathname === '/grocerylistId' ? 'bg-blue-600 text-white' : 'bg-gray-200 text-gray-700 hover:bg-blue-600 hover:text-gray-100'
+                }`}
+              >
+                Grocery Lists
+              </Link>
+              <Link
+                href="/menus"
+                className={`px-4 py-2 rounded-lg ${
+                  router.pathname === '/menus' ? 'bg-blue-600 text-white' : 'bg-gray-200 text-gray-700 hover:bg-blue-600 hover:text-gray-100'
+                }`}
+              >
+                My Menus
+              </Link>
+            </div>
+            <Link
+              href="/meal-prep"
+              className={`px-4 py-2 rounded-lg ${
+                router.pathname === '/meal-prep' ? 'bg-blue-600 text-white' : 'bg-gray-200 text-gray-700 hover:bg-blue-600 hover:text-gray-100'
+              }`}
+            >
+              Meal Prep & Fitness
+            </Link>
+          </div>
+        </div>
+      </div>
       <div className="max-w-6xl mx-auto px-4 py-8">
-      <div className="flex justify-between items-center mb-8">
-  <h1 className="text-3xl font-bold text-gray-900">Grocery Lists</h1>
-  <div className="flex gap-2">
-    <button
-      onClick={async () => {
-        if (expandedList) {
-          try {
-            const response = await fetch(`${API_URL}/api/grocery-lists/${expandedList}/condense`, {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' }
-            });
-
-            if (!response.ok) {
-              throw new Error('Failed to condense list');
-            }
-
-            // Refresh the list data
-            await fetchData();
-            
-          } catch (error) {
-            console.error('Error condensing list:', error);
-            setError('Failed to condense list');
-          }
-        }
-      }}
-      className="flex items-center gap-2 px-4 py-2 text-gray-700 font-medium bg-transparent hover:bg-gray-100 border border-gray-300 rounded-lg transition-colors duration-200"
-    >
-      <Layers size={20} />
-      Condense List
-    </button>
-    <button
-      onClick={async () => {
-        if (expandedList) {
-          try {
-            const response = await fetch(`${API_URL}/api/grocery-lists/${expandedList}/import-to-fridge`, {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' }
-            });
-
-            if (!response.ok) {
-              throw new Error('Failed to import to fridge');
-            }
-
-            alert('Items imported to fridge successfully');
-          } catch (error) {
-            console.error('Error importing to fridge:', error);
-            setError('Failed to import to fridge');
-          }
-        }
-      }}
-      className="flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-white hover:bg-blue-700"
-    >
-      Import To My Fridge
-    </button>
-    <button
-      onClick={() => setShowForm(!showForm)}
-      className="flex items-center gap-2 rounded-lg bg-green-600 px-4 py-2 text-white hover:bg-green-700"
-    >
-      <Plus size={20} />
-      New List
-    </button>
-  </div>
-</div>
+        <div className="flex justify-between items-center mb-8">
+          <h1 className="text-3xl font-bold text-gray-900">Grocery Lists</h1>
+          <div className="flex gap-2">
+            <button
+              onClick={async () => {
+                if (expandedList) {
+                  try {
+                    await fetchWithAuth(`/api/grocery-lists/${expandedList}/condense`, {
+                      method: 'POST'
+                    });
+                    await fetchData();
+                  } catch (error) {
+                    console.error('Error condensing list:', error);
+                    setError('Failed to condense list');
+                  }
+                }
+              }}
+              className="flex items-center gap-2 px-4 py-2 text-gray-700 font-medium bg-transparent hover:bg-gray-100 border border-gray-300 rounded-lg transition-colors duration-200"
+            >
+              <Layers size={20} />
+              Condense List
+            </button>
+            <button
+              onClick={async () => {
+                if (expandedList) {
+                  try {
+                    await fetchWithAuth(`/api/grocery-lists/${expandedList}/import-to-fridge`, {
+                      method: 'POST'
+                    });
+                    alert('Items imported to fridge successfully');
+                  } catch (error) {
+                    console.error('Error importing to fridge:', error);
+                    setError('Failed to import to fridge');
+                  }
+                }
+              }}
+              className="flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-white hover:bg-blue-700"
+            >
+              Import To My Fridge
+            </button>
+            <button
+              onClick={() => setShowForm(!showForm)}
+              className="flex items-center gap-2 rounded-lg bg-green-600 px-4 py-2 text-white hover:bg-green-700"
+            >
+              <Plus size={20} />
+              New List
+            </button>
+          </div>
+        </div>
 
         {showForm && (
           <div className="mb-8 bg-white rounded-lg shadow-lg p-6">
@@ -814,20 +713,20 @@ export default function GroceryListsPage() {
                   }
                 </button>
                 <div className="flex items-center space-x-2 mr-2">
-                <button
-        onClick={(e) => {
-          e.stopPropagation();
-          fetchData();
-        }}
-        className="p-2 rounded-full hover:bg-gray-200 text-blue-600"
-        title="Refresh list"
-      >
-        <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 24 24" fill="none" 
-             stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-          <path d="M21.5 2v6h-6M2.5 22v-6h6M2 11.5a10 10 0 0 1 18.8-4.3M22 12.5a10 10 0 0 1-18.8 4.3"/>
-        </svg>
-      </button>
-      </div>
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      fetchData();
+                    }}
+                    className="p-2 rounded-full hover:bg-gray-200 text-blue-600"
+                    title="Refresh list"
+                  >
+                    <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 24 24" fill="none" 
+                         stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <path d="M21.5 2v6h-6M2.5 22v-6h6M2 11.5a10 10 0 0 1 18.8-4.3M22 12.5a10 10 0 0 1-18.8 4.3"/>
+                    </svg>
+                  </button>
+                </div>
                 <div className="flex items-center space-x-2">
                   <button
                     onClick={() => handleDeleteList(list.id)}
@@ -858,50 +757,41 @@ export default function GroceryListsPage() {
                           item={item}
                           listId={list.id}
                           onUpdate={fetchData}
-                          onDelete={(itemId) => handleDeleteItem}
+                          onDelete={handleDeleteItem}
                         />
                       ))}
                     </tbody>
                     <tfoot>
-  <tr className="font-bold">
-    <td colSpan="4" className="py-2 px-4 text-right">Total:</td>
-    <td className="py-2 px-4 text-right">
-      ${calculateListTotal(list.items || []).toFixed(2)}
-    </td>
-    <td className="py-2 px-4">
-      {/* Add delete marked items button */}
-      {list.items?.some(item => item.name.startsWith('✓')) && (
-        <button
-          onClick={async () => {
-            try {
-              const markedItems = list.items.filter(item => item.name.startsWith('✓'));
-              
-              // Delete each marked item
-              for (const item of markedItems) {
-                await fetch(`${API_URL}/api/grocery-lists/${list.id}/items/${item.id}`, {
-                  method: 'DELETE',
-                  headers: { 
-                    'Content-Type': 'application/json',
-                    'Accept': 'application/json'
-                  }
-                });
-              }
-              
-              // Refresh the list
-              await fetchData();
-            } catch (error) {
-              console.error('Error deleting marked items:', error);
-              setError('Failed to delete marked items');
-            }
-          }}
-          className="px-3 py-1 bg-red-600 text-black rounded-md hover:bg-red-700 text-sm"
-        >
-          <Trash size={20}/> ({list.items.filter(item => item.name.startsWith('✓')).length})
-        </button>
-      )}
-    </td>
-  </tr>
-</tfoot>
+                      <tr className="font-bold">
+                        <td colSpan="4" className="py-2 px-4 text-right">Total:</td>
+                        <td className="py-2 px-4 text-right">
+                          ${calculateListTotal(list.items || []).toFixed(2)}
+                        </td>
+                        <td className="py-2 px-4">
+                          {list.items?.some(item => item.name.startsWith('✓')) && (
+                            <button
+                              onClick={async () => {
+                                try {
+                                  const markedItems = list.items.filter(item => item.name.startsWith('✓'));
+                                  for (const item of markedItems) {
+                                    await fetchWithAuth(`/api/grocery-lists/${list.id}/items/${item.id}`, {
+                                      method: 'DELETE'
+                                    });
+                                  }
+                                  await fetchData();
+                                } catch (error) {
+                                  console.error('Error deleting marked items:', error);
+                                  setError('Failed to delete marked items');
+                                }
+                              }}
+                              className="px-3 py-1 bg-red-600 text-black rounded-md hover:bg-red-700 text-sm"
+                            >
+                              <Trash size={20}/> ({list.items.filter(item => item.name.startsWith('✓')).length})
+                            </button>
+                          )}
+                        </td>
+                      </tr>
+                    </tfoot>
                   </table>
 
                   <div className="mt-4 flex space-x-4">
