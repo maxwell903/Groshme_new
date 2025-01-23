@@ -73,7 +73,7 @@ const InventoryRow = React.memo(({ item, isEven, onUpdate }) => {
           className={`w-24 text-center rounded border px-2 py-1 ${isUpdating ? 'bg-gray-100' : ''}`}
           disabled={isUpdating}
           min="0"
-          step="0.1"
+          step="1"
         />
       </div>
       
@@ -205,7 +205,7 @@ export default function AuthenticatedFridge() {
                   onChange={(e) => setNewItem(prev => ({...prev, quantity: parseFloat(e.target.value) || 0}))}
                   className="mt-1 block w-32 rounded-md border border-gray-300 px-3 py-2"
                   min="0"
-                  step="0.1"
+                  step="1"
                   required
                 />
               </div>
