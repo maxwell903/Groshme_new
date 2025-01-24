@@ -19,7 +19,11 @@ const SearchableRecipeSelector = ({ isOpen, onClose, onSelect, mealType }) => {
   useEffect(() => {
     const fetchRecipes = async () => {
       try {
-        const response = await fetch(`${API_URL}/api/all-recipes`);
+        const response = await fetch(`${API_URL}/api/all-recipes`, {
+          headers: {
+            'Authorization': `Bearer ${localStorage.getItem('access_token')}`
+          }
+        });
         const data = await response.json();
         setRecipes(data.recipes || []);
         setFilteredRecipes(data.recipes || []);
@@ -83,7 +87,7 @@ const SearchableRecipeSelector = ({ isOpen, onClose, onSelect, mealType }) => {
                 <div className="font-medium">{recipe.name}</div>
                 <div className="text-sm text-gray-600">{recipe.description}</div>
                 <div className="text-sm text-gray-500 mt-1">
-                  {recipe.name} mins • 
+                  {recipe.prep_time} mins • 
                   Protein: {recipe.total_nutrition?.protein_grams || 0}g • 
                   Fat: {recipe.total_nutrition?.fat_grams || 0}g • 
                   Carbs: {recipe.total_nutrition?.carbs_grams || 0}g

@@ -2206,44 +2206,54 @@ def get_exercises_sets(exercise_id):
         return jsonify({'error': str(e)}), 500
 
 @app.route('/api/meal-prep/weeks', methods=['POST'])
+@auth_required
 def create_meal_prep_week():
     try:
         data = request.json
+        user_id = g.user_id  # Get authenticated user's ID
         
-        # Validate required fields
         if 'start_day' not in data:
             return jsonify({'error': 'Start day is required'}), 400
             
-        # Create new week with optional fields
-        new_week = MealPrepWeek(
-            start_day=data['start_day'],
-            title=data.get('title'),
-            created_date=datetime.now()
-        )
+        # Create new week with user_id
+        engine = create_engine(db_url, poolclass=NullPool)
         
-        # Handle date fields if provided
-        if 'start_date' in data and data['start_date']:
-            start_date = datetime.strptime(data['start_date'], '%Y-%m-%d').date()
-            new_week.start_date = start_date
-            # Calculate end_date as 6 days after start_date
-            new_week.end_date = start_date + timedelta(days=6)
+        with engine.connect() as connection:
+            result = connection.execute(
+                text("""
+                    INSERT INTO meal_prep_week (
+                        start_day, title, start_date, end_date,
+                        show_dates, created_date, user_id
+                    ) VALUES (
+                        :start_day, :title, :start_date, :end_date,
+                        false, CURRENT_TIMESTAMP, :user_id
+                    ) RETURNING id, start_day, title, start_date,
+                              end_date, show_dates, created_date
+                """),
+                {
+                    "start_day": data['start_day'],
+                    "title": data.get('title'),
+                    "start_date": data.get('start_date'),
+                    "end_date": data.get('end_date'),
+                    "user_id": user_id
+                }
+            )
             
-        db.session.add(new_week)
-        db.session.commit()
-        
-        return jsonify({
-            'id': new_week.id,
-            'start_day': new_week.start_day,
-            'title': new_week.title,
-            'start_date': new_week.start_date.isoformat() if new_week.start_date else None,
-            'end_date': new_week.end_date.isoformat() if new_week.end_date else None,
-            'show_dates': new_week.show_dates,
-            'created_date': new_week.created_date.strftime('%Y-%m-%d')
-        }), 201
-        
+            new_week = result.fetchone()
+            connection.commit()
+            
+            return jsonify({
+                'id': new_week.id,
+                'start_day': new_week.start_day,
+                'title': new_week.title,
+                'start_date': new_week.start_date.isoformat() if new_week.start_date else None,
+                'end_date': new_week.end_date.isoformat() if new_week.end_date else None,
+                'show_dates': new_week.show_dates,
+                'created_date': new_week.created_date.strftime('%Y-%m-%d')
+            }), 201
+            
     except Exception as e:
-        db.session.rollback()
-        print(f"Error creating week: {str(e)}")  # Add debug logging
+        print(f"Error creating week: {str(e)}")
         return jsonify({'error': str(e)}), 500
     
 @app.route('/api/meal-prep/weeks/<int:week_id>/toggle-dates', methods=['POST'])
@@ -2258,78 +2268,132 @@ def toggle_week_dates(week_id):
         return jsonify({'error': str(e)}), 500
 
 @app.route('/api/meal-prep/weeks/<int:week_id>', methods=['DELETE'])
+@auth_required
 def delete_meal_prep_week(week_id):
     try:
-        week = MealPrepWeek.query.get_or_404(week_id)
-        db.session.delete(week)
-        db.session.commit()
-        return jsonify({'message': 'Week deleted successfully'}), 200
+        user_id = g.user_id
+        engine = create_engine(db_url, poolclass=NullPool)
+        
+        with engine.connect() as connection:
+            # First verify the week belongs to the user
+            week_check = connection.execute(
+                text("""
+                    SELECT id FROM meal_prep_week 
+                    WHERE id = :week_id AND user_id = :user_id
+                """),
+                {"week_id": week_id, "user_id": user_id}
+            ).fetchone()
+            
+            if not week_check:
+                return jsonify({'error': 'Week not found or unauthorized'}), 404
+            
+            # Delete meals first
+            connection.execute(
+                text("DELETE FROM meal_plan WHERE week_id = :week_id"),
+                {"week_id": week_id}
+            )
+            
+            # Delete week
+            connection.execute(
+                text("DELETE FROM meal_prep_week WHERE id = :week_id"),
+                {"week_id": week_id}
+            )
+            
+            connection.commit()
+            return jsonify({'message': 'Week deleted successfully'}), 200
+            
     except Exception as e:
-        db.session.rollback()
+        print(f"Error deleting week: {str(e)}")
         return jsonify({'error': str(e)}), 500
 
 @app.route('/api/meal-prep/weeks/<int:week_id>/meals', methods=['POST'])
+@auth_required
 def add_meal_to_week(week_id):
     try:
+        user_id = g.user_id
         data = request.json
-        week = MealPrepWeek.query.get_or_404(week_id)
-        recipe = Recipe.query.get_or_404(data['recipe_id'])
+        engine = create_engine(db_url, poolclass=NullPool)
         
-        # Create new meal plan
-        new_meal = MealPlan(
-            week_id=week.id,
-            recipe_id=recipe.id,
-            day=data['day'],
-            meal_type=data['meal_type']
-        )
-        
-        db.session.add(new_meal)
-        db.session.commit()
-        
-        return jsonify({'message': 'Meal added successfully'}), 201
+        with engine.connect() as connection:
+            # Verify week belongs to user
+            week = connection.execute(
+                text("""
+                    SELECT id FROM meal_prep_week 
+                    WHERE id = :week_id AND user_id = :user_id
+                """),
+                {"week_id": week_id, "user_id": user_id}
+            ).fetchone()
+            
+            if not week:
+                return jsonify({'error': 'Week not found or unauthorized'}), 404
+            
+            # Add meal
+            connection.execute(
+                text("""
+                    INSERT INTO meal_plan (week_id, recipe_id, day, meal_type)
+                    VALUES (:week_id, :recipe_id, :day, :meal_type)
+                """),
+                {
+                    "week_id": week_id,
+                    "recipe_id": data['recipe_id'],
+                    "day": data['day'],
+                    "meal_type": data['meal_type']
+                }
+            )
+            
+            connection.commit()
+            return jsonify({'message': 'Meal added successfully'}), 201
+            
     except Exception as e:
-        db.session.rollback()
+        print(f"Error adding meal: {str(e)}")
         return jsonify({'error': str(e)}), 500
 
 @app.route('/api/meal-prep/weeks/<int:week_id>/meals', methods=['DELETE'])
+@auth_required
 def delete_meal_from_week(week_id):
     try:
+        user_id = g.user_id
         data = request.json
-        meal = MealPlan.query.filter_by(
-            week_id=week_id,
-            day=data['day'],
-            meal_type=data['meal_type'],
-            recipe_id=data['recipe_id']
-        ).first_or_404()
+        engine = create_engine(db_url, poolclass=NullPool)
         
-        db.session.delete(meal)
-        db.session.commit()
-        
-        return jsonify({'message': 'Meal deleted successfully'}), 200
-    except Exception as e:
-        db.session.rollback()
-        return jsonify({'error': str(e)}), 500
-
-@app.route('/api/meal-prep/weeks/<int:week_id>/meals/batch', methods=['POST'])
-def add_meals_batch(week_id):
-    try:
-        data = request.json
-        week = MealPrepWeek.query.get_or_404(week_id)
-        
-        # Expect data to be an array of meal assignments
-        for meal_data in data['meals']:
-            new_meal = MealPlan(
-                week_id=week.id,
-                recipe_id=meal_data['recipe_id'],
-                day=meal_data['day'],
-                meal_type=meal_data['meal_type']
+        with engine.connect() as connection:
+            # Verify week belongs to user
+            week = connection.execute(
+                text("""
+                    SELECT id FROM meal_prep_week 
+                    WHERE id = :week_id AND user_id = :user_id
+                """),
+                {"week_id": week_id, "user_id": user_id}
+            ).fetchone()
+            
+            if not week:
+                return jsonify({'error': 'Week not found or unauthorized'}), 404
+            
+            # Delete meal
+            result = connection.execute(
+                text("""
+                    DELETE FROM meal_plan 
+                    WHERE week_id = :week_id 
+                    AND day = :day 
+                    AND meal_type = :meal_type 
+                    AND recipe_id = :recipe_id
+                """),
+                {
+                    "week_id": week_id,
+                    "day": data['day'],
+                    "meal_type": data['meal_type'],
+                    "recipe_id": data['recipe_id']
+                }
             )
-            db.session.add(new_meal)
-        
-        db.session.commit()
-        return jsonify({'message': f'{len(data["meals"])} meals added successfully'}), 201
+            
+            if not result.rowcount:
+                return jsonify({'error': 'Meal not found'}), 404
+                
+            connection.commit()
+            return jsonify({'message': 'Meal deleted successfully'}), 200
+            
     except Exception as e:
-        db.session.rollback()
+        print(f"Error deleting meal: {str(e)}")
         return jsonify({'error': str(e)}), 500
     
 @app.route('/api/grocery-bill/parse-receipt', methods=['POST'])
