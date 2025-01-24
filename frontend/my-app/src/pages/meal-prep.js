@@ -868,7 +868,7 @@ const MealDisplay = ({ meal, onDelete }) => {
       useEffect(() => {
         const fetchGroceryLists = async () => {
           try {
-            const response = await fetchWithAuth(`${API_URL}/api/grocery-lists`, {
+            const response = await fetch(`${API_URL}/api/grocery-lists`, {
               headers: {
                 'Authorization': `Bearer ${localStorage.getItem('access_token')}`
               }
