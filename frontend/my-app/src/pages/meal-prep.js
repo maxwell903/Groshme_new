@@ -347,6 +347,35 @@ const DayDropdown = ({
   const [error, setError] = useState(null);
   const [isDeleting, setIsDeleting] = useState(false);
 
+  const handleDeleteMeal = async (mealType, recipeId) => {
+    if (isDeleting) return;
+    
+    try {
+      setIsDeleting(true);
+      setError(null);
+
+      const response = await fetchWithAuth(`/api/meal-prep/weeks/${weekId}/meals/delete`, {
+        method: 'POST',  // Changed to POST for better compatibility
+        body: JSON.stringify({
+          day,
+          meal_type: mealType.toLowerCase(),
+          recipe_id: recipeId
+        })
+      });
+
+      if (response.success) {
+        await onMealDelete();
+      } else {
+        throw new Error(response.error || 'Failed to delete meal');
+      }
+    } catch (error) {
+      console.error('Error deleting meal:', error);
+      setError(error.message || 'Failed to delete meal');
+    } finally {
+      setIsDeleting(false);
+    }
+  };
+
   // Helper function to get meals for a specific meal type
   const getMealsForType = (mealType) => {
     const type = mealType.toLowerCase();
@@ -374,30 +403,7 @@ const DayDropdown = ({
     }
   };
 
-  const handleDeleteMeal = async (mealType, recipeId) => {
-    if (isDeleting) return;
-    
-    try {
-      setIsDeleting(true);
-      setError(null);
 
-      await fetchWithAuth(`/api/meal-prep/weeks/${weekId}/meals`, {
-        method: 'DELETE',
-        body: JSON.stringify({
-          day,
-          meal_type: mealType.toLowerCase(),
-          recipe_id: recipeId
-        })
-      });
-
-      onMealDelete();
-    } catch (error) {
-      console.error('Error deleting meal:', error);
-      setError(error.message || 'Failed to delete meal');
-    } finally {
-      setIsDeleting(false);
-    }
-  };
 
   return (
     <div className="flex-1 p-2">
@@ -435,38 +441,38 @@ const DayDropdown = ({
                 </div>
 
                 {mealsForType.map((meal) => (
-                  <div key={`${meal.id}-${meal.name}`} className="bg-white rounded-lg p-4 relative mb-2 border">
-                    <button
-                      onClick={() => handleDeleteMeal(mealType, meal.id)}
-                      disabled={isDeleting}
-                      className={`absolute top-2 right-2 text-red-500 hover:text-red-700 
-                        ${isDeleting ? 'opacity-50 cursor-not-allowed' : ''}`}
-                    >
-                      <X size={16} />
-                    </button>
-                    
-                    <p className="text-lg font-bold text-gray-500 mt-2">{meal.name}</p>
-                    
-                    {meal.total_nutrition && (
-                      <p className="text-xs text-gray-500 mb-2">
-                        Protein: {meal.total_nutrition.protein_grams}g •
-                        Fat: {meal.total_nutrition.fat_grams}g •
-                        Carbs: {meal.total_nutrition.carbs_grams}g
-                      </p>
-                    )}
-                    
-                    <Link 
-                      href={`/recipe/${meal.id}`}
-                      className="text-sm text-blue-600 hover:text-blue-800 inline-flex items-center gap-1"
-                      onClick={() => {
-                        localStorage.setItem('actualPreviousPath', '/meal-prep');
-                        localStorage.setItem('lastPath', '/meal-prep');
-                      }}
-                    >
-                      View Recipe →
-                    </Link>
-                  </div>
-                ))}
+          <div key={`${meal.id}-${meal.name}`} className="bg-white rounded-lg p-4 relative mb-2 border">
+            <button
+              onClick={() => handleDeleteMeal(mealType, meal.id)}
+              disabled={isDeleting}
+              className={`absolute top-2 right-2 text-red-500 hover:text-red-700 
+                ${isDeleting ? 'opacity-50 cursor-not-allowed' : ''}`}
+            >
+              <X size={16} />
+            </button>
+            
+            <p className="text-lg font-bold text-gray-500 mt-2">{meal.name}</p>
+            
+            {meal.total_nutrition && (
+              <p className="text-xs text-gray-500 mb-2">
+                Protein: {meal.total_nutrition.protein_grams}g •
+                Fat: {meal.total_nutrition.fat_grams}g •
+                Carbs: {meal.total_nutrition.carbs_grams}g
+              </p>
+            )}
+            
+            <Link 
+              href={`/recipe/${meal.id}`}
+              className="text-sm text-blue-600 hover:text-blue-800 inline-flex items-center gap-1"
+              onClick={() => {
+                localStorage.setItem('actualPreviousPath', '/meal-prep');
+                localStorage.setItem('lastPath', '/meal-prep');
+              }}
+            >
+              View Recipe →
+            </Link>
+          </div>
+        ))}
               </div>
             );
           })}
@@ -478,6 +484,7 @@ const DayDropdown = ({
           onSelect={(recipe) => handleAddMeal(recipe, selectedMealType)}
           mealType={selectedMealType}
         />
+        
       </div>
     </div>
   );
