@@ -34,7 +34,8 @@ CORS(app, resources={
         "origins": ["https://groshmebeta.netlify.app", "http://localhost:3000"],
         "methods": ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
         "allow_headers": ["Content-Type", "Authorization"],
-        "expose_headers": ["Content-Range", "X-Content-Range"]
+        "expose_headers": ["Content-Range", "X-Content-Range"],
+        "supports_credentials": True
     }
 })
 
@@ -2403,11 +2404,18 @@ def add_meal_to_week(week_id):
         return jsonify({'error': str(e)}), 500
 
 # Route to delete a meal from a week
-@app.route('/api/meal-prep/weeks/<int:week_id>/meals', methods=['DELETE'])
+@app.route('/api/meal-prep/weeks/<int:week_id>/meals', methods=['DELETE', 'OPTIONS'])
 @auth_required
 def delete_meal_from_week(week_id):
+    if request.method == 'OPTIONS':
+        response = jsonify({'status': 'ok'})
+        response.headers.add('Access-Control-Allow-Origin', '*')
+        response.headers.add('Access-Control-Allow-Methods', 'DELETE')
+        response.headers.add('Access-Control-Allow-Headers', 'Content-Type,Authorization')
+        return response
+        
     try:
-        user_id = g.user_id
+        user_id = g.user_id  # Get authenticated user's ID
         data = request.json
         
         if not all(k in data for k in ['day', 'meal_type', 'recipe_id']):
@@ -2416,7 +2424,7 @@ def delete_meal_from_week(week_id):
         engine = create_engine(db_url, poolclass=NullPool)
         
         with engine.connect() as connection:
-            # Verify week belongs to user
+            # First verify week belongs to user
             week_check = connection.execute(
                 text("""
                     SELECT id FROM meal_prep_week 
@@ -2431,7 +2439,7 @@ def delete_meal_from_week(week_id):
             if not week_check:
                 return jsonify({'error': 'Week not found or unauthorized'}), 404
                 
-            # Delete meal
+            # Delete the meal
             result = connection.execute(
                 text("""
                     DELETE FROM meal_plan 
@@ -2452,7 +2460,7 @@ def delete_meal_from_week(week_id):
                 return jsonify({'error': 'Meal not found'}), 404
                 
             connection.commit()
-            return jsonify({'message': 'Meal deleted successfully'})
+            return jsonify({'success': True, 'message': 'Meal deleted successfully'})
             
     except Exception as e:
         print(f"Error deleting meal from week: {str(e)}")

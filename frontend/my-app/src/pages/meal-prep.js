@@ -353,16 +353,16 @@ const DayDropdown = ({
     try {
       setIsDeleting(true);
       setError(null);
-
-      const response = await fetchWithAuth(`/api/meal-prep/weeks/${weekId}/meals/delete`, {
-        method: 'POST',  // Changed to POST for better compatibility
+  
+      const response = await fetchWithAuth(`/api/meal-prep/weeks/${weekId}/meals`, {
+        method: 'DELETE',
         body: JSON.stringify({
           day,
           meal_type: mealType.toLowerCase(),
           recipe_id: recipeId
         })
       });
-
+  
       if (response.success) {
         await onMealDelete();
       } else {
