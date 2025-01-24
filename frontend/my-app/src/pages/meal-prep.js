@@ -6,43 +6,11 @@ import ExerciseDisplay from '../components/ExerciseDisplay';
 import WorkoutDisplay from '../components/WorkoutDisplay';
 import { Calendar } from 'lucide-react';
 import NutritionSummary from '@/components/NutritionModal';
-
+import { fetchWithAuth } from '@/utils/fetch';
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL
 
-const fetchWithAuth = async (endpoint, options = {}) => {
-  const token = localStorage.getItem('access_token');
-  if (!token) {
-    throw new Error('No authentication token found');
-  }
 
-  const defaultHeaders = {
-    'Content-Type': 'application/json',
-    'Authorization': `Bearer ${token}`
-  };
-
-  const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}${endpoint}`, {
-    ...options,
-    headers: {
-      ...defaultHeaders,
-      ...options.headers
-    }
-  });
-
-  if (!response.ok) {
-    const errorText = await response.text();
-    let errorMessage;
-    try {
-      const errorData = JSON.parse(errorText);
-      errorMessage = errorData.error || 'Request failed';
-    } catch {
-      errorMessage = errorText || 'Request failed';
-    }
-    throw new Error(errorMessage);
-  }
-
-  return response.json();
-};
 
 
 const SearchableRecipeSelector = ({ isOpen, onClose, onSelect, mealType }) => {
