@@ -6,6 +6,7 @@ import ExerciseDisplay from '../components/ExerciseDisplay';
 import WorkoutDisplay from '../components/WorkoutDisplay';
 import { Calendar } from 'lucide-react';
 import NutritionSummary from '@/components/NutritionModal';
+import { fetchWithAuth } from '@/utils/fetch';
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL
 
@@ -345,20 +346,23 @@ const MealDisplay = ({ meal, onDelete }) => {
   
     const handleAddMeal = async (recipe, mealType) => {
       try {
-        const response = await fetch(`${API_URL}/api/meal-prep/weeks/${weekId}/meals`, {
+        const response = await fetchWithAuth(`${API_URL}/api/meal-prep/weeks/${weekId}/meals`, {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          headers: { 
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${localStorage.getItem('access_token')}`
+          },
           body: JSON.stringify({
             day,
             meal_type: mealType.toLowerCase(),
             recipe_id: recipe.id
           })
         });
-  
+    
         if (!response.ok) throw new Error('Failed to add meal');
         
         setShowRecipeSelector(false);
-        onMealAdd(); // Refresh the week's data
+        onMealAdd();
       } catch (error) {
         console.error('Error adding meal:', error);
       }
@@ -864,7 +868,11 @@ const MealDisplay = ({ meal, onDelete }) => {
       useEffect(() => {
         const fetchGroceryLists = async () => {
           try {
-            const response = await fetch(`${API_URL}/api/grocery-lists`);
+            const response = await fetchWithAuth(`${API_URL}/api/grocery-lists`, {
+              headers: {
+                'Authorization': `Bearer ${localStorage.getItem('access_token')}`
+              }
+            });
             const data = await response.json();
             setGroceryLists(data.lists || []);
           } catch (error) {
