@@ -182,20 +182,17 @@ const GroceryItem = ({ item, listId, onUpdate, onDelete, onToggleMarked }) => {
         }
       );
       
-      // Log the full response for debugging
-      console.log('Update response:', await response.clone().json());
-      
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error || 'Failed to update item');
-      }
-  
       const data = await response.json();
-      setLocalData(data.item);
-      onUpdate();
+      
+      if (response.ok && data.item) {
+        setLocalData(data.item);
+        onUpdate();
+        return;
+      }
+      
+      throw new Error(data.error || 'Failed to update item');
     } catch (error) {
       console.error('Error updating item:', error);
-      console.error('Request data:', { field, value, listId, itemId: item.id });
     }
   };
 
