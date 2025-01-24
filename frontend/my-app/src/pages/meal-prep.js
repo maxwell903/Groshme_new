@@ -346,25 +346,39 @@ const DayDropdown = ({
   const [selectedMealType, setSelectedMealType] = useState(null);
   const [error, setError] = useState(null);
 
-  // In DayDropdown component
-const handleAddMeal = async (recipe, mealType) => {
-  try {
-    await fetchWithAuth(`/api/meal-prep/weeks/${weekId}/meals`, {
-      method: 'POST',
-      body: JSON.stringify({
-        day,
-        meal_type: mealType.toLowerCase(),
-        recipe_id: recipe.id
-      })
-    });
+  // Helper function to get meals for a specific meal type
+  const getMealsForType = (mealType) => {
+    // First convert mealType to lowercase to match the API data
+    const type = mealType.toLowerCase();
     
-    setShowRecipeSelector(false);
-    onMealAdd();
-  } catch (error) {
-    console.error('Error adding meal:', error);
-    setError(error.message);
-  }
-};
+    // Check if there are any meals for this day
+    if (!meals || typeof meals !== 'object') return [];
+    
+    // Get all meals for this type
+    const mealsList = meals[type] || [];
+    
+    // Ensure we're returning an array
+    return Array.isArray(mealsList) ? mealsList : [];
+  };
+
+  const handleAddMeal = async (recipe, mealType) => {
+    try {
+      await fetchWithAuth(`/api/meal-prep/weeks/${weekId}/meals`, {
+        method: 'POST',
+        body: JSON.stringify({
+          day,
+          meal_type: mealType.toLowerCase(),
+          recipe_id: recipe.id
+        })
+      });
+      
+      setShowRecipeSelector(false);
+      onMealAdd();
+    } catch (error) {
+      console.error('Error adding meal:', error);
+      setError(error.message);
+    }
+  };
 
   return (
     <div className="flex-1 p-2">
@@ -382,42 +396,59 @@ const handleAddMeal = async (recipe, mealType) => {
         </div>
 
         <div className="space-y-4">
-          {['Breakfast', 'Lunch', 'Dinner'].map(mealType => (
-            <div key={mealType}>
-              <div className="flex justify-between items-center mb-2">
-                <span className="text-sm font-medium">{mealType}</span>
-                <button
-                  onClick={() => {
-                    setSelectedMealType(mealType);
-                    setShowRecipeSelector(true);
-                    setError(null);
-                  }}
-                  className="text-blue-600 hover:text-blue-800"
-                >
-                  <Plus size={16} />
-                </button>
-              </div>
-              {meals[mealType.toLowerCase()]?.map((meal, index) => (
-                <div key={`${meal.id}-${index}`} className="bg-white rounded-lg p-4 relative mb-2 border">
+          {['Breakfast', 'Lunch', 'Dinner'].map(mealType => {
+            const mealsForType = getMealsForType(mealType);
+            
+            return (
+              <div key={mealType} className="space-y-2">
+                <div className="flex justify-between items-center">
+                  <span className="text-sm font-medium">{mealType}</span>
                   <button
-                    onClick={() => onMealDelete(day, mealType.toLowerCase(), meal.id)}
-                    className="absolute top-2 right-2 text-red-500 hover:text-red-700"
+                    onClick={() => {
+                      setSelectedMealType(mealType);
+                      setShowRecipeSelector(true);
+                      setError(null);
+                    }}
+                    className="text-blue-600 hover:text-blue-800"
                   >
-                    <X size={16} />
+                    <Plus size={16} />
                   </button>
-                  <p className="text-lg font-bold text-gray-500 mt-2">
-                    {meal.name}
-                  </p>
-                  <Link 
-                    href={`/recipe/${meal.id}`}
-                    className="text-sm text-blue-600 hover:text-blue-800 inline-flex items-center gap-1"
-                  >
-                    View Recipe →
-                  </Link>
                 </div>
-              ))}
-            </div>
-          ))}
+
+                {mealsForType.map((meal) => (
+                  <div key={`${meal.id}-${meal.name}`} className="bg-white rounded-lg p-4 relative mb-2 border">
+                    <button
+                      onClick={() => onMealDelete(day, mealType.toLowerCase(), meal.id)}
+                      className="absolute top-2 right-2 text-red-500 hover:text-red-700"
+                    >
+                      <X size={16} />
+                    </button>
+                    
+                    <p className="text-lg font-bold text-gray-500 mt-2">{meal.name}</p>
+                    
+                    {meal.total_nutrition && (
+                      <p className="text-xs text-gray-500 mb-2">
+                        Protein: {meal.total_nutrition.protein_grams}g •
+                        Fat: {meal.total_nutrition.fat_grams}g •
+                        Carbs: {meal.total_nutrition.carbs_grams}g
+                      </p>
+                    )}
+                    
+                    <Link 
+                      href={`/recipe/${meal.id}`}
+                      className="text-sm text-blue-600 hover:text-blue-800 inline-flex items-center gap-1"
+                      onClick={() => {
+                        localStorage.setItem('actualPreviousPath', '/meal-prep');
+                        localStorage.setItem('lastPath', '/meal-prep');
+                      }}
+                    >
+                      View Recipe →
+                    </Link>
+                  </div>
+                ))}
+              </div>
+            );
+          })}
         </div>
 
         <SearchableRecipeSelector

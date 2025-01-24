@@ -2427,6 +2427,89 @@ def delete_meal_from_week(week_id):
         print(f"Error deleting meal: {str(e)}")
         return jsonify({'error': str(e)}), 500
     
+@app.route('/api/meal-prep/weeks/<int:week_id>', methods=['GET'])
+@auth_required
+def get_meal_prep_week(week_id):
+    try:
+        user_id = g.user_id
+        engine = create_engine(db_url, poolclass=NullPool)
+        
+        with engine.connect() as connection:
+            result = connection.execute(text("""
+                WITH WeekMeals AS (
+                    SELECT 
+                        w.id,
+                        w.title,
+                        w.start_day,
+                        w.start_date,
+                        w.end_date,
+                        w.show_dates,
+                        w.created_date,
+                        m.day,
+                        m.meal_type,
+                        m.recipe_id,
+                        r.name as recipe_name,
+                        r.description,
+                        r.prep_time
+                    FROM meal_prep_week w
+                    LEFT JOIN meal_plan m ON w.id = m.week_id
+                    LEFT JOIN recipe r ON m.recipe_id = r.id
+                    WHERE w.id = :week_id AND w.user_id = :user_id
+                )
+                SELECT 
+                    id,
+                    title,
+                    start_day,
+                    start_date,
+                    end_date,
+                    show_dates,
+                    created_date,
+                    json_object_agg(
+                        day, 
+                        json_object_agg(
+                            meal_type, 
+                            json_agg(
+                                json_build_object(
+                                    'recipe_id', recipe_id,
+                                    'name', recipe_name,
+                                    'description', description,
+                                    'prep_time', prep_time
+                                )
+                            )
+                        )
+                    ) as meal_plans
+                FROM WeekMeals
+                GROUP BY id, title, start_day, start_date, end_date, show_dates, created_date
+            """), {"week_id": week_id, "user_id": user_id})
+            
+            week_data = result.fetchone()
+            
+            if not week_data:
+                return jsonify({'error': 'Week not found or unauthorized'}), 404
+            
+            # Parse meal_plans JSON
+            meal_plans = {}
+            if week_data.meal_plans:
+                for day, meals_by_type in week_data.meal_plans.items():
+                    meal_plans[day] = {}
+                    for meal_type, meals in meals_by_type.items():
+                        meal_plans[day][meal_type] = meals
+            
+            return jsonify({
+                'id': week_data.id,
+                'title': week_data.title,
+                'start_day': week_data.start_day,
+                'start_date': week_data.start_date.isoformat() if week_data.start_date else None,
+                'end_date': week_data.end_date.isoformat() if week_data.end_date else None,
+                'show_dates': week_data.show_dates,
+                'created_date': week_data.created_date.strftime('%Y-%m-%d'),
+                'meal_plans': meal_plans
+            })
+            
+    except Exception as e:
+        print(f"Error fetching meal prep week: {str(e)}")
+        return jsonify({'error': str(e)}), 500
+    
 @app.route('/api/grocery-bill/parse-receipt', methods=['POST'])
 def parse_receipt_bill():
     try:
