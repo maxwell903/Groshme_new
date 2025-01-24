@@ -886,7 +886,11 @@ const MealDisplay = ({ meal, onDelete }) => {
   
     const fetchWeeks = async () => {
       try {
-        const response = await fetch(`${API_URL}/api/meal-prep/weeks`);
+        const response = await fetch(`${API_URL}/api/meal-prep/weeks`, {
+          headers: {
+            'Authorization': `Bearer ${localStorage.getItem('access_token')}`
+          }
+        });
         const data = await response.json();
         setWeeks(data.weeks || []);
         setLoading(false);
@@ -907,7 +911,8 @@ const MealDisplay = ({ meal, onDelete }) => {
         const response = await fetch(`${API_URL}/api/meal-prep/weeks`, {
           method: 'POST',
           headers: { 
-            'Content-Type': 'application/json' 
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${localStorage.getItem('access_token')}` 
           },
           body: JSON.stringify({
             start_day: weekData.day,
