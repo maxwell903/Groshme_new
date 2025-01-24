@@ -886,7 +886,7 @@ const MealDisplay = ({ meal, onDelete }) => {
   
     const fetchWeeks = async () => {
       try {
-        const response = await fetch(`${API_URL}/api/meal-prep/weeks`, {
+        const response = await fetchWithAuth(`${API_URL}/api/meal-prep/weeks`, {
           headers: {
             'Authorization': `Bearer ${localStorage.getItem('access_token')}`
           }
