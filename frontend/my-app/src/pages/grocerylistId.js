@@ -174,28 +174,28 @@ const GroceryItem = ({ item, listId, onUpdate, onDelete, onToggleMarked }) => {
       const updatedData = { ...localData };
       updatedData[field] = value;
       
-      // Calculate total
-      if (field === 'quantity' || field === 'price_per') {
-        updatedData.total = updatedData.quantity * updatedData.price_per;
-      }
-
       const response = await fetchWithAuth(
         `/api/grocery-lists/${listId}/items/${item.id}`,
         {
-          method: 'PUT', 
+          method: 'PUT',
           body: JSON.stringify(updatedData)
         }
       );
       
-      if (!response.ok) {
-        throw new Error('Failed to update item');
-      }
+      // Log the full response for debugging
+      console.log('Update response:', await response.clone().json());
       
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Failed to update item');
+      }
+  
       const data = await response.json();
       setLocalData(data.item);
       onUpdate();
     } catch (error) {
       console.error('Error updating item:', error);
+      console.error('Request data:', { field, value, listId, itemId: item.id });
     }
   };
 
