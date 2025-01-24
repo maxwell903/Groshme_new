@@ -346,7 +346,7 @@ const MealDisplay = ({ meal, onDelete }) => {
   
     const handleAddMeal = async (recipe, mealType) => {
       try {
-        const response = await fetchWithAuth(`${API_URL}/api/meal-prep/weeks/${weekId}/meals`, {
+        const response = await fetch(`${API_URL}/api/meal-prep/weeks/${weekId}/meals`, {
           method: 'POST',
           headers: { 
             'Content-Type': 'application/json',
