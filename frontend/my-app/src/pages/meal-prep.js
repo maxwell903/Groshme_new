@@ -714,14 +714,19 @@ const Week = ({ week, onDeleteWeek, onMealDelete, onMealsAdded, onToggleDates })
         if (!confirm('Are you sure you want to delete this week?')) return;
       
         try {
-          const response = await fetchWithAuth(`/api/meal-prep/weeks/${weekId}`, {
-            method: 'DELETE'
-          });
+          const { error } = await supabase
+            .from('meal_prep_week')
+            .delete()
+            .eq('id', weekId);
       
-          if (!response.success) {
-            throw new Error(response.error || 'Failed to delete week');
+          if (error) {
+            console.error('Delete error:', error);
+            throw error;
           }
+      
+          // Immediately refresh the weeks data
           await fetchWeeks();
+          
         } catch (error) {
           console.error('Error deleting week:', error);
           alert('Failed to delete week. Please try again.');
