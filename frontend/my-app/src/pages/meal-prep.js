@@ -10,6 +10,40 @@ import { fetchWithAuth } from '@/utils/fetch';
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL
 
+const fetchWithAuth = async (endpoint, options = {}) => {
+  const token = localStorage.getItem('access_token');
+  if (!token) {
+    throw new Error('No authentication token found');
+  }
+
+  const defaultHeaders = {
+    'Content-Type': 'application/json',
+    'Authorization': `Bearer ${token}`
+  };
+
+  const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}${endpoint}`, {
+    ...options,
+    headers: {
+      ...defaultHeaders,
+      ...options.headers
+    }
+  });
+
+  if (!response.ok) {
+    const errorText = await response.text();
+    let errorMessage;
+    try {
+      const errorData = JSON.parse(errorText);
+      errorMessage = errorData.error || 'Request failed';
+    } catch {
+      errorMessage = errorText || 'Request failed';
+    }
+    throw new Error(errorMessage);
+  }
+
+  return response.json();
+};
+
 
 const SearchableRecipeSelector = ({ isOpen, onClose, onSelect, mealType }) => {
   const [recipes, setRecipes] = useState([]);
@@ -331,100 +365,103 @@ const MealDisplay = ({ meal, onDelete }) => {
 };
   
   
-  const DayDropdown = ({ 
-    day, 
-    weekId, 
-    meals, 
-    onMealAdd, 
-    onMealDelete, 
-    startDate, 
-    showDates,
-    showNutrition 
-  }) => {
-    const [showRecipeSelector, setShowRecipeSelector] = useState(false);
-    const [selectedMealType, setSelectedMealType] = useState(null);
-  
-    const handleAddMeal = async (recipe, mealType) => {
-      try {
-        const response = await fetch(`${API_URL}/api/meal-prep/weeks/${weekId}/meals`, {
-          method: 'POST',
-          headers: { 
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${localStorage.getItem('access_token')}`
-          },
-          body: JSON.stringify({
-            day,
-            meal_type: mealType.toLowerCase(),
-            recipe_id: recipe.id
-          })
-        });
+const DayDropdown = ({ 
+  day, 
+  weekId, 
+  meals = {}, 
+  onMealAdd, 
+  onMealDelete, 
+  startDate, 
+  showDates 
+}) => {
+  const [showRecipeSelector, setShowRecipeSelector] = useState(false);
+  const [selectedMealType, setSelectedMealType] = useState(null);
+  const [error, setError] = useState(null);
+
+  // In DayDropdown component
+const handleAddMeal = async (recipe, mealType) => {
+  try {
+    await fetchWithAuth(`/api/meal-prep/weeks/${weekId}/meals`, {
+      method: 'POST',
+      body: JSON.stringify({
+        day,
+        meal_type: mealType.toLowerCase(),
+        recipe_id: recipe.id
+      })
+    });
     
-        if (!response.ok) throw new Error('Failed to add meal');
-        
-        setShowRecipeSelector(false);
-        onMealAdd();
-      } catch (error) {
-        console.error('Error adding meal:', error);
-      }
-    };
-  
-    const getDayDate = () => {
-      if (!startDate || !showDates) return null;
-      const date = new Date(startDate);
-      const dayIndex = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'].indexOf(day);
-      date.setDate(date.getDate() + dayIndex);
-      return date.toLocaleDateString();
-    };
-  
-    return (
-      <div className="flex-1 p-2">
-        <div className="bg-white rounded-lg shadow p-4">
-          <div className="mb-4">
-            <h3 className="text-lg font-semibold">{day}</h3>
-            {showDates && getDayDate() && (
-              <span className="text-sm text-gray-500">{getDayDate()}</span>
-            )}
-            {showNutrition && meals && (
-              <NutritionSummary meals={meals} />
-            )}
-          </div>
-          
-          <div className="space-y-4">
-            {['Breakfast', 'Lunch', 'Dinner'].map(mealType => (
-              <div key={mealType}>
-                <div className="flex justify-between items-center mb-2">
-                  <span className="text-sm font-medium">{mealType}</span>
-                  <button
-                    onClick={() => {
-                      setSelectedMealType(mealType);
-                      setShowRecipeSelector(true);
-                    }}
-                    className="text-blue-600 hover:text-blue-800"
-                  >
-                    <Plus size={16} />
-                  </button>
-                </div>
-                {meals?.[mealType.toLowerCase()]?.map((meal, index) => (
-                  <MealDisplay
-                    key={`${meal.recipe_id}-${index}`}
-                    meal={meal}
-                    onDelete={() => onMealDelete(day, mealType.toLowerCase(), meal.recipe_id)}
-                  />
-                ))}
-              </div>
-            ))}
-          </div>
-  
-          <SearchableRecipeSelector
-            isOpen={showRecipeSelector}
-            onClose={() => setShowRecipeSelector(false)}
-            onSelect={(recipe) => handleAddMeal(recipe, selectedMealType)}
-            mealType={selectedMealType}
-          />
+    setShowRecipeSelector(false);
+    onMealAdd();
+  } catch (error) {
+    console.error('Error adding meal:', error);
+    setError(error.message);
+  }
+};
+
+  return (
+    <div className="flex-1 p-2">
+      <div className="bg-white rounded-lg shadow p-4">
+        <div className="mb-4">
+          <h3 className="text-lg font-semibold">{day}</h3>
+          {showDates && startDate && (
+            <span className="text-sm text-gray-500">
+              {new Date(startDate).toLocaleDateString()}
+            </span>
+          )}
+          {error && (
+            <div className="text-sm text-red-600 mt-2">{error}</div>
+          )}
         </div>
+
+        <div className="space-y-4">
+          {['Breakfast', 'Lunch', 'Dinner'].map(mealType => (
+            <div key={mealType}>
+              <div className="flex justify-between items-center mb-2">
+                <span className="text-sm font-medium">{mealType}</span>
+                <button
+                  onClick={() => {
+                    setSelectedMealType(mealType);
+                    setShowRecipeSelector(true);
+                    setError(null);
+                  }}
+                  className="text-blue-600 hover:text-blue-800"
+                >
+                  <Plus size={16} />
+                </button>
+              </div>
+              {meals[mealType.toLowerCase()]?.map((meal, index) => (
+                <div key={`${meal.id}-${index}`} className="bg-white rounded-lg p-4 relative mb-2 border">
+                  <button
+                    onClick={() => onMealDelete(day, mealType.toLowerCase(), meal.id)}
+                    className="absolute top-2 right-2 text-red-500 hover:text-red-700"
+                  >
+                    <X size={16} />
+                  </button>
+                  <p className="text-lg font-bold text-gray-500 mt-2">
+                    {meal.name}
+                  </p>
+                  <Link 
+                    href={`/recipe/${meal.id}`}
+                    className="text-sm text-blue-600 hover:text-blue-800 inline-flex items-center gap-1"
+                  >
+                    View Recipe →
+                  </Link>
+                </div>
+              ))}
+            </div>
+          ))}
+        </div>
+
+        <SearchableRecipeSelector
+          isOpen={showRecipeSelector}
+          onClose={() => setShowRecipeSelector(false)}
+          onSelect={(recipe) => handleAddMeal(recipe, selectedMealType)}
+          mealType={selectedMealType}
+        />
       </div>
-    );
-  };
+    </div>
+  );
+};
   
   const Week = ({ week, onDeleteWeek, onMealDelete, onMealsAdded, onToggleDates }) => {
     const [showMenuSelector, setShowMenuSelector] = useState(false);
