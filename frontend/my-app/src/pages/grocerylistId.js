@@ -182,15 +182,21 @@ const GroceryItem = ({ item, listId, onUpdate, onDelete, onToggleMarked }) => {
         }
       );
       
-      const data = await response.json();
-      
-      if (response.ok && data.item) {
+      if (!response.ok) {
+        throw new Error('Failed to update item');
+      }
+  
+      // Check if response has content before trying to parse JSON
+      const contentType = response.headers.get("content-type");
+      if (contentType && contentType.includes("application/json")) {
+        const data = await response.json();
         setLocalData(data.item);
-        onUpdate();
-        return;
+      } else {
+        // If no JSON response, just use the updated data
+        setLocalData(updatedData);
       }
       
-      throw new Error(data.error || 'Failed to update item');
+      onUpdate();
     } catch (error) {
       console.error('Error updating item:', error);
     }
