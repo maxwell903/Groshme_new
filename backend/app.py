@@ -213,6 +213,7 @@ class User(db.Model):
 
 class MealPrepWeek(db.Model):
     id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(UUID(as_uuid=True), db.ForeignKey('users.id'), nullable=False)  # Add this line
     start_day = db.Column(db.String(20), nullable=False)
     title = db.Column(db.String(100))
     start_date = db.Column(db.Date)
@@ -1892,8 +1893,10 @@ class ReceiptParser:
     
 # Add these routes to handle meal prep functionality
 @app.route('/api/meal-prep/weeks', methods=['GET'])
+@auth_required  # Make sure this endpoint is protected
 def get_meal_prep_weeks():
     try:
+        user_id = g.user_id  # Get authenticated user's ID
         engine = create_engine(db_url, poolclass=NullPool)
         
         with engine.connect() as connection:
@@ -1916,6 +1919,7 @@ def get_meal_prep_weeks():
                     FROM meal_prep_week w
                     LEFT JOIN meal_plan m ON w.id = m.week_id
                     LEFT JOIN recipe r ON m.recipe_id = r.id
+                    WHERE w.user_id = :user_id  # Add this WHERE clause
                 )
                 SELECT 
                     id,
@@ -1943,7 +1947,9 @@ def get_meal_prep_weeks():
                 FROM WeekMeals
                 GROUP BY id, title, start_day, start_date, end_date, show_dates, created_date
                 ORDER BY created_date DESC
-            """))
+            """), {"user_id": user_id})  # Pass user_id as parameter
+            
+            # Rest of the function remains the same...
             
             weeks_data = []
             for row in result:
