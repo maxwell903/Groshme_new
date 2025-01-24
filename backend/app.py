@@ -2310,10 +2310,10 @@ def toggle_week_dates(week_id):
         return jsonify({'error': str(e)}), 500
 
 @app.route('/api/meal-prep/weeks/<int:week_id>', methods=['DELETE'])
-@auth_required
+@auth_required  # Add this decorator
 def delete_meal_prep_week(week_id):
     try:
-        user_id = g.user_id
+        user_id = g.user_id  # Get authenticated user's ID
         engine = create_engine(db_url, poolclass=NullPool)
         
         with engine.connect() as connection:
@@ -2328,7 +2328,7 @@ def delete_meal_prep_week(week_id):
             
             if not week_check:
                 return jsonify({'error': 'Week not found or unauthorized'}), 404
-            
+
             # Delete meals first
             connection.execute(
                 text("DELETE FROM meal_plan WHERE week_id = :week_id"),
