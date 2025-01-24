@@ -6,7 +6,7 @@ import ExerciseDisplay from '../components/ExerciseDisplay';
 import WorkoutDisplay from '../components/WorkoutDisplay';
 import { Calendar } from 'lucide-react';
 import NutritionSummary from '@/components/NutritionModal';
-import { fetchWithAuth } from '@/utils/fetch';
+
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL
 
