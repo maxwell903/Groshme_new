@@ -345,19 +345,13 @@ const DayDropdown = ({
   const [showRecipeSelector, setShowRecipeSelector] = useState(false);
   const [selectedMealType, setSelectedMealType] = useState(null);
   const [error, setError] = useState(null);
+  const [isDeleting, setIsDeleting] = useState(false);
 
   // Helper function to get meals for a specific meal type
   const getMealsForType = (mealType) => {
-    // First convert mealType to lowercase to match the API data
     const type = mealType.toLowerCase();
-    
-    // Check if there are any meals for this day
     if (!meals || typeof meals !== 'object') return [];
-    
-    // Get all meals for this type
     const mealsList = meals[type] || [];
-    
-    // Ensure we're returning an array
     return Array.isArray(mealsList) ? mealsList : [];
   };
 
@@ -377,6 +371,31 @@ const DayDropdown = ({
     } catch (error) {
       console.error('Error adding meal:', error);
       setError(error.message);
+    }
+  };
+
+  const handleDeleteMeal = async (mealType, recipeId) => {
+    if (isDeleting) return;
+    
+    try {
+      setIsDeleting(true);
+      setError(null);
+
+      await fetchWithAuth(`/api/meal-prep/weeks/${weekId}/meals`, {
+        method: 'DELETE',
+        body: JSON.stringify({
+          day,
+          meal_type: mealType.toLowerCase(),
+          recipe_id: recipeId
+        })
+      });
+
+      onMealDelete();
+    } catch (error) {
+      console.error('Error deleting meal:', error);
+      setError(error.message || 'Failed to delete meal');
+    } finally {
+      setIsDeleting(false);
     }
   };
 
@@ -418,8 +437,10 @@ const DayDropdown = ({
                 {mealsForType.map((meal) => (
                   <div key={`${meal.id}-${meal.name}`} className="bg-white rounded-lg p-4 relative mb-2 border">
                     <button
-                      onClick={() => onMealDelete(day, mealType.toLowerCase(), meal.id)}
-                      className="absolute top-2 right-2 text-red-500 hover:text-red-700"
+                      onClick={() => handleDeleteMeal(mealType, meal.id)}
+                      disabled={isDeleting}
+                      className={`absolute top-2 right-2 text-red-500 hover:text-red-700 
+                        ${isDeleting ? 'opacity-50 cursor-not-allowed' : ''}`}
                     >
                       <X size={16} />
                     </button>
@@ -462,92 +483,104 @@ const DayDropdown = ({
   );
 };
   
-  const Week = ({ week, onDeleteWeek, onMealDelete, onMealsAdded, onToggleDates }) => {
-    const [showMenuSelector, setShowMenuSelector] = useState(false);
-  
-    const generateWeekDays = (startDay) => {
-      const days = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
-      const startIndex = days.indexOf(startDay);
-      const weekSchedule = [];
-  
-      for (let i = 1; i <= 7; i++) {
-        const index = (startIndex + i) % 7;
-        weekSchedule.push(days[index]);
-      }
-  
-      return weekSchedule;
-    };
-  
-    const formatDateRange = () => {
-      if (!week.start_date || !week.end_date) return '';
-      const startDate = new Date(week.start_date);
-      const endDate = new Date(startDate);
-      endDate.setDate(startDate.getDate() + 6); // End date is 6 days after start date
-      return `${startDate.toLocaleDateString()} - ${endDate.toLocaleDateString()}`;
-    };
+const Week = ({ week, onDeleteWeek, onMealDelete, onMealsAdded, onToggleDates }) => {
+  const [showMenuSelector, setShowMenuSelector] = useState(false);
+  const [error, setError] = useState(null);
 
-    return (
-      <div className="bg-white rounded-lg shadow-lg p-6">
-        <div className="flex justify-between items-center mb-4">
-          <div>
-            <h2 className="text-xl font-semibold">
-              {week.title}
-            </h2>
-            <div className="flex items-center gap-2 mt-1">
-              <button
-                onClick={() => onToggleDates(week.id)}
-                className="text-sm text-gray-500 hover:text-gray-700 flex items-center gap-1"
-              >
-                <Calendar size={16} />
-                {week.show_dates ? 'Hide Dates' : 'Show Dates'}
-              </button>
-              {week.show_dates && (
-                <span className="text-sm text-gray-500">{formatDateRange()}</span>
-              )}
-            </div>
-          </div>
-          <div className="flex gap-2">
-            <button
-              onClick={() => setShowMenuSelector(true)}
-              className="px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700"
-            >
-              Add from Menu
-            </button>
-            <button
-              onClick={() => onDeleteWeek(week.id)}
-              className="text-red-500 hover:text-red-700"
-            >
-              <X size={20} />
-            </button>
-          </div>
-        </div>
-  
-        <div className="flex gap-2 overflow-x-auto pb-4">
-          {generateWeekDays(week.start_day).map((day) => (
-            <DayDropdown
-              key={day}
-              day={day}
-              weekId={week.id}
-              meals={week.meal_plans[day]}
-              onMealAdd={onMealsAdded}
-              onMealDelete={(day, mealType, recipeId) =>
-                onMealDelete(week.id, day, mealType, recipeId)
-              }
-              startDate={week.start_date}
-              showDates={week.show_dates}
-            />
-          ))}
-        </div>
-  
-        <MenuSelector
-          isOpen={showMenuSelector}
-          onClose={() => setShowMenuSelector(false)}
-          weekId={week.id}
-          onMealsAdded={onMealsAdded}
-        />
-      </div>
-    );
+  const generateWeekDays = (startDay) => {
+    const days = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
+    const startIndex = days.indexOf(startDay);
+    const weekSchedule = [];
+    
+    for (let i = 1; i <= 7; i++) {
+      const index = (startIndex + i) % 7;
+      weekSchedule.push(days[index]);
+    }
+    
+    return weekSchedule;
   };
+
+  const formatDateRange = () => {
+    if (!week.start_date || !week.end_date) return '';
+    const startDate = new Date(week.start_date);
+    const endDate = new Date(startDate);
+    endDate.setDate(startDate.getDate() + 6);
+    return `${startDate.toLocaleDateString()} - ${endDate.toLocaleDateString()}`;
+  };
+
+  const handleMealDelete = async () => {
+    try {
+      await onMealsAdded(); // Refresh data after delete
+      setError(null);
+    } catch (err) {
+      console.error('Error refreshing meals:', err);
+      setError('Failed to refresh meals');
+    }
+  };
+
+  return (
+    <div className="bg-white rounded-lg shadow-lg p-6">
+      <div className="flex justify-between items-center mb-4">
+        <div>
+          <h2 className="text-xl font-semibold">
+            {week.title}
+          </h2>
+          <div className="flex items-center gap-2 mt-1">
+            <button
+              onClick={() => onToggleDates(week.id)}
+              className="text-sm text-gray-500 hover:text-gray-700 flex items-center gap-1"
+            >
+              <Calendar size={16} />
+              {week.show_dates ? 'Hide Dates' : 'Show Dates'}
+            </button>
+            {week.show_dates && (
+              <span className="text-sm text-gray-500">{formatDateRange()}</span>
+            )}
+          </div>
+        </div>
+        {error && (
+          <div className="text-sm text-red-600">{error}</div>
+        )}
+        <div className="flex gap-2">
+          <button
+            onClick={() => setShowMenuSelector(true)}
+            className="px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700"
+          >
+            Add from Menu
+          </button>
+          <button
+            onClick={() => onDeleteWeek(week.id)}
+            className="text-red-500 hover:text-red-700"
+          >
+            <X size={20} />
+          </button>
+        </div>
+      </div>
+
+      <div className="flex gap-2 overflow-x-auto pb-4">
+        {generateWeekDays(week.start_day).map((day) => (
+          <DayDropdown
+            key={day}
+            day={day}
+            weekId={week.id}
+            meals={week.meal_plans[day]}
+            onMealAdd={onMealsAdded}
+            onMealDelete={handleMealDelete}
+            startDate={week.start_date}
+            showDates={week.show_dates}
+          />
+        ))}
+      </div>
+
+      <MenuSelector
+        isOpen={showMenuSelector}
+        onClose={() => setShowMenuSelector(false)}
+        weekId={week.id}
+        onMealsAdded={onMealsAdded}
+      />
+    </div>
+  );
+};
 
   const DaySelector = ({ isOpen, onClose, onDaySelect }) => {
     const days = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];

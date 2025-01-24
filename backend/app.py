@@ -1900,69 +1900,117 @@ def get_meal_prep_weeks():
         engine = create_engine(db_url, poolclass=NullPool)
         
         with engine.connect() as connection:
-            result = connection.execute(text("""
-                WITH WeekMeals AS (
+            # First get all weeks
+            weeks_result = connection.execute(
+                text("""
+                    WITH WeekMeals AS (
+                        SELECT 
+                            w.id,
+                            w.title,
+                            w.start_day,
+                            w.start_date,
+                            w.end_date,
+                            w.show_dates,
+                            w.created_date,
+                            m.day,
+                            m.meal_type,
+                            r.id as recipe_id,
+                            r.name as recipe_name,
+                            r.description,
+                            r.prep_time
+                        FROM meal_prep_week w
+                        LEFT JOIN meal_plan m ON w.id = m.week_id
+                        LEFT JOIN recipe r ON m.recipe_id = r.id
+                        WHERE w.user_id = :user_id
+                    ),
+                    MealNutrition AS (
+                        SELECT 
+                            r.id as recipe_id,
+                            COALESCE(SUM(
+                                CASE WHEN rin.serving_size > 0 
+                                THEN (rin.protein_grams * riq.quantity / rin.serving_size)
+                                ELSE 0 
+                                END
+                            ), 0) as total_protein,
+                            COALESCE(SUM(
+                                CASE WHEN rin.serving_size > 0 
+                                THEN (rin.fat_grams * riq.quantity / rin.serving_size)
+                                ELSE 0 
+                                END
+                            ), 0) as total_fat,
+                            COALESCE(SUM(
+                                CASE WHEN rin.serving_size > 0 
+                                THEN (rin.carbs_grams * riq.quantity / rin.serving_size)
+                                ELSE 0 
+                                END
+                            ), 0) as total_carbs
+                        FROM recipe r
+                        LEFT JOIN recipe_ingredient_quantities riq ON r.id = riq.recipe_id
+                        LEFT JOIN recipe_ingredient_nutrition rin 
+                            ON rin.recipe_ingredient_quantities_id = riq.id
+                        GROUP BY r.id
+                    )
                     SELECT 
-                        w.id,
-                        w.title,
-                        w.start_day,
-                        w.start_date,
-                        w.end_date,
-                        w.show_dates,
-                        w.created_date,
-                        m.day,
-                        m.meal_type,
-                        m.recipe_id,
-                        r.name as recipe_name,
-                        r.description,
-                        r.prep_time
-                    FROM meal_prep_week w
-                    LEFT JOIN meal_plan m ON w.id = m.week_id
-                    LEFT JOIN recipe r ON m.recipe_id = r.id
-                    WHERE w.user_id = :user_id
-                )
-                SELECT 
-                    id,
-                    title,
-                    start_day,
-                    start_date,
-                    end_date,
-                    show_dates,
-                    created_date,
-                    json_agg(
-                        CASE WHEN recipe_id IS NOT NULL THEN
-                            json_build_object(
-                                'day', day,
-                                'meal_type', meal_type,
-                                'recipe', json_build_object(
-                                    'id', recipe_id,
-                                    'name', recipe_name,
-                                    'description', description,
-                                    'prep_time', prep_time
-                                )
-                            )
-                        ELSE NULL
-                        END
-                    ) FILTER (WHERE recipe_id IS NOT NULL) as meals
-                FROM WeekMeals
-                GROUP BY id, title, start_day, start_date, end_date, show_dates, created_date
-                ORDER BY created_date DESC
-            """), {"user_id": user_id})
-            
-            weeks_data = []
-            for row in result:
-                weeks_data.append({
-                    'id': row.id,
-                    'title': row.title,
-                    'start_day': row.start_day,
-                    'start_date': row.start_date.isoformat() if row.start_date else None,
-                    'end_date': row.end_date.isoformat() if row.end_date else None,
-                    'show_dates': row.show_dates,
-                    'created_date': row.created_date.strftime('%Y-%m-%d'),
-                    'meal_plans': row.meals if row.meals else []
-                })
+                        wm.*,
+                        mn.total_protein,
+                        mn.total_fat,
+                        mn.total_carbs
+                    FROM WeekMeals wm
+                    LEFT JOIN MealNutrition mn ON wm.recipe_id = mn.recipe_id
+                    ORDER BY wm.created_date DESC, wm.day, wm.meal_type
+                """),
+                {"user_id": user_id}
+            )
+
+            # Process the results into a nested structure
+            weeks_data = {}
+            for row in weeks_result:
+                week_id = row.id
                 
-            return jsonify({'weeks': weeks_data})
+                # Initialize week if not exists
+                if week_id not in weeks_data:
+                    weeks_data[week_id] = {
+                        'id': week_id,
+                        'title': row.title,
+                        'start_day': row.start_day,
+                        'start_date': row.start_date.isoformat() if row.start_date else None,
+                        'end_date': row.end_date.isoformat() if row.end_date else None,
+                        'show_dates': row.show_dates,
+                        'created_date': row.created_date.strftime('%Y-%m-%d'),
+                        'meal_plans': {}
+                    }
+                
+                # Skip if no meal data
+                if not row.day or not row.meal_type:
+                    continue
+                
+                # Initialize day if not exists
+                if row.day not in weeks_data[week_id]['meal_plans']:
+                    weeks_data[week_id]['meal_plans'][row.day] = {
+                        'breakfast': [],
+                        'lunch': [],
+                        'dinner': []
+                    }
+                
+                # Add meal to appropriate type if recipe exists
+                if row.recipe_id:
+                    meal_data = {
+                        'id': row.recipe_id,
+                        'name': row.recipe_name,
+                        'description': row.description,
+                        'prep_time': row.prep_time,
+                        'total_nutrition': {
+                            'protein_grams': round(float(row.total_protein), 1),
+                            'fat_grams': round(float(row.total_fat), 1),
+                            'carbs_grams': round(float(row.total_carbs), 1)
+                        }
+                    }
+                    weeks_data[week_id]['meal_plans'][row.day][row.meal_type.lower()].append(meal_data)
+
+            # Convert to list for response
+            weeks = list(weeks_data.values())
+
+            return jsonify({'weeks': weeks})
             
     except Exception as e:
         print(f"Error fetching meal prep weeks: {str(e)}")
@@ -2305,101 +2353,84 @@ def add_meal_to_week(week_id):
     try:
         user_id = g.user_id
         data = request.json
-        print(f"Adding meal with data: {data}")  # Debug log
         
-        if not all(k in data for k in ['recipe_id', 'day', 'meal_type']):
+        if not all(k in data for k in ['day', 'meal_type', 'recipe_id']):
             return jsonify({'error': 'Missing required fields'}), 400
             
         engine = create_engine(db_url, poolclass=NullPool)
         
         with engine.connect() as connection:
-            # Verify week belongs to user and exists
-            week = connection.execute(
+            # Verify week belongs to user
+            week_check = connection.execute(
                 text("""
                     SELECT id FROM meal_prep_week 
                     WHERE id = :week_id AND user_id = :user_id
                 """),
-                {"week_id": week_id, "user_id": user_id}
+                {
+                    "week_id": week_id,
+                    "user_id": user_id
+                }
             ).fetchone()
             
-            if not week:
-                print(f"Week {week_id} not found for user {user_id}")  # Debug log
+            if not week_check:
                 return jsonify({'error': 'Week not found or unauthorized'}), 404
             
-            # Add meal with user_id
+            # Add meal to week
             result = connection.execute(
                 text("""
-                    INSERT INTO meal_plan (
-                        week_id, recipe_id, day, meal_type, user_id
-                    ) VALUES (
-                        :week_id, :recipe_id, :day, :meal_type, :user_id
-                    )
-                    RETURNING id, week_id, recipe_id, day, meal_type
+                    INSERT INTO meal_plan (week_id, day, meal_type, recipe_id)
+                    VALUES (:week_id, :day, :meal_type, :recipe_id)
+                    RETURNING id
                 """),
                 {
                     "week_id": week_id,
-                    "recipe_id": data['recipe_id'],
                     "day": data['day'],
-                    "meal_type": data['meal_type'].lower(),  # Ensure consistent case
-                    "user_id": user_id
+                    "meal_type": data['meal_type'].lower(),
+                    "recipe_id": data['recipe_id']
                 }
             )
             
-            new_meal = result.fetchone()
+            meal_id = result.fetchone()[0]
             connection.commit()
-            
-            # Get recipe details for response
-            recipe = connection.execute(
-                text("""
-                    SELECT name, description, prep_time
-                    FROM recipe
-                    WHERE id = :recipe_id
-                """),
-                {"recipe_id": data['recipe_id']}
-            ).fetchone()
             
             return jsonify({
                 'message': 'Meal added successfully',
-                'meal': {
-                    'id': new_meal.id,
-                    'day': new_meal.day,
-                    'meal_type': new_meal.meal_type,
-                    'recipe': {
-                        'id': new_meal.recipe_id,
-                        'name': recipe.name,
-                        'description': recipe.description,
-                        'prep_time': recipe.prep_time
-                    }
-                }
+                'id': meal_id
             }), 201
             
     except Exception as e:
-        print(f"Error adding meal: {str(e)}")  # Debug log
-        import traceback
-        traceback.print_exc()  # Print full stack trace
+        print(f"Error adding meal to week: {str(e)}")
         return jsonify({'error': str(e)}), 500
 
+# Route to delete a meal from a week
 @app.route('/api/meal-prep/weeks/<int:week_id>/meals', methods=['DELETE'])
 @auth_required
 def delete_meal_from_week(week_id):
     try:
         user_id = g.user_id
         data = request.json
+        
+        if not all(k in data for k in ['day', 'meal_type', 'recipe_id']):
+            return jsonify({'error': 'Missing required fields'}), 400
+            
         engine = create_engine(db_url, poolclass=NullPool)
         
         with engine.connect() as connection:
             # Verify week belongs to user
-            week = connection.execute(
+            week_check = connection.execute(
                 text("""
                     SELECT id FROM meal_prep_week 
                     WHERE id = :week_id AND user_id = :user_id
                 """),
-                {"week_id": week_id, "user_id": user_id}
+                {
+                    "week_id": week_id,
+                    "user_id": user_id
+                }
             ).fetchone()
             
-            if not week:
+            if not week_check:
                 return jsonify({'error': 'Week not found or unauthorized'}), 404
-            
+                
             # Delete meal
             result = connection.execute(
                 text("""
@@ -2412,7 +2443,7 @@ def delete_meal_from_week(week_id):
                 {
                     "week_id": week_id,
                     "day": data['day'],
-                    "meal_type": data['meal_type'],
+                    "meal_type": data['meal_type'].lower(),
                     "recipe_id": data['recipe_id']
                 }
             )
@@ -2421,11 +2452,12 @@ def delete_meal_from_week(week_id):
                 return jsonify({'error': 'Meal not found'}), 404
                 
             connection.commit()
-            return jsonify({'message': 'Meal deleted successfully'}), 200
+            return jsonify({'message': 'Meal deleted successfully'})
             
     except Exception as e:
-        print(f"Error deleting meal: {str(e)}")
+        print(f"Error deleting meal from week: {str(e)}")
         return jsonify({'error': str(e)}), 500
+
     
 @app.route('/api/meal-prep/weeks/<int:week_id>', methods=['GET'])
 @auth_required
