@@ -117,7 +117,6 @@ const MenuSelector = ({ isOpen, onClose, weekId, onMealsAdded }) => {
   useEffect(() => {
     const fetchMenus = async () => {
       try {
-        // Get token from localStorage
         const token = localStorage.getItem('access_token');
         if (!token) {
           throw new Error('No authentication token found');
@@ -175,6 +174,55 @@ const MenuSelector = ({ isOpen, onClose, weekId, onMealsAdded }) => {
     }
   };
 
+  const handleAddSelected = async () => {
+    setLoading(true);
+    try {
+      const token = localStorage.getItem('access_token');
+      if (!token) {
+        throw new Error('No authentication token found');
+      }
+
+      const meals = [];
+      selectedMeals.forEach((mealTypes, recipeId) => {
+        mealTypes.forEach(mealType => {
+          meals.push({
+            day: selectedDay,
+            meal_type: mealType.toLowerCase(),
+            recipe_id: recipeId
+          });
+        });
+      });
+
+      for (const meal of meals) {
+        const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/meal-prep/weeks/${weekId}/meals`, {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify(meal)
+        });
+
+        if (!response.ok) {
+          throw new Error('Failed to add meal');
+        }
+      }
+
+      onMealsAdded();
+      onClose();
+      setStep('day');
+      setSelectedDay(null);
+      setSelectedMenu(null);
+      setRecipes([]);
+      setSelectedMeals(new Map());
+    } catch (error) {
+      console.error('Error adding meals:', error);
+      setError(error.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const handleMealTypeToggle = (recipeId, mealType) => {
     setSelectedMeals(prev => {
       const current = new Map(prev);
@@ -196,41 +244,7 @@ const MenuSelector = ({ isOpen, onClose, weekId, onMealsAdded }) => {
     });
   };
 
-  const handleAddSelected = async () => {
-    setLoading(true);
-    try {
-      const meals = [];
-      selectedMeals.forEach((mealTypes, recipeId) => {
-        mealTypes.forEach(mealType => {
-          meals.push({
-            day: selectedDay,
-            meal_type: mealType.toLowerCase(),
-            recipe_id: recipeId
-          });
-        });
-      });
-
-      for (const meal of meals) {
-        await fetch(`${API_URL}/api/meal-prep/weeks/${weekId}/meals`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(meal)
-        });
-      }
-
-      onMealsAdded();
-      onClose();
-      setStep('day');
-     setSelectedDay(null);
-     setSelectedMenu(null);
-     setRecipes([]);
-     setSelectedMeals(new Map());
-    } catch (error) {
-      console.error('Error adding meals:', error);
-    } finally {
-      setLoading(false);
-    }
-  };
+  
 
   if (!isOpen) return null;
 
