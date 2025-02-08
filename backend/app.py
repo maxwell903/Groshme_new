@@ -2352,7 +2352,7 @@ def delete_meal_prep_week(week_id):
 @auth_required
 def add_meal_to_week(week_id):
     try:
-        user_id = g.user_id
+        user_id = g.user_id  # Get authenticated user's ID
         data = request.json
         
         if not all(k in data for k in ['day', 'meal_type', 'recipe_id']):
@@ -2402,6 +2402,7 @@ def add_meal_to_week(week_id):
     except Exception as e:
         print(f"Error adding meal to week: {str(e)}")
         return jsonify({'error': str(e)}), 500
+    
 
 # Route to delete a meal from a week
 @app.route('/api/meal-prep/weeks/<int:week_id>/meals', methods=['DELETE', 'OPTIONS'])
