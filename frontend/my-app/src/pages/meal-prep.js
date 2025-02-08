@@ -105,22 +105,40 @@ const SearchableRecipeSelector = ({ isOpen, onClose, onSelect, mealType }) => {
 };
 
 const MenuSelector = ({ isOpen, onClose, weekId, onMealsAdded }) => {
-  const [step, setStep] = useState('day'); // 'day', 'menu', 'recipes'
+  const [step, setStep] = useState('day');
   const [selectedDay, setSelectedDay] = useState(null);
   const [menus, setMenus] = useState([]);
   const [selectedMenu, setSelectedMenu] = useState(null);
   const [recipes, setRecipes] = useState([]);
   const [selectedMeals, setSelectedMeals] = useState(new Map());
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState(null);
 
   useEffect(() => {
     const fetchMenus = async () => {
       try {
-        const response = await fetch(`${API_URL}/api/menus`);
+        // Get token from localStorage
+        const token = localStorage.getItem('access_token');
+        if (!token) {
+          throw new Error('No authentication token found');
+        }
+
+        const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/menus`, {
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json'
+          }
+        });
+
+        if (!response.ok) {
+          throw new Error('Failed to fetch menus');
+        }
+
         const data = await response.json();
         setMenus(data.menus || []);
       } catch (error) {
         console.error('Error fetching menus:', error);
+        setError(error.message);
       }
     };
 
@@ -130,14 +148,30 @@ const MenuSelector = ({ isOpen, onClose, weekId, onMealsAdded }) => {
   }, [isOpen, step]);
 
   const handleMenuSelect = async (menu) => {
-    setSelectedMenu(menu);
     try {
-      const response = await fetch(`${API_URL}/api/menus/${menu.id}/recipes`);
+      const token = localStorage.getItem('access_token');
+      if (!token) {
+        throw new Error('No authentication token found');
+      }
+
+      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/menus/${menu.id}/recipes`, {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        }
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to fetch menu recipes');
+      }
+
       const data = await response.json();
       setRecipes(data.recipes || []);
+      setSelectedMenu(menu);
       setStep('recipes');
     } catch (error) {
       console.error('Error fetching menu recipes:', error);
+      setError(error.message);
     }
   };
 
@@ -200,11 +234,11 @@ const MenuSelector = ({ isOpen, onClose, weekId, onMealsAdded }) => {
 
   if (!isOpen) return null;
 
-  return (
+  eturn (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
       <div className="bg-white rounded-lg p-6 w-[800px] max-h-[80vh] overflow-y-auto">
         <div className="flex justify-between items-center mb-4">
-          <h2 className="text-xl font-semibold">
+          <h2 className="text-lg font-semibold">
             {step === 'day' ? 'Select Day' :
              step === 'menu' ? 'Select Menu' :
              'Select Meals'}
@@ -213,6 +247,12 @@ const MenuSelector = ({ isOpen, onClose, weekId, onMealsAdded }) => {
             <X size={20} />
           </button>
         </div>
+
+        {error && (
+          <div className="mb-4 p-3 bg-red-100 text-red-600 rounded-md">
+            {error}
+          </div>
+        )}
 
         {step === 'day' && (
           <div className="space-y-2">
