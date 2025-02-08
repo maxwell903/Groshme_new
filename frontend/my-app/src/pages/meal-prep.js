@@ -710,24 +710,6 @@ const Week = ({ week, onDeleteWeek, onMealDelete, onMealsAdded, onToggleDates })
         }
       };
 
-      const handleDeleteWeek = async (weekId) => {
-        if (!confirm('Are you sure you want to delete this week?')) return;
-      
-        try {
-          const response = await fetchWithAuth(`/api/meal-prep/weeks/${weekId}`, {
-            method: 'DELETE'
-          });
-      
-          if (!response.success) {
-            throw new Error(response.error || 'Failed to delete week');
-          }
-          await fetchWeeks();
-        } catch (error) {
-          console.error('Error deleting week:', error);
-          alert('Failed to delete week. Please try again.');
-        }
-      };
-
     
       const GroceryListSelector = ({ onClose }) => {
         const [step, setStep] = useState(1); // 1 for list selection, 2 for week selection
@@ -1029,7 +1011,20 @@ const Week = ({ week, onDeleteWeek, onMealDelete, onMealsAdded, onToggleDates })
       }
     };
   
-    
+    const handleDeleteWeek = async (weekId) => {
+      if (!confirm('Are you sure you want to delete this week?')) return;
+  
+      try {
+        const response = await fetch(`${API_URL}/api/meal-prep/weeks/${weekId}`, {
+          method: 'DELETE'
+        });
+  
+        if (!response.ok) throw new Error('Failed to delete week');
+        await fetchWeeks();
+      } catch (error) {
+        console.error('Error deleting week:', error);
+      }
+    };
   
     const handleDeleteMeal = async (weekId, day, mealType, recipeId) => {
       try {
