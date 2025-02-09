@@ -14,10 +14,19 @@ const ExerciseForm = () => {
   });
 
   // In ExerciseForm.js, modify the handleSubmit function:
-const handleSubmit = async (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
-    
     try {
+      // Get the authentication token from localStorage
+      // This token was stored when the user logged in
+      const token = localStorage.getItem('access_token');
+      
+      if (!token) {
+        // If no token is found, the user might need to log in
+        alert('Please log in to add exercises');
+        return;
+      }
+
       // Format the data before sending
       const formattedData = {
         name: formData.name,
@@ -29,35 +38,35 @@ const handleSubmit = async (e) => {
         weight: parseFloat(formData.weight) || 0,
         rest_time: parseInt(formData.rest_time) || 0
       };
-  
-      console.log('Sending exercise data:', formattedData); // Add this line
-  
+
       const response = await fetch(`${API_URL}/api/exercise`, {
         method: 'POST',
         headers: { 
           'Content-Type': 'application/json',
-          'Accept': 'application/json'
+          'Accept': 'application/json',
+          'Authorization': `Bearer ${token}`  // Add the auth token here
         },
         body: JSON.stringify(formattedData)
       });
-  
+
       if (!response.ok) {
         const errorData = await response.json();
         throw new Error(errorData.error || 'Failed to save exercise');
       }
- 
-      const data = await response.json();
       
+      // Reset form on success
       setFormData({
         name: '',
         workout_type: 'Push',
         major_groups: '',
         minor_groups: '',
         amount_sets: '',
+        amount_reps: '',
+        weight: '',
         rest_time: ''
       });
       
-      alert('Exercise saved successfully! You can now add sets to this exercise.');
+      alert('Exercise saved successfully!');
     } catch (error) {
       console.error('Error saving exercise:', error);
       alert(`Failed to save exercise: ${error.message}`);
