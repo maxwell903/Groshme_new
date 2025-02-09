@@ -6065,6 +6065,225 @@ def add_one_time_income(entry_id):
     except Exception as e:
         print(f"Error adding one-time income: {str(e)}")
         return jsonify({'error': str(e)}), 500
+    
+@app.route('/api/workout-weeks', methods=['GET'])
+@auth_required
+def get_workout_weeks():
+    try:
+        user_id = g.user_id  # Get authenticated user's ID
+        engine = create_engine(db_url, poolclass=NullPool)
+        
+        with engine.connect() as connection:
+            result = connection.execute(text("""
+                WITH WeekSummary AS (
+                    SELECT 
+                        ww.id,
+                        ww.title,
+                        ww.start_date,
+                        ww.end_date,
+                        ww.start_day,
+                        dw.day_of_week,
+                        json_agg(
+                            json_build_object(
+                                'exercise_id', we.exercise_id,
+                                'name', e.name,
+                                'target_sets', we.target_sets,
+                                'target_reps', we.target_reps,
+                                'target_weight', we.target_weight,
+                                'rest_time', we.rest_time,
+                                'order_index', we.order_index
+                            )
+                        ) FILTER (WHERE we.id IS NOT NULL) as exercises
+                    FROM workout_weeks ww
+                    LEFT JOIN daily_workouts dw ON ww.id = dw.week_id
+                    LEFT JOIN workout_exercises we ON dw.id = we.daily_workout_id
+                    LEFT JOIN exercises e ON we.exercise_id = e.id
+                    WHERE ww.user_id = :user_id
+                    GROUP BY ww.id, ww.title, ww.start_date, ww.end_date, 
+                             ww.start_day, dw.day_of_week
+                    ORDER BY ww.start_date DESC, dw.day_of_week
+                )
+                SELECT 
+                    id,
+                    title,
+                    start_date,
+                    end_date,
+                    start_day,
+                    json_object_agg(
+                        COALESCE(day_of_week, 'placeholder'),
+                        COALESCE(exercises, '[]')
+                    ) as daily_workouts
+                FROM WeekSummary
+                GROUP BY id, title, start_date, end_date, start_day
+            """), {"user_id": user_id})
+
+            weeks = []
+            for row in result:
+                # Clean up the daily_workouts by removing placeholder
+                daily_workouts = row.daily_workouts
+                if 'placeholder' in daily_workouts:
+                    del daily_workouts['placeholder']
+
+                weeks.append({
+                    'id': row.id,
+                    'title': row.title,
+                    'start_date': row.start_date.isoformat(),
+                    'end_date': row.end_date.isoformat(),
+                    'start_day': row.start_day,
+                    'daily_workouts': daily_workouts
+                })
+
+            return jsonify({'weeks': weeks})
+
+    except Exception as e:
+        print(f"Error fetching workout weeks: {str(e)}")
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/api/workout-weeks', methods=['POST'])
+@auth_required
+def create_workout_week():
+    try:
+        data = request.json
+        user_id = g.user_id
+
+        if not all(k in data for k in ['title', 'start_date', 'end_date', 'start_day']):
+            return jsonify({'error': 'Missing required fields'}), 400
+
+        engine = create_engine(db_url, poolclass=NullPool)
+        
+        with engine.connect() as connection:
+            with connection.begin():
+                # Create the workout week
+                result = connection.execute(text("""
+                    INSERT INTO workout_weeks (
+                        user_id, title, start_date, end_date, start_day
+                    ) VALUES (
+                        :user_id, :title, :start_date, :end_date, :start_day
+                    ) RETURNING id
+                """), {
+                    'user_id': user_id,
+                    'title': data['title'],
+                    'start_date': data['start_date'],
+                    'end_date': data['end_date'],
+                    'start_day': data['start_day']
+                })
+                
+                week_id = result.fetchone().id
+
+                # Create daily workout slots
+                days = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 
+                       'Friday', 'Saturday', 'Sunday']
+                current_day_index = days.index(data['start_day'])
+                
+                for i in range(7):
+                    day = days[(current_day_index + i) % 7]
+                    connection.execute(text("""
+                        INSERT INTO daily_workouts (week_id, day_of_week)
+                        VALUES (:week_id, :day)
+                    """), {
+                        'week_id': week_id,
+                        'day': day
+                    })
+
+            return jsonify({
+                'message': 'Workout week created successfully',
+                'id': week_id
+            }), 201
+
+    except Exception as e:
+        print(f"Error creating workout week: {str(e)}")
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/api/workout-weeks/<int:week_id>', methods=['DELETE'])
+@auth_required
+def delete_workout_week(week_id):
+    try:
+        user_id = g.user_id
+        engine = create_engine(db_url, poolclass=NullPool)
+        
+        with engine.connect() as connection:
+            # Verify ownership
+            result = connection.execute(text("""
+                DELETE FROM workout_weeks 
+                WHERE id = :week_id AND user_id = :user_id
+                RETURNING id
+            """), {
+                'week_id': week_id,
+                'user_id': user_id
+            })
+
+            if not result.rowcount:
+                return jsonify({'error': 'Workout week not found or unauthorized'}), 404
+
+            return jsonify({'message': 'Workout week deleted successfully'})
+
+    except Exception as e:
+        print(f"Error deleting workout week: {str(e)}")
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/api/workout-weeks/<int:week_id>/exercises', methods=['POST'])
+@auth_required
+def add_workout_exercises(week_id):
+    try:
+        data = request.json
+        user_id = g.user_id
+
+        if not all(k in data for k in ['day', 'exercises']):
+            return jsonify({'error': 'Missing required fields'}), 400
+
+        engine = create_engine(db_url, poolclass=NullPool)
+        
+        with engine.connect() as connection:
+            # Verify week ownership
+            week_check = connection.execute(text("""
+                SELECT id FROM workout_weeks 
+                WHERE id = :week_id AND user_id = :user_id
+            """), {
+                'week_id': week_id,
+                'user_id': user_id
+            }).fetchone()
+
+            if not week_check:
+                return jsonify({'error': 'Workout week not found or unauthorized'}), 404
+
+            # Get the daily workout ID
+            daily_workout = connection.execute(text("""
+                SELECT id FROM daily_workouts
+                WHERE week_id = :week_id AND day_of_week = :day
+            """), {
+                'week_id': week_id,
+                'day': data['day']
+            }).fetchone()
+
+            if not daily_workout:
+                return jsonify({'error': 'Daily workout not found'}), 404
+
+            # Add exercises
+            for idx, exercise in enumerate(data['exercises']):
+                connection.execute(text("""
+                    INSERT INTO workout_exercises (
+                        daily_workout_id, exercise_id, target_sets,
+                        target_reps, target_weight, rest_time, order_index
+                    ) VALUES (
+                        :daily_workout_id, :exercise_id, :target_sets,
+                        :target_reps, :target_weight, :rest_time, :order_index
+                    )
+                """), {
+                    'daily_workout_id': daily_workout.id,
+                    'exercise_id': exercise['id'],
+                    'target_sets': exercise.get('target_sets', 3),
+                    'target_reps': exercise.get('target_reps', 10),
+                    'target_weight': exercise.get('target_weight'),
+                    'rest_time': exercise.get('rest_time', 60),
+                    'order_index': idx
+                })
+
+            connection.commit()
+            return jsonify({'message': 'Exercises added successfully'})
+
+    except Exception as e:
+        print(f"Error adding exercises: {str(e)}")
+        return jsonify({'error': str(e)}), 500
 
      
 def upgrade_database():

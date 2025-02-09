@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Plus, X, ChevronDown, ChevronUp } from 'lucide-react';
 import Link from 'next/link';
+const API_URL = process.env.NEXT_PUBLIC_API_URL;
 
 const DaySelector = ({ isOpen, onClose, onDaySelect }) => {
   const days = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
@@ -20,7 +21,6 @@ const DaySelector = ({ isOpen, onClose, onDaySelect }) => {
     endDate.setDate(endDate.getDate() + 7);
 
     const dayIndex = selectedDate.getDay();
-    // Convert Sunday from 0 to 7 to match our days array
     const adjustedDayIndex = dayIndex === 0 ? 6 : dayIndex - 1;
     
     onDaySelect({
@@ -153,7 +153,23 @@ const GymPage = () => {
 
   const fetchWeeks = async () => {
     try {
-      const response = await fetch('/api/workout-weeks');
+      const token = localStorage.getItem('access_token');
+      if (!token) {
+        console.error('No auth token found');
+        return;
+      }
+
+      const response = await fetch(`${API_URL}/api/workout-weeks`, {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        }
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to fetch weeks');
+      }
+
       const data = await response.json();
       setWeeks(data.weeks || []);
       setLoading(false);
@@ -165,9 +181,18 @@ const GymPage = () => {
 
   const handleDaySelect = async (weekData) => {
     try {
-      const response = await fetch('/api/workout-weeks', {
+      const token = localStorage.getItem('access_token');
+      if (!token) {
+        console.error('No auth token found');
+        return;
+      }
+
+      const response = await fetch(`${API_URL}/api/workout-weeks`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        },
         body: JSON.stringify(weekData)
       });
 
@@ -187,8 +212,18 @@ const GymPage = () => {
     if (!confirm('Are you sure you want to delete this week?')) return;
 
     try {
-      const response = await fetch(`/api/workout-weeks/${weekId}`, {
-        method: 'DELETE'
+      const token = localStorage.getItem('access_token');
+      if (!token) {
+        console.error('No auth token found');
+        return;
+      }
+
+      const response = await fetch(`${API_URL}/api/workout-weeks/${weekId}`, {
+        method: 'DELETE',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        }
       });
 
       if (!response.ok) throw new Error('Failed to delete week');
