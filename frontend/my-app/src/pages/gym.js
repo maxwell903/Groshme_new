@@ -187,24 +187,35 @@ const GymPage = () => {
         return;
       }
 
+      // Log the data being sent for debugging
+      console.log('Sending workout week data:', weekData);
+
       const response = await fetch(`${API_URL}/api/workout-weeks`, {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json'
         },
-        body: JSON.stringify(weekData)
+        body: JSON.stringify({
+          title: weekData.title,
+          start_date: weekData.startDate,
+          end_date: weekData.endDate,
+          start_day: weekData.day
+        })
       });
 
       if (!response.ok) {
-        throw new Error('Failed to create week');
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Failed to create week');
       }
 
+      const result = await response.json();
+      console.log('Week created successfully:', result);
       await fetchWeeks();
       setShowDaySelector(false);
     } catch (error) {
       console.error('Error creating week:', error);
-      alert(error.message);
+      alert(error.message || 'Failed to create workout week');
     }
   };
 

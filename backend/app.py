@@ -6066,6 +6066,14 @@ def add_one_time_income(entry_id):
         print(f"Error adding one-time income: {str(e)}")
         return jsonify({'error': str(e)}), 500
     
+@app.route('/api/workout-weeks', methods=['OPTIONS'])
+def workout_weeks_options():
+    response = jsonify({'status': 'ok'})
+    response.headers.add('Access-Control-Allow-Origin', '*')
+    response.headers.add('Access-Control-Allow-Headers', 'Content-Type,Authorization')
+    response.headers.add('Access-Control-Allow-Methods', 'GET,POST,OPTIONS')
+    return response
+    
 @app.route('/api/workout-weeks', methods=['GET'])
 @auth_required
 def get_workout_weeks():
