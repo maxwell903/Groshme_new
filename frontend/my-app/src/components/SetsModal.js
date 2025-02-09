@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { X, Loader } from 'lucide-react';
-const API_URL = process.env.NEXT_PUBLIC_API_URL
 import { useAuth } from '@/contexts/AuthContext';
+const API_URL = process.env.NEXT_PUBLIC_API_URL;
 
 const SetsModal = ({ exercise, isOpen, onClose }) => {
   const [sets, setSets] = useState([]);
@@ -36,9 +36,10 @@ const SetsModal = ({ exercise, isOpen, onClose }) => {
           throw new Error('No authentication token found');
         }
         
-        const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/exercises/${exercise.id}/sets`, {
+        const response = await fetch(`${API_URL}/api/exercises/${exercise.id}/sets`, {
           headers: {
-            'Authorization': `Bearer ${token}`
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json'
           }
         });
 
@@ -97,22 +98,27 @@ const SetsModal = ({ exercise, isOpen, onClose }) => {
         reps: parseInt(set.reps, 10) || 0
       }));
 
-      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/exercises/${exercise.id}/sets`, {
+      const response = await fetch(`${API_URL}/api/exercises/${exercise.id}/sets`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${token}`
         },
-        body: JSON.stringify({ sets: validSets })
+        body: JSON.stringify({
+          sets: validSets,
+          user_id: user.id  // Include user ID in the request
+        })
       });
 
       if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
         if (response.status === 401) {
           throw new Error('Please sign in to save sets');
         }
-        throw new Error('Failed to save sets');
+        throw new Error(errorData.error || 'Failed to save sets');
       }
 
+      const responseData = await response.json();
       onClose();
     } catch (error) {
       console.error('Error saving sets:', error);
@@ -123,7 +129,6 @@ const SetsModal = ({ exercise, isOpen, onClose }) => {
   };
 
   if (!isOpen) return null;
-
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
@@ -168,7 +173,7 @@ const SetsModal = ({ exercise, isOpen, onClose }) => {
                     value={set.weight}
                     onChange={(e) => handleSetChange(index, 'weight', e.target.value)}
                     className="w-full p-2 border rounded"
-                    min=''
+                    min="0"
                     step="5"
                   />
                 </div>
@@ -181,7 +186,7 @@ const SetsModal = ({ exercise, isOpen, onClose }) => {
                     value={set.reps}
                     onChange={(e) => handleSetChange(index, 'reps', e.target.value)}
                     className="w-full p-2 border rounded"
-                    min=''
+                    min="0"
                   />
                 </div>
               </div>
