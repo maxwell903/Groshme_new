@@ -2,6 +2,8 @@ import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/router';
 import { ChevronLeft, ChevronRight, Plus, X } from 'lucide-react';
 import SetsModal from './SetsModal';
+import { useAuth } from '@/contexts/AuthContext';
+import { Loader } from 'lucide-react';
 import DaySelectionModal from './DaySelectionModal'; // Add this import
 const API_URL = process.env.NEXT_PUBLIC_API_URL
 
@@ -155,55 +157,80 @@ const ExerciseCard = ({ exercise }) => {
 
 
 
-const ExerciseDisplay = () => {
-  const [exercises, setExercises] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(null);
-
-  useEffect(() => {
-    const fetchExercises = async () => {
-      try {
-        const response = await fetch(`${API_URL}/api/exercises`);
-        if (!response.ok) throw new Error('Failed to fetch exercises');
-        const data = await response.json();
-        setExercises(data.exercises || []);
-      } catch (err) {
-        setError(err.message);
-      } finally {
-        setLoading(false);
+  const ExerciseDisplay = () => {
+    const [exercises, setExercises] = useState([]);
+    const [loading, setLoading] = useState(true);
+    const [error, setError] = useState(null);
+    const { user } = useAuth();
+  
+    useEffect(() => {
+      const fetchExercises = async () => {
+        try {
+          // Get the token from localStorage (set during login)
+          const token = localStorage.getItem('access_token');
+          
+          if (!token) {
+            throw new Error('No authentication token found');
+          }
+  
+          const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/exercises`, {
+            headers: {
+              'Authorization': `Bearer ${token}`,
+              'Content-Type': 'application/json'
+            }
+          });
+  
+          if (!response.ok) {
+            throw new Error('Failed to fetch exercises');
+          }
+  
+          const data = await response.json();
+          setExercises(data.exercises || []);
+          setError(null);
+        } catch (err) {
+          console.error('Error fetching exercises:', err);
+          setError(err.message);
+        } finally {
+          setLoading(false);
+        }
+      };
+  
+      if (user) {
+        fetchExercises();
       }
-    };
-
-    fetchExercises();
-  }, []);
-
-  if (loading) return <div className="text-center py-8">Loading exercises...</div>;
-  if (error) return <div className="text-center py-8 text-red-600">{error}</div>;
-
-  // Group exercises by workout type
-  const groupedExercises = exercises.reduce((acc, exercise) => {
-    if (!acc[exercise.workout_type]) {
-      acc[exercise.workout_type] = [];
+    }, [user]);
+  
+    if (loading) {
+      return (
+        <div className="flex items-center justify-center min-h-[200px]">
+          <Loader className="h-8 w-8 animate-spin text-blue-600" />
+        </div>
+      );
     }
-    acc[exercise.workout_type].push(exercise);
-    return acc;
-  }, {});
-
-  const workoutTypes = ['Push', 'Pull', 'Legs', 'Cardio'];
-
-  return (
-    <div className="space-y-8">
-      {workoutTypes.map((type) => (
-        groupedExercises[type]?.length > 0 && (
-          <ExerciseSection
-            key={type}
-            title={type}
-            exercises={groupedExercises[type]}
-          />
-        )
-      ))}
-    </div>
-  );
-};
-
-export default ExerciseDisplay;
+  
+    if (error) {
+      return (
+        <Alert variant="destructive">
+          <AlertDescription>{error}</AlertDescription>
+        </Alert>
+      );
+    }
+  
+    return (
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+        {exercises.map((exercise) => (
+          <div key={exercise.id} className="bg-white rounded-lg shadow p-4">
+            <h3 className="text-lg font-semibold mb-2">{exercise.name}</h3>
+            <div className="text-sm text-gray-600">
+              <p>Type: {exercise.workout_type}</p>
+              <p>Sets: {exercise.amount_sets} × {exercise.amount_reps} reps</p>
+              <p>Weight: {exercise.weight} lbs</p>
+              <p>Rest: {exercise.rest_time}s</p>
+            </div>
+          </div>
+        ))}
+      </div>
+    );
+  };
+  
+  export default ExerciseDisplay;

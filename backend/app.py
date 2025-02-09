@@ -274,6 +274,7 @@ class GroceryBill(db.Model):
 class Exercise(db.Model):
     __tablename__ = 'exercises'
     id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(UUID(as_uuid=True), db.ForeignKey('users.id'), nullable=False)
     name = db.Column(db.String(100), nullable=False)
     workout_type = db.Column(db.Enum('Push', 'Pull', 'Legs', 'Cardio'), nullable=False)
     major_groups = db.Column(db.JSON, nullable=False)
@@ -1413,43 +1414,7 @@ def delete_exercise_sets(exercise_id, history_id):
         return jsonify({'error': str(e)}), 500
 
 
-@app.route('/api/exercises/<int:exercise_id>/sets/history', methods=['GET'])
-def get_exercise_set_history(exercise_id):
-    try:
-        print(f"Fetching history for exercise ID: {exercise_id}")  # Debug log
-        
-        # Get all history records for this exercise
-        histories = SetHistory.query\
-            .filter_by(exercise_id=exercise_id)\
-            .order_by(SetHistory.created_at.desc())\
-            .all()
-        
-        # Prepare the response data
-        history_data = []
-        for history in histories:
-            # Get all sets for this history record
-            sets = IndividualSet.query\
-                .filter_by(set_history_id=history.id)\
-                .order_by(IndividualSet.set_number)\
-                .all()
-            
-            history_data.append({
-                'id': history.id,
-                'created_at': history.created_at.isoformat(),
-                'sets': [{
-                    'set_number': set.set_number,
-                    'reps': set.reps,
-                    'weight': set.weight
-                } for set in sets]
-            })
-        
-        print(f"Found {len(history_data)} history records")  # Debug log
-        return jsonify({'history': history_data})
-        
-    except Exception as e:
-        print(f"Error fetching exercise history: {str(e)}")  # Debug log
-        db.session.rollback()
-        return jsonify({'error': str(e)}), 500
+
 
 
 class IndividualSet(db.Model):
@@ -2598,21 +2563,19 @@ def parse_receipt_bill():
 
 
 @app.route('/api/exercises', methods=['GET'])
+@auth_required
 def list_exercises():
     try:
+        user_id = g.user_id  # Get authenticated user's ID
         with db.engine.connect() as connection:
             result = connection.execute(text('''
                 SELECT 
-                    id,
-                    name,
-                    workout_type,
-                    amount_sets,
-                    amount_reps,
-                    weight,
-                    rest_time
+                    id, name, workout_type, amount_sets,
+                    amount_reps, weight, rest_time
                 FROM exercises 
+                WHERE user_id = :user_id
                 ORDER BY name
-            '''))
+            '''), {"user_id": user_id})
             
             exercises = [{
                 'id': row.id,
@@ -2632,18 +2595,18 @@ def list_exercises():
             
     except Exception as e:
         print(f"Error listing exercises: {str(e)}")
-        import traceback
-        traceback.print_exc()
         return jsonify({
             'success': False,
-            'error': str(e),
-            'error_type': type(e).__name__
+            'error': str(e)
         }), 500
 
 @app.route('/api/exercise', methods=['POST'])
+@auth_required
 def create_exercise():
     try:
         data = request.json
+        user_id = g.user_id  # Get authenticated user's ID
+        
         engine = create_engine(db_url, poolclass=NullPool)
         major_groups = json.dumps(data['major_groups'])
         minor_groups = json.dumps(data['minor_groups'])
@@ -2653,10 +2616,10 @@ def create_exercise():
                 text("""
                     INSERT INTO exercises (
                         name, workout_type, major_groups, minor_groups,
-                        amount_sets, amount_reps, weight, rest_time
+                        amount_sets, amount_reps, weight, rest_time, user_id
                     ) VALUES (
                         :name, :workout_type, :major_groups, :minor_groups,
-                        :amount_sets, :amount_reps, :weight, :rest_time
+                        :amount_sets, :amount_reps, :weight, :rest_time, :user_id
                     ) RETURNING id
                 """),
                 {
@@ -2667,7 +2630,8 @@ def create_exercise():
                     'amount_sets': data['amount_sets'],
                     'amount_reps': data['amount_reps'],
                     'weight': data['weight'],
-                    'rest_time': data['rest_time']
+                    'rest_time': data['rest_time'],
+                    'user_id': user_id
                 }
             )
             
@@ -2683,6 +2647,258 @@ def create_exercise():
         print(f"Error creating exercise: {str(e)}")
         return jsonify({'error': str(e)}), 500
     
+@app.route('/api/exercises/<int:exercise_id>', methods=['GET'])
+@auth_required
+def get_exercise_details(exercise_id):
+    try:
+        user_id = g.user_id  # Get authenticated user's ID
+        
+        with db.engine.connect() as connection:
+            result = connection.execute(text('''
+                SELECT 
+                    id, name, workout_type, amount_sets,
+                    amount_reps, weight, rest_time
+                FROM exercises 
+                WHERE id = :exercise_id AND user_id = :user_id
+            '''), {
+                'exercise_id': exercise_id,
+                'user_id': user_id
+            })
+            
+            exercise = result.fetchone()
+            
+            if not exercise:
+                return jsonify({'error': 'Exercise not found or unauthorized'}), 404
+            
+            exercise_data = {
+                'id': exercise.id,
+                'name': exercise.name,
+                'workout_type': exercise.workout_type,
+                'amount_sets': exercise.amount_sets,
+                'amount_reps': exercise.amount_reps,
+                'weight': exercise.weight,
+                'rest_time': exercise.rest_time
+            }
+            
+            return jsonify(exercise_data)
+            
+    except Exception as e:
+        print(f"Error fetching exercise: {str(e)}")
+        return jsonify({
+            'error': str(e),
+            'error_type': type(e).__name__
+        }), 500
+    
+
+
+@app.route('/api/exercises/<int:exercise_id>', methods=['DELETE'])
+@auth_required
+def delete_exercise(exercise_id):
+    try:
+        user_id = g.user_id  # Get authenticated user's ID
+        
+        with db.engine.connect() as connection:
+            # First verify ownership
+            check_result = connection.execute(
+                text("SELECT id FROM exercises WHERE id = :id AND user_id = :user_id"),
+                {"id": exercise_id, "user_id": user_id}
+            ).fetchone()
+            
+            if not check_result:
+                return jsonify({'error': 'Exercise not found or unauthorized'}), 404
+            
+            # Delete associated records
+            connection.execute(
+                text("DELETE FROM set_history WHERE exercise_id = :id"),
+                {"id": exercise_id}
+            )
+            
+            connection.execute(
+                text("DELETE FROM individual_set WHERE exercise_id = :id"),
+                {"id": exercise_id}
+            )
+            
+            # Delete the exercise
+            connection.execute(
+                text("DELETE FROM exercises WHERE id = :id AND user_id = :user_id"),
+                {"id": exercise_id, "user_id": user_id}
+            )
+            
+            connection.commit()
+            return jsonify({'message': 'Exercise deleted successfully'}), 200
+            
+    except Exception as e:
+        print(f"Error deleting exercise: {str(e)}")
+        return jsonify({'error': str(e)}), 500
+    
+
+@app.route('/api/exercises/<int:exercise_id>/sets', methods=['POST'])
+@auth_required  # Requires valid auth token
+def save_exercise_sets(exercise_id):
+    try:
+        user_id = g.user_id  # Get authenticated user's ID from auth decorator
+        print(f"Attempting to save sets for exercise_id: {exercise_id}")
+        
+        # First verify the exercise belongs to this user
+        with db.engine.connect() as connection:
+            ownership_check = connection.execute(
+                text("SELECT id FROM exercises WHERE id = :exercise_id AND user_id = :user_id"),
+                {"exercise_id": exercise_id, "user_id": user_id}
+            ).fetchone()
+            
+            if not ownership_check:
+                return jsonify({'error': 'Exercise not found or unauthorized'}), 404
+
+            data = request.json
+            with db.session.begin_nested():  # Create a savepoint
+                # Create new history entry
+                new_history = SetHistory(
+                    exercise_id=exercise_id,
+                    created_at=datetime.utcnow()
+                )
+                db.session.add(new_history)
+                db.session.flush()
+                
+                # Add sets
+                for set_data in data.get('sets', []):
+                    new_set = IndividualSet(
+                        exercise_id=exercise_id,
+                        set_history_id=new_history.id,
+                        set_number=set_data.get('set_number', 1),
+                        reps=set_data.get('reps', 0),
+                        weight=set_data.get('weight', 0)
+                    )
+                    db.session.add(new_set)
+                
+                db.session.flush()
+                
+                # Query back the saved sets for response
+                saved_sets = IndividualSet.query.filter_by(
+                    set_history_id=new_history.id
+                ).order_by(IndividualSet.set_number).all()
+                
+                response_data = {
+                    'history_id': new_history.id,
+                    'created_at': new_history.created_at.isoformat(),
+                    'sets': [{
+                        'id': set.id,
+                        'set_number': set.set_number,
+                        'reps': set.reps,
+                        'weight': set.weight
+                    } for set in saved_sets]
+                }
+
+            db.session.commit()
+            return jsonify(response_data), 201
+
+    except Exception as e:
+        db.session.rollback()
+        print(f"Error saving sets: {str(e)}")
+        return jsonify({'error': str(e)}), 500
+    
+@app.route('/api/exercises/<int:exercise_id>/sets/history', methods=['GET'])
+@auth_required
+def get_exercise_set_history(exercise_id):
+    try:
+        user_id = g.user_id
+        
+        # Verify exercise ownership
+        with db.engine.connect() as connection:
+            ownership_check = connection.execute(
+                text("SELECT id FROM exercises WHERE id = :exercise_id AND user_id = :user_id"),
+                {"exercise_id": exercise_id, "user_id": user_id}
+            ).fetchone()
+            
+            if not ownership_check:
+                return jsonify({'error': 'Exercise not found or unauthorized'}), 404
+
+            # Get all history records for this exercise
+            result = connection.execute(text("""
+                SELECT 
+                    sh.id as history_id,
+                    sh.created_at,
+                    json_agg(
+                        json_build_object(
+                            'set_number', s.set_number,
+                            'reps', s.reps,
+                            'weight', s.weight
+                        ) ORDER BY s.set_number
+                    ) as sets
+                FROM set_history sh
+                LEFT JOIN individual_set s ON sh.id = s.set_history_id
+                WHERE sh.exercise_id = :exercise_id
+                GROUP BY sh.id, sh.created_at
+                ORDER BY sh.created_at DESC
+            """), {"exercise_id": exercise_id})
+
+            history_data = [{
+                'id': row.history_id,
+                'created_at': row.created_at.isoformat(),
+                'sets': row.sets if row.sets else []
+            } for row in result]
+
+            return jsonify({'history': history_data})
+
+    except Exception as e:
+        print(f"Error fetching exercise history: {str(e)}")
+        return jsonify({'error': str(e)}), 500
+    
+@app.route('/api/exercises/<int:exercise_id>/sets/latest', methods=['GET'])
+@auth_required
+def get_latest_set(exercise_id):
+    try:
+        user_id = g.user_id
+        
+        with db.engine.connect() as connection:
+            # First verify ownership
+            ownership_check = connection.execute(
+                text("SELECT id FROM exercises WHERE id = :exercise_id AND user_id = :user_id"),
+                {"exercise_id": exercise_id, "user_id": user_id}
+            ).fetchone()
+            
+            if not ownership_check:
+                return jsonify({'error': 'Exercise not found or unauthorized'}), 404
+
+            # Find the most recent set_history and its best set
+            result = connection.execute(text("""
+                WITH LatestHistory AS (
+                    SELECT id
+                    FROM set_history 
+                    WHERE exercise_id = :exercise_id
+                    ORDER BY created_at DESC
+                    LIMIT 1
+                )
+                SELECT 
+                    s.id,
+                    s.weight,
+                    s.reps,
+                    h.created_at
+                FROM individual_set s
+                JOIN set_history h ON s.set_history_id = h.id
+                WHERE s.exercise_id = :exercise_id
+                AND h.id IN (SELECT id FROM LatestHistory)
+                ORDER BY s.weight DESC, s.reps DESC
+                LIMIT 1
+            """), {"exercise_id": exercise_id})
+            
+            latest_set = result.fetchone()
+            
+            if latest_set:
+                return jsonify({
+                    'latestSet': {
+                        'id': latest_set.id,
+                        'weight': latest_set.weight,
+                        'reps': latest_set.reps,
+                        'created_at': latest_set.created_at.isoformat()
+                    }
+                })
+            else:
+                return jsonify({'latestSet': None})
+
+    except Exception as e:
+        print(f"Error fetching latest set: {str(e)}")
+        return jsonify({'error': str(e)}), 500
+
 # Add these new routes above the existing grocery list routes
 @app.route('/api/grocery-lists/<int:list_id>', methods=['DELETE'])
 def delete_grocery_list(list_id):
@@ -4908,132 +5124,13 @@ def get_recipe_nutrition(recipe_id):
         print(f"Error getting nutrition info: {str(e)}")
         return jsonify({'error': str(e)}), 500
     
-@app.route('/api/exercises/<int:exercise_id>', methods=['GET'])
-def get_exercise_details(exercise_id):
-    try:
-        # Connect to database explicitly
-        with db.engine.connect() as connection:
-            # Fetch exercise with explicit column selection
-            result = connection.execute(text('''
-                SELECT 
-                    id,
-                    name,
-                    workout_type,
-                    amount_sets,
-                    amount_reps,
-                    weight,
-                    rest_time
-                FROM exercises 
-                WHERE id = :exercise_id
-            '''), {'exercise_id': exercise_id})
-            
-            exercise = result.fetchone()
-            
-            if not exercise:
-                return jsonify({'error': 'Exercise not found'}), 404
-            
-            # Convert to dictionary with explicit mapping
-            exercise_data = {
-                'id': exercise.id,
-                'name': exercise.name,
-                'workout_type': exercise.workout_type,
-                'amount_sets': exercise.amount_sets,
-                'amount_reps': exercise.amount_reps,
-                'weight': exercise.weight,
-                'rest_time': exercise.rest_time
-            }
-            
-            return jsonify(exercise_data)
-            
-    except Exception as e:
-        print(f"Error fetching exercise: {str(e)}")
-        import traceback
-        traceback.print_exc()
-        return jsonify({
-            'error': str(e),
-            'error_type': type(e).__name__
-        }), 500
+
     
 
 # Add this route to your app.py
 
 # Replace or update your sets endpoint in app.py
 
-@app.route('/api/exercises/<int:exercise_id>/sets', methods=['POST'])
-def save_exercise_sets(exercise_id):
-    try:
-        print(f"Attempting to save sets for exercise_id: {exercise_id}")  # Debug log
-        
-        # First verify the exercise exists using raw SQL for debugging
-        with db.engine.connect() as connection:
-            result = connection.execute(
-                text("SELECT id, name FROM exercises WHERE id = :exercise_id"),
-                {"exercise_id": exercise_id}
-            ).fetchone()
-            
-            print(f"Database query result: {result}")  # Debug log
-            
-            if not result:
-                print(f"Exercise with ID {exercise_id} not found in database")  # Debug log
-                return jsonify({'error': 'Exercise not found'}), 404
-
-        data = request.json
-        print(f"Received sets data:", data)  # Debug log
-
-        with db.session.begin_nested():  # Create a savepoint
-            # Create new history entry
-            new_history = SetHistory(
-                exercise_id=exercise_id,
-                created_at=datetime.utcnow()
-            )
-            db.session.add(new_history)
-            db.session.flush()  # Get the history ID
-            
-            print(f"Created history record with ID: {new_history.id}")  # Debug log
-            
-            # Add sets
-            for set_data in data.get('sets', []):
-                new_set = IndividualSet(
-                    exercise_id=exercise_id,
-                    set_history_id=new_history.id,
-                    set_number=set_data.get('set_number', 1),
-                    reps=set_data.get('reps', 0),
-                    weight=set_data.get('weight', 0)
-                )
-                db.session.add(new_set)
-            
-            db.session.flush()  # Ensure all sets are created
-            
-            # Query back the saved sets
-            saved_sets = IndividualSet.query.filter_by(
-                set_history_id=new_history.id
-            ).order_by(IndividualSet.set_number).all()
-            
-            response_data = {
-                'history_id': new_history.id,
-                'created_at': new_history.created_at.isoformat(),
-                'sets': [{
-                    'id': set.id,
-                    'set_number': set.set_number,
-                    'reps': set.reps,
-                    'weight': set.weight
-                } for set in saved_sets]
-            }
-
-        # If we got here, commit the transaction
-        db.session.commit()
-        print("Successfully saved all sets")  # Debug log
-        return jsonify(response_data), 201
-
-    except Exception as e:
-        db.session.rollback()
-        print(f"Error saving sets: {str(e)}")
-        print("Full error details:", e.__class__.__name__)  # Print error class name
-        import traceback
-        traceback.print_exc()  # Print full stack trace
-        return jsonify({
-            'error': f"Failed to save sets: {str(e)}"
-        }), 500
 
 # Add a test route to verify exercise existence
 @app.route('/api/exercises/<int:exercise_id>/test', methods=['GET'])
@@ -5361,53 +5458,6 @@ def get_weekly_workouts():
         print(f"Error fetching weekly workouts: {str(e)}")
         return jsonify({'error': str(e)}), 500
 
-@app.route('/api/exercises/<int:exercise_id>/sets/latest', methods=['GET'])
-def get_latest_set(exercise_id):
-    try:
-        engine = create_engine(db_url, poolclass=NullPool)
-        
-        with engine.connect() as connection:
-            # Find the most recent set_history first
-            result = connection.execute(text("""
-                WITH LatestHistory AS (
-                    SELECT id
-                    FROM set_history 
-                    WHERE exercise_id = :exercise_id
-                    ORDER BY created_at DESC
-                    LIMIT 1
-                )
-                SELECT 
-                    s.id,
-                    s.weight,
-                    s.reps,
-                    h.created_at
-                FROM individual_set s
-                JOIN set_history h ON s.set_history_id = h.id
-                WHERE s.exercise_id = :exercise_id
-                AND h.id IN (SELECT id FROM LatestHistory)
-                ORDER BY s.weight DESC, s.reps DESC
-                LIMIT 1
-            """), {
-                "exercise_id": exercise_id
-            })
-            
-            latest_set = result.fetchone()
-            
-            if latest_set:
-                return jsonify({
-                    'latestSet': {
-                        'id': latest_set.id,
-                        'weight': latest_set.weight,
-                        'reps': latest_set.reps,
-                        'created_at': latest_set.created_at.isoformat() if latest_set.created_at else None
-                    }
-                })
-            else:
-                return jsonify({'latestSet': None})
-                
-    except Exception as e:
-        print(f"Error fetching latest set: {str(e)}")
-        return jsonify({'error': str(e)}), 500
 
     
 @app.route('/api/grocery-lists/<int:list_id>/import-to-fridge', methods=['POST'])
