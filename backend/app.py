@@ -2735,66 +2735,79 @@ def delete_exercise(exercise_id):
     
 
 @app.route('/api/exercises/<int:exercise_id>/sets', methods=['POST'])
-@auth_required  # Requires valid auth token
+@auth_required
 def save_exercise_sets(exercise_id):
     try:
-        user_id = g.user_id  # Get authenticated user's ID from auth decorator
-        print(f"Attempting to save sets for exercise_id: {exercise_id}")
+        user_id = g.user_id
+        engine = create_engine(db_url, poolclass=NullPool)
         
-        # First verify the exercise belongs to this user
-        with db.engine.connect() as connection:
+        with engine.connect() as connection:
+            # First verify the exercise belongs to this user
             ownership_check = connection.execute(
-                text("SELECT id FROM exercises WHERE id = :exercise_id AND user_id = :user_id"),
-                {"exercise_id": exercise_id, "user_id": user_id}
+                text("""
+                    SELECT id FROM exercises 
+                    WHERE id = :exercise_id AND user_id = :user_id
+                """),
+                {
+                    "exercise_id": exercise_id,
+                    "user_id": user_id
+                }
             ).fetchone()
             
             if not ownership_check:
                 return jsonify({'error': 'Exercise not found or unauthorized'}), 404
 
             data = request.json
-            with db.session.begin_nested():  # Create a savepoint
+            
+            # Start a transaction
+            with connection.begin():
                 # Create new history entry
-                new_history = SetHistory(
-                    exercise_id=exercise_id,
-                    created_at=datetime.utcnow()
+                history_result = connection.execute(
+                    text("""
+                        INSERT INTO set_history (exercise_id, created_at)
+                        VALUES (:exercise_id, CURRENT_TIMESTAMP)
+                        RETURNING id, created_at
+                    """),
+                    {"exercise_id": exercise_id}
                 )
-                db.session.add(new_history)
-                db.session.flush()
+                history = history_result.fetchone()
                 
                 # Add sets
+                sets = []
                 for set_data in data.get('sets', []):
-                    new_set = IndividualSet(
-                        exercise_id=exercise_id,
-                        set_history_id=new_history.id,
-                        set_number=set_data.get('set_number', 1),
-                        reps=set_data.get('reps', 0),
-                        weight=set_data.get('weight', 0)
+                    set_result = connection.execute(
+                        text("""
+                            INSERT INTO individual_set (
+                                exercise_id, set_history_id, 
+                                set_number, reps, weight
+                            ) VALUES (
+                                :exercise_id, :history_id,
+                                :set_number, :reps, :weight
+                            ) RETURNING id, set_number, reps, weight
+                        """),
+                        {
+                            "exercise_id": exercise_id,
+                            "history_id": history.id,
+                            "set_number": set_data.get('set_number', 1),
+                            "reps": set_data.get('reps', 0),
+                            "weight": set_data.get('weight', 0)
+                        }
                     )
-                    db.session.add(new_set)
-                
-                db.session.flush()
-                
-                # Query back the saved sets for response
-                saved_sets = IndividualSet.query.filter_by(
-                    set_history_id=new_history.id
-                ).order_by(IndividualSet.set_number).all()
-                
-                response_data = {
-                    'history_id': new_history.id,
-                    'created_at': new_history.created_at.isoformat(),
-                    'sets': [{
-                        'id': set.id,
-                        'set_number': set.set_number,
-                        'reps': set.reps,
-                        'weight': set.weight
-                    } for set in saved_sets]
-                }
+                    set_row = set_result.fetchone()
+                    sets.append({
+                        'id': set_row.id,
+                        'set_number': set_row.set_number,
+                        'reps': set_row.reps,
+                        'weight': set_row.weight
+                    })
 
-            db.session.commit()
-            return jsonify(response_data), 201
+            return jsonify({
+                'history_id': history.id,
+                'created_at': history.created_at.isoformat(),
+                'sets': sets
+            }), 201
 
     except Exception as e:
-        db.session.rollback()
         print(f"Error saving sets: {str(e)}")
         return jsonify({'error': str(e)}), 500
     
@@ -2803,18 +2816,25 @@ def save_exercise_sets(exercise_id):
 def get_exercise_set_history(exercise_id):
     try:
         user_id = g.user_id
+        engine = create_engine(db_url, poolclass=NullPool)
         
-        # Verify exercise ownership
-        with db.engine.connect() as connection:
+        with engine.connect() as connection:
+            # First verify exercise ownership
             ownership_check = connection.execute(
-                text("SELECT id FROM exercises WHERE id = :exercise_id AND user_id = :user_id"),
-                {"exercise_id": exercise_id, "user_id": user_id}
+                text("""
+                    SELECT id FROM exercises 
+                    WHERE id = :exercise_id AND user_id = :user_id
+                """),
+                {
+                    "exercise_id": exercise_id,
+                    "user_id": user_id
+                }
             ).fetchone()
             
             if not ownership_check:
                 return jsonify({'error': 'Exercise not found or unauthorized'}), 404
 
-            # Get all history records for this exercise
+            # Get all history records with their sets
             result = connection.execute(text("""
                 SELECT 
                     sh.id as history_id,
@@ -2852,16 +2872,22 @@ def get_latest_set(exercise_id):
         user_id = g.user_id
         
         with db.engine.connect() as connection:
-            # First verify ownership
+            # First verify exercise ownership
             ownership_check = connection.execute(
-                text("SELECT id FROM exercises WHERE id = :exercise_id AND user_id = :user_id"),
-                {"exercise_id": exercise_id, "user_id": user_id}
+                text("""
+                    SELECT id FROM exercises 
+                    WHERE id = :exercise_id AND user_id = :user_id
+                """),
+                {
+                    "exercise_id": exercise_id,
+                    "user_id": user_id
+                }
             ).fetchone()
             
             if not ownership_check:
                 return jsonify({'error': 'Exercise not found or unauthorized'}), 404
 
-            # Find the most recent set_history and its best set
+            # Get latest set with proper ordering and filtering
             result = connection.execute(text("""
                 WITH LatestHistory AS (
                     SELECT id
@@ -2877,11 +2903,12 @@ def get_latest_set(exercise_id):
                     h.created_at
                 FROM individual_set s
                 JOIN set_history h ON s.set_history_id = h.id
-                WHERE s.exercise_id = :exercise_id
-                AND h.id IN (SELECT id FROM LatestHistory)
+                WHERE h.id IN (SELECT id FROM LatestHistory)
                 ORDER BY s.weight DESC, s.reps DESC
                 LIMIT 1
-            """), {"exercise_id": exercise_id})
+            """), {
+                "exercise_id": exercise_id
+            })
             
             latest_set = result.fetchone()
             
@@ -2940,6 +2967,53 @@ def delete_grocery_list(list_id):
         
     except Exception as e:
         print(f"Error deleting grocery list: {str(e)}")
+        return jsonify({'error': str(e)}), 500
+    
+@app.route('/api/exercises/<int:exercise_id>/history/<int:history_id>', methods=['DELETE'])
+@auth_required
+def delete_exercise_history(exercise_id, history_id):
+    try:
+        user_id = g.user_id
+        engine = create_engine(db_url, poolclass=NullPool)
+        
+        with engine.connect() as connection:
+            # First verify exercise ownership
+            ownership_check = connection.execute(
+                text("""
+                    SELECT id FROM exercises 
+                    WHERE id = :exercise_id AND user_id = :user_id
+                """),
+                {
+                    "exercise_id": exercise_id,
+                    "user_id": user_id
+                }
+            ).fetchone()
+            
+            if not ownership_check:
+                return jsonify({'error': 'Exercise not found or unauthorized'}), 404
+
+            # Delete the history and its associated sets (cascade delete will handle sets)
+            result = connection.execute(
+                text("""
+                    DELETE FROM set_history 
+                    WHERE id = :history_id 
+                    AND exercise_id = :exercise_id
+                    RETURNING id
+                """),
+                {
+                    "history_id": history_id,
+                    "exercise_id": exercise_id
+                }
+            )
+            
+            if not result.rowcount:
+                return jsonify({'error': 'History record not found'}), 404
+
+            connection.commit()
+            return jsonify({'message': 'Exercise history deleted successfully'})
+
+    except Exception as e:
+        print(f"Error deleting exercise history: {str(e)}")
         return jsonify({'error': str(e)}), 500
 
 

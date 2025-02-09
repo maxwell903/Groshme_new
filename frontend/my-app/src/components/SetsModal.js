@@ -1,11 +1,14 @@
 import React, { useState, useEffect } from 'react';
 import { X, Loader } from 'lucide-react';
 const API_URL = process.env.NEXT_PUBLIC_API_URL
+import { useAuth } from '@/contexts/AuthContext';
 
 const SetsModal = ({ exercise, isOpen, onClose }) => {
   const [sets, setSets] = useState([]);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const { user } = useAuth();
 
   useEffect(() => {
     // Initialize sets based on exercise.amount_sets
@@ -22,31 +25,46 @@ const SetsModal = ({ exercise, isOpen, onClose }) => {
   // Fetch existing sets if any
   useEffect(() => {
     const fetchExistingSets = async () => {
-      if (!exercise?.id) return;
+      if (!exercise?.id || !isOpen || !user) return;
       
       try {
-        const response = await fetch(`${API_URL}/api/exercises/${exercise.id}/sets`);
-        const text = await response.text();
+        setLoading(true);
+        setError(null);
         
-        try {
-          const data = JSON.parse(text);
-          if (response.ok && data.sets?.length > 0) {
-            setSets(data.sets);
+        const token = localStorage.getItem('access_token');
+        if (!token) {
+          throw new Error('No authentication token found');
+        }
+        
+        const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/exercises/${exercise.id}/sets`, {
+          headers: {
+            'Authorization': `Bearer ${token}`
           }
-        } catch (e) {
-          console.error('Error parsing response:', text);
-          throw new Error('Invalid response from server');
+        });
+
+        if (!response.ok) {
+          if (response.status === 401) {
+            throw new Error('Please sign in to view sets');
+          }
+          throw new Error('Failed to load existing sets');
+        }
+
+        const data = await response.json();
+        if (data.sets?.length > 0) {
+          setSets(data.sets);
         }
       } catch (error) {
         console.error('Error fetching existing sets:', error);
-        setError('Failed to load existing sets');
+        setError(error.message || 'Failed to load sets');
+      } finally {
+        setLoading(false);
       }
     };
 
     if (exercise && isOpen) {
       fetchExistingSets();
     }
-  }, [exercise, isOpen]);
+  }, [exercise, isOpen, user]);
 
   const handleSetChange = (index, field, value) => {
     const newSets = [...sets];
@@ -59,41 +77,42 @@ const SetsModal = ({ exercise, isOpen, onClose }) => {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    setSubmitting(true);
-    setError(null);
+    if (!user) {
+      setError('Please sign in to save sets');
+      return;
+    }
 
     try {
-      // Validate sets data
+      setSubmitting(true);
+      setError(null);
+      
+      const token = localStorage.getItem('access_token');
+      if (!token) {
+        throw new Error('No authentication token found');
+      }
+
       const validSets = sets.map(set => ({
         set_number: parseInt(set.set_number, 10),
-        weight: parseFloat(set.weight) || '',
-        reps: parseInt(set.reps, 10) || ''
+        weight: parseFloat(set.weight) || 0,
+        reps: parseInt(set.reps, 10) || 0
       }));
 
-      const response = await fetch(`${API_URL}/api/exercises/${exercise.id}/sets`, {
+      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/exercises/${exercise.id}/sets`, {
         method: 'POST',
         headers: {
-          'Content-Type': 'application/json'
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
         },
-        body: JSON.stringify({ 
-          sets: validSets
-        })
+        body: JSON.stringify({ sets: validSets })
       });
 
-      const text = await response.text();
-      let data;
-      try {
-        data = JSON.parse(text);
-      } catch (e) {
-        console.error('Invalid JSON response:', text);
-        throw new Error('Invalid response from server');
-      }
-
       if (!response.ok) {
-        throw new Error(data.error || 'Failed to save sets');
+        if (response.status === 401) {
+          throw new Error('Please sign in to save sets');
+        }
+        throw new Error('Failed to save sets');
       }
 
-      // Success
       onClose();
     } catch (error) {
       console.error('Error saving sets:', error);
@@ -104,6 +123,7 @@ const SetsModal = ({ exercise, isOpen, onClose }) => {
   };
 
   if (!isOpen) return null;
+
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
