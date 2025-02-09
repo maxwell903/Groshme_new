@@ -1,6 +1,5 @@
 import React, { useState, useEffect } from 'react';
 import { X, Search, Plus } from 'lucide-react';
-import { Alert, AlertTitle, AlertDescription } from '@/components/ui/alert';
 
 const ExerciseSearchModal = ({ isOpen, onClose, onExercisesSelected, weekId, day }) => {
   const [searchTerm, setSearchTerm] = useState('');
@@ -278,10 +277,7 @@ const ExerciseSearchModal = ({ isOpen, onClose, onExercisesSelected, weekId, day
             {loading ? (
               <div className="text-center py-4">Loading exercises...</div>
             ) : error ? (
-              <Alert variant="destructive">
-                <AlertTitle>Error</AlertTitle>
-                <AlertDescription>{error}</AlertDescription>
-              </Alert>
+              <div className="text-red-600 p-4">{error}</div>
             ) : (
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 {filteredExercises.map((exercise) => {
