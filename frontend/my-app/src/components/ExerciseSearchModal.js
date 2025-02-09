@@ -27,7 +27,7 @@ const ExerciseSearchModal = ({ isOpen, onClose, onExercisesSelected, weekId, day
     const fetchExercises = async () => {
       try {
         const token = localStorage.getItem('access_token');
-        const response = await fetch('/api/exercises', {
+        const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/exercises`, {
           headers: {
             'Authorization': `Bearer ${token}`,
             'Content-Type': 'application/json'

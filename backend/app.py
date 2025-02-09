@@ -2605,20 +2605,30 @@ def parse_receipt_bill():
 def list_exercises():
     try:
         user_id = g.user_id  # Get authenticated user's ID
+        
         with db.engine.connect() as connection:
-            result = connection.execute(text('''
+            result = connection.execute(text("""
                 SELECT 
-                    id, name, workout_type, amount_sets,
-                    amount_reps, weight, rest_time
-                FROM exercises 
-                WHERE user_id = :user_id
-                ORDER BY name
-            '''), {"user_id": user_id})
+                    e.id, 
+                    e.name, 
+                    e.workout_type, 
+                    e.major_groups,
+                    e.minor_groups,
+                    e.amount_sets,
+                    e.amount_reps,
+                    e.weight,
+                    e.rest_time
+                FROM exercises e
+                WHERE e.user_id = :user_id
+                ORDER BY e.name
+            """), {"user_id": user_id})
             
             exercises = [{
                 'id': row.id,
                 'name': row.name,
                 'workout_type': row.workout_type,
+                'major_groups': row.major_groups,
+                'minor_groups': row.minor_groups,
                 'amount_sets': row.amount_sets,
                 'amount_reps': row.amount_reps,
                 'weight': row.weight,
@@ -2627,8 +2637,7 @@ def list_exercises():
             
             return jsonify({
                 'success': True,
-                'exercises': exercises,
-                'count': len(exercises)
+                'exercises': exercises
             })
             
     except Exception as e:
