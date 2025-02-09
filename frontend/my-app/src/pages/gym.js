@@ -93,12 +93,24 @@ const DaySelector = ({ isOpen, onClose, onDaySelect }) => {
 
 const WeekCard = ({ week, onDeleteWeek }) => {
   const [isExpanded, setIsExpanded] = useState(false);
+  const [showSearchModal, setShowSearchModal] = useState(false);
+  const [selectedDay, setSelectedDay] = useState(null);
 
   const formatDateRange = () => {
     if (!week.start_date || !week.end_date) return '';
     const startDate = new Date(week.start_date);
     const endDate = new Date(week.end_date);
     return `${startDate.toLocaleDateString()} - ${endDate.toLocaleDateString()}`;
+  };
+
+  const handleAddExercises = (day) => {
+    setSelectedDay(day);
+    setShowSearchModal(true);
+  };
+
+  const handleExercisesSelected = () => {
+    // Refresh data or update local state as needed
+    setShowSearchModal(false);
   };
 
   return (
@@ -129,15 +141,33 @@ const WeekCard = ({ week, onDeleteWeek }) => {
           {['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'].map((day) => (
             <div key={day} className="p-2 border rounded">
               <h4 className="font-medium mb-2">{day}</h4>
-              <button
-                className="w-full text-sm text-blue-600 hover:text-blue-800"
-              >
-                Add Exercise
-              </button>
+              <div className="space-y-2">
+                {/* Show existing exercises for this day */}
+                {week.daily_workouts?.[day]?.map((exercise, index) => (
+                  <div key={index} className="text-sm text-gray-600">
+                    {exercise.name}
+                  </div>
+                ))}
+                
+                <button
+                  onClick={() => handleAddExercises(day)}
+                  className="w-full text-sm text-blue-600 hover:text-blue-800"
+                >
+                  Add Exercise
+                </button>
+              </div>
             </div>
           ))}
         </div>
       )}
+
+      <ExerciseSearchModal
+        isOpen={showSearchModal}
+        onClose={() => setShowSearchModal(false)}
+        onExercisesSelected={handleExercisesSelected}
+        weekId={week.id}
+        day={selectedDay}
+      />
     </div>
   );
 };
