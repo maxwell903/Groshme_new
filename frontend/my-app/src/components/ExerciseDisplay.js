@@ -210,9 +210,9 @@ const ExerciseCard = ({ exercise }) => {
   
     if (error) {
       return (
-        <Alert variant="destructive">
-          <AlertDescription>{error}</AlertDescription>
-        </Alert>
+        <div className="p-4 bg-red-100 text-red-700 rounded-lg">
+          {error}
+        </div>
       );
     }
   
