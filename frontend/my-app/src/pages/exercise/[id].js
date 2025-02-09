@@ -2,12 +2,15 @@ import { useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/router';
 import Link from 'next/link';
 import { Trash, X, Edit, ArrowLeft } from 'lucide-react';
-const API_URL = process.env.NEXT_PUBLIC_API_URL
+import { useAuth } from '@/contexts/AuthContext';
+const API_URL = process.env.NEXT_PUBLIC_API_URL;
 import EditExerciseModal from '@/components/EditExerciseModal';
+
 
 const ExerciseDetailsPage = () => {
   const router = useRouter();
   const { id } = router.query;
+  const { user } = useAuth();  // Add auth context
   const [exercise, setExercise] = useState(null);
   const [history, setHistory] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -16,24 +19,45 @@ const ExerciseDetailsPage = () => {
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
 
   const fetchExerciseAndHistory = useCallback(async () => {
-    if (!id) return;
+    if (!id || !user) return;
 
     try {
       setLoading(true);
       setError(null);
 
-      const exerciseRes = await fetch(`${API_URL}/api/exercises/${id}`);
+      // Get the auth token
+      const token = localStorage.getItem('access_token');
+      if (!token) {
+        throw new Error('No authentication token found');
+      }
+
+      const headers = {
+        'Authorization': `Bearer ${token}`,
+        'Content-Type': 'application/json'
+      };
+
+      // Fetch exercise details with auth
+      const exerciseRes = await fetch(`${API_URL}/api/exercises/${id}`, {
+        headers
+      });
+
       if (!exerciseRes.ok) {
-        const errorText = await exerciseRes.text();
-        console.error('Exercise fetch error:', errorText);
+        if (exerciseRes.status === 401) {
+          throw new Error('Please sign in to view exercise details');
+        }
         throw new Error('Failed to fetch exercise details');
       }
       const exerciseData = await exerciseRes.json();
 
-      const historyRes = await fetch(`${API_URL}/api/exercises/${id}/sets/history`);
+      // Fetch history with auth
+      const historyRes = await fetch(`${API_URL}/api/exercises/${id}/sets/history`, {
+        headers
+      });
+
       if (!historyRes.ok) {
-        const errorText = await historyRes.text();
-        console.error('History fetch error:', errorText);
+        if (historyRes.status === 401) {
+          throw new Error('Please sign in to view exercise history');
+        }
         throw new Error('Failed to fetch exercise history');
       }
       const historyData = await historyRes.json();
@@ -47,10 +71,13 @@ const ExerciseDetailsPage = () => {
     } catch (err) {
       console.error('Error fetching exercise data:', err);
       setError(err.message || 'Failed to load exercise data');
+      if (err.message.includes('sign in')) {
+        router.push('/signin');
+      }
     } finally {
       setLoading(false);
     }
-  }, [id]);
+  }, [id, user, router]);
 
   useEffect(() => {
     if (id) {
@@ -65,13 +92,19 @@ const ExerciseDetailsPage = () => {
 
     try {
       setIsDeleting(true);
+      const token = localStorage.getItem('access_token');
+      
       const response = await fetch(`${API_URL}/api/exercises/${id}`, {
         method: 'DELETE',
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
       });
 
       if (!response.ok) {
-        const errorText = await response.text();
-        console.error('Delete error:', errorText);
+        if (response.status === 401) {
+          throw new Error('Please sign in to delete exercise');
+        }
         throw new Error('Failed to delete exercise');
       }
 
@@ -79,6 +112,9 @@ const ExerciseDetailsPage = () => {
     } catch (err) {
       console.error('Error deleting exercise:', err);
       setError(err.message || 'Failed to delete exercise');
+      if (err.message.includes('sign in')) {
+        router.push('/signin');
+      }
       setIsDeleting(false);
     }
   };
@@ -89,13 +125,19 @@ const ExerciseDetailsPage = () => {
     }
 
     try {
+      const token = localStorage.getItem('access_token');
+      
       const response = await fetch(`${API_URL}/api/exercises/${id}/history/${historyId}`, {
         method: 'DELETE',
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
       });
 
       if (!response.ok) {
-        const errorText = await response.text();
-        console.error('Delete session error:', errorText);
+        if (response.status === 401) {
+          throw new Error('Please sign in to delete session');
+        }
         throw new Error('Failed to delete session');
       }
 
@@ -103,6 +145,9 @@ const ExerciseDetailsPage = () => {
     } catch (err) {
       console.error('Error deleting session:', err);
       setError(err.message || 'Failed to delete session');
+      if (err.message.includes('sign in')) {
+        router.push('/signin');
+      }
     }
   };
 
