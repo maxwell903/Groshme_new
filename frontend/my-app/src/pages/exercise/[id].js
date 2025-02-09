@@ -123,24 +123,30 @@ const ExerciseDetailsPage = () => {
     if (!confirm('Are you sure you want to delete this session?')) {
       return;
     }
-
+  
     try {
       const token = localStorage.getItem('access_token');
-      
-      const response = await fetch(`${API_URL}/api/exercises/${id}/history/${historyId}`, {
+      if (!token) {
+        throw new Error('Authentication token not found');
+      }
+  
+      const response = await fetch(`${API_URL}/api/exercise/${id}/history/${historyId}`, {
         method: 'DELETE',
         headers: {
-          'Authorization': `Bearer ${token}`
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
         }
       });
-
+  
       if (!response.ok) {
         if (response.status === 401) {
           throw new Error('Please sign in to delete session');
         }
-        throw new Error('Failed to delete session');
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.error || 'Failed to delete session');
       }
-
+  
+      // Refresh the history data
       await fetchExerciseAndHistory();
     } catch (err) {
       console.error('Error deleting session:', err);

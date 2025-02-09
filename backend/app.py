@@ -1321,22 +1321,41 @@ def manage_exercise(exercise_id):
         }), 500
 
 
-
-@app.route('/api/exercise/<int:exercise_id>/sets', methods=['POST'])
+@app.route('/api/exercises/<int:exercise_id>/sets', methods=['POST'])
+@auth_required
 def add_exercise_sets(exercise_id):
     try:
+        user_id = g.user_id  # Get authenticated user's ID from auth decorator
         data = request.json
         engine = create_engine(db_url, poolclass=NullPool)
         
         with engine.connect() as connection:
-            # Create new history entry
+            # Verify exercise belongs to user
+            exercise_check = connection.execute(
+                text("""
+                    SELECT id FROM exercises 
+                    WHERE id = :exercise_id AND user_id = :user_id
+                """),
+                {
+                    "exercise_id": exercise_id,
+                    "user_id": user_id
+                }
+            ).fetchone()
+            
+            if not exercise_check:
+                return jsonify({'error': 'Exercise not found or unauthorized'}), 404
+
+            # Create new history entry with user_id
             history_result = connection.execute(
                 text("""
-                    INSERT INTO set_history (exercise_id, created_at)
-                    VALUES (:exercise_id, CURRENT_TIMESTAMP)
+                    INSERT INTO set_history (exercise_id, created_at, user_id)
+                    VALUES (:exercise_id, CURRENT_TIMESTAMP, :user_id)
                     RETURNING id
                 """),
-                {'exercise_id': exercise_id}
+                {
+                    'exercise_id': exercise_id,
+                    'user_id': user_id  # Add the user_id to the insert
+                }
             )
             history_id = history_result.fetchone()[0]
             
@@ -1365,6 +1384,7 @@ def add_exercise_sets(exercise_id):
     except Exception as e:
         print(f"Error saving sets: {str(e)}")
         return jsonify({'error': str(e)}), 500
+
     
 @app.route('/api/exercise/<int:exercise_id>/sets/<int:history_id>', methods=['DELETE'])
 def delete_exercise_sets(exercise_id, history_id):
@@ -2085,44 +2105,62 @@ def get_workout_exercises(workout_id):
         return jsonify({'error': str(e)}), 500
 
 
-@app.route('/api/exercises/<int:exercise_id>/history/<int:history_id>', methods=['DELETE', 'OPTIONS'])
+@app.route('/api/exercise/<int:exercise_id>/history/<int:history_id>', methods=['DELETE'])
+@auth_required
 def delete_exercise_history(exercise_id, history_id):
-    # Handle OPTIONS request for CORS preflight
-    if request.method == 'OPTIONS':
-        response = jsonify({'status': 'ok'})
-        response.headers.add('Access-Control-Allow-Origin', '*')
-        response.headers.add('Access-Control-Allow-Methods', 'DELETE')
-        response.headers.add('Access-Control-Allow-Headers', 'Content-Type')
-        return response
-
     try:
-        # Verify the history belongs to this exercise and get both in one query
-        with db.session.begin_nested():  # Create savepoint
-            history = SetHistory.query.filter_by(
-                id=history_id,
-                exercise_id=exercise_id
-            ).first_or_404()
-            
-            # Delete associated sets first to maintain referential integrity
-            IndividualSet.query.filter_by(set_history_id=history_id).delete()
-            
-            # Then delete the history record
-            db.session.delete(history)
-            
-        # If no exceptions occurred, commit the transaction
-        db.session.commit()
+        user_id = g.user_id  # Get authenticated user's ID
+        engine = create_engine(db_url, poolclass=NullPool)
         
-        response = jsonify({'message': 'Exercise history deleted successfully'})
-        response.headers.add('Access-Control-Allow-Origin', '*')
-        return response, 200
-        
+        with engine.connect() as connection:
+            with connection.begin():
+                # First verify the history belongs to this user and exercise
+                history_check = connection.execute(
+                    text("""
+                        SELECT sh.id 
+                        FROM set_history sh
+                        JOIN exercises e ON sh.exercise_id = e.id
+                        WHERE sh.id = :history_id 
+                        AND sh.exercise_id = :exercise_id
+                        AND sh.user_id = :user_id
+                    """),
+                    {
+                        "history_id": history_id,
+                        "exercise_id": exercise_id,
+                        "user_id": user_id
+                    }
+                ).fetchone()
+
+                if not history_check:
+                    return jsonify({'error': 'History record not found or unauthorized'}), 404
+
+                # Delete all associated sets first
+                connection.execute(
+                    text("""
+                        DELETE FROM individual_set 
+                        WHERE set_history_id = :history_id
+                    """),
+                    {"history_id": history_id}
+                )
+
+                # Then delete the history record
+                connection.execute(
+                    text("""
+                        DELETE FROM set_history 
+                        WHERE id = :history_id 
+                        AND user_id = :user_id
+                    """),
+                    {
+                        "history_id": history_id,
+                        "user_id": user_id
+                    }
+                )
+
+            return jsonify({'message': 'Session deleted successfully'})
+
     except Exception as e:
-        db.session.rollback()
         print(f"Error deleting exercise history: {str(e)}")
-        return jsonify({
-            'error': 'Failed to delete exercise history',
-            'details': str(e)
-        }), 500
+        return jsonify({'error': str(e)}), 500
 
 @app.route('/api/workouts/<int:workout_id>/exercise', methods=['POST'])
 def add_workout_exercise():
@@ -2734,69 +2772,8 @@ def delete_exercise(exercise_id):
         return jsonify({'error': str(e)}), 500
     
 
-@app.route('/api/exercises/<int:exercise_id>/sets', methods=['POST'])
-@auth_required  # Requires valid auth token
-def save_exercise_sets(exercise_id):
-    try:
-        user_id = g.user_id  # Get authenticated user's ID from auth decorator
-        print(f"Attempting to save sets for exercise_id: {exercise_id}")
-        
-        # First verify the exercise belongs to this user
-        with db.engine.connect() as connection:
-            ownership_check = connection.execute(
-                text("SELECT id FROM exercises WHERE id = :exercise_id AND user_id = :user_id"),
-                {"exercise_id": exercise_id, "user_id": user_id}
-            ).fetchone()
-            
-            if not ownership_check:
-                return jsonify({'error': 'Exercise not found or unauthorized'}), 404
+# In your app.py
 
-            data = request.json
-            with db.session.begin_nested():  # Create a savepoint
-                # Create new history entry
-                new_history = SetHistory(
-                    exercise_id=exercise_id,
-                    created_at=datetime.utcnow()
-                )
-                db.session.add(new_history)
-                db.session.flush()
-                
-                # Add sets
-                for set_data in data.get('sets', []):
-                    new_set = IndividualSet(
-                        exercise_id=exercise_id,
-                        set_history_id=new_history.id,
-                        set_number=set_data.get('set_number', 1),
-                        reps=set_data.get('reps', 0),
-                        weight=set_data.get('weight', 0)
-                    )
-                    db.session.add(new_set)
-                
-                db.session.flush()
-                
-                # Query back the saved sets for response
-                saved_sets = IndividualSet.query.filter_by(
-                    set_history_id=new_history.id
-                ).order_by(IndividualSet.set_number).all()
-                
-                response_data = {
-                    'history_id': new_history.id,
-                    'created_at': new_history.created_at.isoformat(),
-                    'sets': [{
-                        'id': set.id,
-                        'set_number': set.set_number,
-                        'reps': set.reps,
-                        'weight': set.weight
-                    } for set in saved_sets]
-                }
-
-            db.session.commit()
-            return jsonify(response_data), 201
-
-    except Exception as e:
-        db.session.rollback()
-        print(f"Error saving sets: {str(e)}")
-        return jsonify({'error': str(e)}), 500
     
 @app.route('/api/exercises/<int:exercise_id>/sets/history', methods=['GET'])
 @auth_required
