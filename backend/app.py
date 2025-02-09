@@ -2600,8 +2600,9 @@ def list_exercises():
             'error': str(e)
         }), 500
 
+# Find this route in app.py
 @app.route('/api/exercise', methods=['POST'])
-@auth_required
+@auth_required  # Add this decorator
 def create_exercise():
     try:
         data = request.json
@@ -2631,7 +2632,7 @@ def create_exercise():
                     'amount_reps': data['amount_reps'],
                     'weight': data['weight'],
                     'rest_time': data['rest_time'],
-                    'user_id': user_id
+                    'user_id': user_id  # Add the user_id from auth
                 }
             )
             
@@ -2646,6 +2647,7 @@ def create_exercise():
     except Exception as e:
         print(f"Error creating exercise: {str(e)}")
         return jsonify({'error': str(e)}), 500
+
     
 @app.route('/api/exercises/<int:exercise_id>', methods=['GET'])
 @auth_required

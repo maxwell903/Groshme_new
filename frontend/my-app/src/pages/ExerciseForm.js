@@ -14,54 +14,66 @@ const ExerciseForm = () => {
     rest_time: ''
   });
 
-  const handleSubmit = async (e) => {
-    e.preventDefault();
+  // In ExerciseForm.js, modify your handleSubmit function:
+
+const handleSubmit = async (e) => {
+  e.preventDefault();
+  try {
+    // Get the authentication token from localStorage
+    // This token was stored when the user logged in
+    const token = localStorage.getItem('access_token');
     
-    try {
-      // Format the data before sending
-      const formattedData = {
-        name: formData.name,
-        workout_type: formData.workout_type,
-        major_groups: formData.major_groups.split(',').map(g => g.trim()),
-        minor_groups: formData.minor_groups.split(',').map(g => g.trim()),
-        amount_sets: parseInt(formData.amount_sets) || 0,
-        amount_reps: parseInt(formData.amount_reps) || 0,
-        weight: parseFloat(formData.weight) || 0,
-        rest_time: parseInt(formData.rest_time) || 0
-      };
-
-      const response = await fetch(`${API_URL}/api/exercise`, {
-        method: 'POST',
-        headers: { 
-          'Content-Type': 'application/json',
-          'Accept': 'application/json'
-        },
-        body: JSON.stringify(formattedData)
-      });
-
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error || 'Failed to save exercise');
-      }
-      
-      // Reset form on success
-      setFormData({
-        name: '',
-        workout_type: 'Push',
-        major_groups: '',
-        minor_groups: '',
-        amount_sets: '',
-        amount_reps: '',
-        weight: '',
-        rest_time: ''
-      });
-      
-      alert('Exercise saved successfully!');
-    } catch (error) {
-      console.error('Error saving exercise:', error);
-      alert(`Failed to save exercise: ${error.message}`);
+    if (!token) {
+      // If no token is found, the user might need to log in
+      alert('Please log in to add exercises');
+      return;
     }
-  };
+
+    // Format the data before sending
+    const formattedData = {
+      name: formData.name,
+      workout_type: formData.workout_type,
+      major_groups: formData.major_groups.split(',').map(g => g.trim()),
+      minor_groups: formData.minor_groups.split(',').map(g => g.trim()),
+      amount_sets: parseInt(formData.amount_sets) || 0,
+      amount_reps: parseInt(formData.amount_reps) || 0,
+      weight: parseFloat(formData.weight) || 0,
+      rest_time: parseInt(formData.rest_time) || 0
+    };
+
+    const response = await fetch(`${API_URL}/api/exercise`, {
+      method: 'POST',
+      headers: { 
+        'Content-Type': 'application/json',
+        'Accept': 'application/json',
+        'Authorization': `Bearer ${token}`  // Add the auth token here
+      },
+      body: JSON.stringify(formattedData)
+    });
+
+    if (!response.ok) {
+      const errorData = await response.json();
+      throw new Error(errorData.error || 'Failed to save exercise');
+    }
+    
+    // Reset form on success
+    setFormData({
+      name: '',
+      workout_type: 'Push',
+      major_groups: '',
+      minor_groups: '',
+      amount_sets: '',
+      amount_reps: '',
+      weight: '',
+      rest_time: ''
+    });
+    
+    alert('Exercise saved successfully!');
+  } catch (error) {
+    console.error('Error saving exercise:', error);
+    alert(`Failed to save exercise: ${error.message}`);
+  }
+};
 
   return (
     <div className="min-h-screen bg-gray-50">
