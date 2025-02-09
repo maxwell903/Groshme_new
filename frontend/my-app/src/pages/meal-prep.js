@@ -766,7 +766,7 @@ const Week = ({ week, onDeleteWeek, onMealDelete, onMealsAdded, onToggleDates })
 
     
       const GroceryListSelector = ({ onClose }) => {
-        const [step, setStep] = useState(1); // 1 for list selection, 2 for week selection
+        const [step, setStep] = useState(1);
         const [groceryLists, setGroceryLists] = useState([]);
         const [selectedList, setSelectedList] = useState(null);
         const [selectedWeeks, setSelectedWeeks] = useState(new Set());
@@ -774,14 +774,30 @@ const Week = ({ week, onDeleteWeek, onMealDelete, onMealsAdded, onToggleDates })
         const [importing, setImporting] = useState(false);
         const [error, setError] = useState(null);
         const [weeks, setWeeks] = useState([]);
+        const { user } = useAuth();
       
         useEffect(() => {
           const fetchData = async () => {
             try {
               setLoading(true);
+              const token = localStorage.getItem('access_token');
+              if (!token) {
+                throw new Error('No authentication token found');
+              }
+      
               const [groceryResponse, weeksResponse] = await Promise.all([
-                fetch(`${API_URL}/api/grocery-lists`),
-                fetch(`${API_URL}/api/meal-prep/weeks`)
+                fetch(`${API_URL}/api/grocery-lists`, {
+                  headers: {
+                    'Authorization': `Bearer ${token}`,
+                    'Content-Type': 'application/json'
+                  }
+                }),
+                fetch(`${API_URL}/api/meal-prep/weeks`, {
+                  headers: {
+                    'Authorization': `Bearer ${token}`,
+                    'Content-Type': 'application/json'
+                  }
+                })
               ]);
       
               if (!groceryResponse.ok || !weeksResponse.ok) {
@@ -795,13 +811,16 @@ const Week = ({ week, onDeleteWeek, onMealDelete, onMealsAdded, onToggleDates })
               setWeeks(weeksData.weeks || []);
             } catch (err) {
               setError('Failed to load data');
+              console.error('Error fetching data:', err);
             } finally {
               setLoading(false);
             }
           };
       
-          fetchData();
-        }, []);
+          if (user) {
+            fetchData();
+          }
+        }, [user]);
       
         const handleWeekToggle = (weekId) => {
           const newSelected = new Set(selectedWeeks);
@@ -815,28 +834,35 @@ const Week = ({ week, onDeleteWeek, onMealDelete, onMealsAdded, onToggleDates })
       
         const handleImport = async () => {
           if (!selectedList) return;
-        
+      
           try {
             setImporting(true);
-        
+            const token = localStorage.getItem('access_token');
+            if (!token) {
+              throw new Error('No authentication token found');
+            }
+      
             // Process each selected week
             for (const weekId of selectedWeeks) {
               const week = weeks.find(w => w.id === weekId);
               if (!week) continue;
-        
+      
               // Add week header
               try {
                 await fetch(`${API_URL}/api/grocery-lists/${selectedList}/items`, {
                   method: 'POST',
-                  headers: { 'Content-Type': 'application/json' },
-                  body: JSON.stringify({ 
-                    name: `### ${week.title || `Week of ${week.start_day}`} ###` 
+                  headers: {
+                    'Authorization': `Bearer ${token}`,
+                    'Content-Type': 'application/json'
+                  },
+                  body: JSON.stringify({
+                    name: `### ${week.title || `Week of ${week.start_day}`} ###`
                   }),
                 });
               } catch (error) {
                 console.error('Error adding week header:', error);
               }
-        
+      
               // Process each day's meals
               for (const [day, meals] of Object.entries(week.meal_plans)) {
                 // Process each meal type (breakfast, lunch, dinner)
@@ -846,22 +872,33 @@ const Week = ({ week, onDeleteWeek, onMealDelete, onMealsAdded, onToggleDates })
                     try {
                       await fetch(`${API_URL}/api/grocery-lists/${selectedList}/items`, {
                         method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ name: `**${meal.recipe_name}**` }),
+                        headers: {
+                          'Authorization': `Bearer ${token}`,
+                          'Content-Type': 'application/json'
+                        },
+                        body: JSON.stringify({ name: `**${meal.name}**` }),
                       });
                     } catch (error) {
                       console.error('Error adding recipe header:', error);
                     }
-        
+      
                     // Get and add recipe ingredients
                     try {
-                      const recipeResponse = await fetch(`${API_URL}/api/recipe/${meal.recipe_id}/ingredients`);
+                      const recipeResponse = await fetch(`${API_URL}/api/recipe/${meal.id}/ingredients`, {
+                        headers: {
+                          'Authorization': `Bearer ${token}`,
+                          'Content-Type': 'application/json'
+                        }
+                      });
                       const recipeData = await recipeResponse.json();
-        
+      
                       for (const ingredient of recipeData.ingredients) {
                         await fetch(`${API_URL}/api/grocery-lists/${selectedList}/items`, {
                           method: 'POST',
-                          headers: { 'Content-Type': 'application/json' },
+                          headers: {
+                            'Authorization': `Bearer ${token}`,
+                            'Content-Type': 'application/json'
+                          },
                           body: JSON.stringify({
                             name: `• ${ingredient.name}`,
                             quantity: ingredient.quantity,
@@ -876,7 +913,7 @@ const Week = ({ week, onDeleteWeek, onMealDelete, onMealsAdded, onToggleDates })
                 }
               }
             }
-        
+      
             onClose();
           } catch (err) {
             console.error('Error importing to grocery list:', err);
