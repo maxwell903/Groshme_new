@@ -217,19 +217,17 @@ const ExerciseCard = ({ exercise }) => {
     }
   
     return (
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-        {exercises.map((exercise) => (
-          <div key={exercise.id} className="bg-white rounded-lg shadow p-4">
-            <h3 className="text-lg font-semibold mb-2">{exercise.name}</h3>
-            <div className="text-sm text-gray-600">
-              <p>Type: {exercise.workout_type}</p>
-              <p>Sets: {exercise.amount_sets} × {exercise.amount_reps} reps</p>
-              <p>Weight: {exercise.weight} lbs</p>
-              <p>Rest: {exercise.rest_time}s</p>
-            </div>
-          </div>
-        ))}
-      </div>
+      <div className="space-y-8">
+      {workoutTypes.map((type) => (
+        groupedExercises[type]?.length > 0 && (
+          <ExerciseSection
+            key={type}
+            title={type}
+            exercises={groupedExercises[type]}
+          />
+        )
+      ))}
+    </div>
     );
   };
   
