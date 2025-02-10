@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Plus, X, ChevronDown, ChevronUp } from 'lucide-react';
 import Link from 'next/link';
+import WorkoutExerciseCard from './WorkoutExerciseCard';
 import ExerciseSearchModal from '@/components/ExerciseSearchModal';
 const API_URL = process.env.NEXT_PUBLIC_API_URL;
 
@@ -94,8 +95,37 @@ const DaySelector = ({ isOpen, onClose, onDaySelect }) => {
 
 const WeekCard = ({ week, onDeleteWeek }) => {
   const [isExpanded, setIsExpanded] = useState(false);
-  const [showSearchModal, setShowSearchModal] = useState(false);
+  const [showExerciseModal, setShowExerciseModal] = useState(false);
   const [selectedDay, setSelectedDay] = useState(null);
+  const [error, setError] = useState(null);
+
+  const handleDeleteExercise = async (day, exerciseId) => {
+    try {
+      const token = localStorage.getItem('access_token');
+      const response = await fetch(
+        `${process.env.NEXT_PUBLIC_API_URL}/api/workout-weeks/${week.id}/exercises/${exerciseId}`, 
+        {
+          method: 'DELETE',
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({ day })
+        }
+      );
+
+      if (!response.ok) {
+        throw new Error('Failed to delete exercise');
+      }
+
+      // Refresh week data after deletion
+      // You'll need to implement this refresh logic
+      onExerciseChange();
+    } catch (err) {
+      setError(err.message);
+      console.error('Error deleting exercise:', err);
+    }
+  };
 
   const formatDateRange = () => {
     if (!week.start_date || !week.end_date) return '';
@@ -104,18 +134,9 @@ const WeekCard = ({ week, onDeleteWeek }) => {
     return `${startDate.toLocaleDateString()} - ${endDate.toLocaleDateString()}`;
   };
 
-  const handleAddExercises = (day) => {
-    setSelectedDay(day);
-    setShowSearchModal(true);
-  };
-
-  const handleExercisesSelected = () => {
-    // Refresh data or update local state as needed
-    setShowSearchModal(false);
-  };
-
   return (
     <div className="bg-white rounded-lg shadow p-4 mb-4">
+      {/* Header */}
       <div className="flex justify-between items-start">
         <div>
           <h3 className="text-lg font-semibold">{week.title}</h3>
@@ -137,41 +158,53 @@ const WeekCard = ({ week, onDeleteWeek }) => {
         </div>
       </div>
 
+      {/* Expanded Content */}
       {isExpanded && (
-        <div className="mt-4 grid grid-cols-7 gap-2">
+        <div className="mt-4 grid grid-cols-7 gap-4">
           {['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'].map((day) => (
-            <div key={day} className="p-2 border rounded">
-              <h4 className="font-medium mb-2">{day}</h4>
-              <div className="space-y-2">
-                {/* Show existing exercises for this day */}
-                {week.daily_workouts?.[day]?.map((exercise, index) => (
-                  <div key={index} className="text-sm text-gray-600">
-                    {exercise.name}
-                  </div>
-                ))}
-                
+            <div key={day} className="bg-gray-50 p-4 rounded-lg">
+              <div className="flex justify-between items-center mb-4">
+                <h4 className="font-medium">{day}</h4>
                 <button
-                  onClick={() => handleAddExercises(day)}
-                  className="w-full text-sm text-blue-600 hover:text-blue-800"
+                  onClick={() => {
+                    setSelectedDay(day);
+                    setShowExerciseModal(true);
+                  }}
+                  className="text-blue-600 hover:text-blue-800 text-sm"
                 >
                   Add Exercise
                 </button>
               </div>
+
+              <WorkoutExerciseCard
+                day={day}
+                exercises={week.daily_workouts?.[day] || []}
+                onDeleteExercise={handleDeleteExercise}
+              />
             </div>
           ))}
         </div>
       )}
 
-      <ExerciseSearchModal
-        isOpen={showSearchModal}
-        onClose={() => setShowSearchModal(false)}
-        onExercisesSelected={handleExercisesSelected}
-        weekId={week.id}
-        day={selectedDay}
-      />
+      {/* Exercise Search Modal */}
+      {showExerciseModal && (
+        <ExerciseSearchModal
+          isOpen={showExerciseModal}
+          onClose={() => setShowExerciseModal(false)}
+          onExercisesSelected={() => {
+            setShowExerciseModal(false);
+            // Refresh week data after adding exercises
+            // You'll need to implement this refresh logic
+            onExerciseChange();
+          }}
+          weekId={week.id}
+          day={selectedDay}
+        />
+      )}
     </div>
   );
 };
+
 
 const GymPage = () => {
   const [weeks, setWeeks] = useState([]);
