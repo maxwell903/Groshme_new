@@ -1325,63 +1325,38 @@ def manage_exercise(exercise_id):
 @auth_required
 def add_exercise_sets(exercise_id):
     try:
-        user_id = g.user_id  # Get authenticated user's ID from auth decorator
+        user_id = g.user_id
         data = request.json
-        engine = create_engine(db_url, poolclass=NullPool)
         
-        with engine.connect() as connection:
-            # Verify exercise belongs to user
-            exercise_check = connection.execute(
-                text("""
-                    SELECT id FROM exercises 
-                    WHERE id = :exercise_id AND user_id = :user_id
-                """),
-                {
-                    "exercise_id": exercise_id,
-                    "user_id": user_id
-                }
-            ).fetchone()
-            
-            if not exercise_check:
-                return jsonify({'error': 'Exercise not found or unauthorized'}), 404
-
-            # Create new history entry with user_id
-            history_result = connection.execute(
-                text("""
-                    INSERT INTO set_history (exercise_id, created_at, user_id)
-                    VALUES (:exercise_id, CURRENT_TIMESTAMP, :user_id)
-                    RETURNING id
-                """),
-                {
-                    'exercise_id': exercise_id,
-                    'user_id': user_id  # Add the user_id to the insert
-                }
+        # Verify exercise exists and belongs to user
+        exercise = Exercise.query.filter_by(id=exercise_id, user_id=user_id).first()
+        if not exercise:
+            return jsonify({'error': 'Exercise not found or unauthorized'}), 404
+        
+        # Create new history entry
+        set_history = SetHistory(
+            exercise_id=exercise_id,
+            user_id=user_id
+        )
+        db.session.add(set_history)
+        db.session.flush()  # Get the ID without committing
+        
+        # Add sets
+        for set_data in data['sets']:
+            individual_set = IndividualSet(
+                exercise_id=exercise_id,
+                set_history_id=set_history.id,
+                set_number=set_data['set_number'],
+                reps=set_data['reps'],
+                weight=set_data['weight']
             )
-            history_id = history_result.fetchone()[0]
-            
-            # Add sets
-            for set_data in data['sets']:
-                connection.execute(
-                    text("""
-                        INSERT INTO individual_set (
-                            exercise_id, set_history_id, set_number, reps, weight
-                        ) VALUES (
-                            :exercise_id, :history_id, :set_number, :reps, :weight
-                        )
-                    """),
-                    {
-                        'exercise_id': exercise_id,
-                        'history_id': history_id,
-                        'set_number': set_data['set_number'],
-                        'reps': set_data['reps'],
-                        'weight': set_data['weight']
-                    }
-                )
-                
-            connection.commit()
-            return jsonify({'message': 'Sets added successfully'})
-            
+            db.session.add(individual_set)
+        
+        db.session.commit()
+        return jsonify({'message': 'Sets added successfully'})
+        
     except Exception as e:
+        db.session.rollback()
         print(f"Error saving sets: {str(e)}")
         return jsonify({'error': str(e)}), 500
 
@@ -6076,7 +6051,7 @@ def add_one_time_income(entry_id):
         return jsonify({'error': str(e)}), 500
     
 @app.route('/api/exercises/<int:exercise_id>/sets', methods=['OPTIONS'])
-def handle_sets_options(exercise_id):
+def handle_exercise_sets_options(exercise_id):
     response = jsonify({'status': 'ok'})
     response.headers.add('Access-Control-Allow-Origin', 'https://groshmebeta.netlify.app')
     response.headers.add('Access-Control-Allow-Headers', 'Content-Type,Authorization')

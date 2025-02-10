@@ -11,11 +11,11 @@ const ExerciseCard = ({ exercise, onDelete }) => {
   // Check if exercise has been completed today
   useEffect(() => {
     const checkCompletion = async () => {
-      if (!exercise.id) return;
+      if (!exercise.exercise_id) return; // Use exercise_id instead of id
       
       try {
         const token = localStorage.getItem('access_token');
-        const response = await fetch(`${API_URL}/api/exercises/${exercise.id}/sets/latest`, {
+        const response = await fetch(`${API_URL}/api/exercises/${exercise.exercise_id}/sets/latest`, {
           headers: {
             'Authorization': `Bearer ${token}`,
             'Content-Type': 'application/json'
@@ -40,11 +40,11 @@ const ExerciseCard = ({ exercise, onDelete }) => {
     };
 
     checkCompletion();
-  }, [exercise.id]);
+  }, [exercise.exercise_id]);
 
   // Create the formatted exercise object for SetsModal
   const formattedExercise = {
-    id: exercise.id,
+    id: exercise.exercise_id, // Use exercise_id
     name: exercise.name,
     amount_sets: exercise.target_sets,
     amount_reps: exercise.target_reps,
@@ -68,7 +68,7 @@ const ExerciseCard = ({ exercise, onDelete }) => {
         <button
           onClick={(e) => {
             e.stopPropagation();
-            onDelete(exercise.id);
+            onDelete(exercise.exercise_id);
           }}
           className="text-red-500 hover:text-red-700 p-1"
         >
@@ -125,7 +125,7 @@ const WorkoutExerciseCard = ({ day, exercises, onDeleteExercise }) => {
     <div className="space-y-2">
       {exercises.map((exercise) => (
         <ExerciseCard
-          key={exercise.id}
+          key={exercise.exercise_id} // Use exercise_id as key
           exercise={exercise}
           onDelete={(exerciseId) => onDeleteExercise(day, exerciseId)}
         />
