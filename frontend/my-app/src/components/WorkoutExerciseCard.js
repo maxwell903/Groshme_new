@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { X, Plus } from 'lucide-react';
+import { X } from 'lucide-react';
 import SetsModal from './SetsModal';
 const API_URL = process.env.NEXT_PUBLIC_API_URL;
 
@@ -8,47 +8,48 @@ const ExerciseCard = ({ exercise, onDelete }) => {
   const [showSetsModal, setShowSetsModal] = useState(false);
   const [isCompleted, setIsCompleted] = useState(false);
 
-  // Check completion status on mount and after logging sets
-  const checkCompletion = async () => {
-    try {
-      const token = localStorage.getItem('access_token');
-      const response = await fetch(
-        `${API_URL}/api/exercises/${exercise.exercise_id}/completion/status`,
-        {
+  // Check if exercise has been completed today
+  useEffect(() => {
+    const checkCompletion = async () => {
+      if (!exercise.exercise_id) return; // Use exercise_id instead of id
+      
+      try {
+        const token = localStorage.getItem('access_token');
+        const response = await fetch(`${API_URL}/api/exercises/${exercise.exercise_id}/sets/latest`, {
           headers: {
             'Authorization': `Bearer ${token}`,
             'Content-Type': 'application/json'
           }
+        });
+        
+        if (response.ok) {
+          const data = await response.json();
+          if (data.latestSet) {
+            const setDate = new Date(data.latestSet.created_at);
+            const today = new Date();
+            setIsCompleted(
+              setDate.getDate() === today.getDate() &&
+              setDate.getMonth() === today.getMonth() &&
+              setDate.getFullYear() === today.getFullYear()
+            );
+          }
         }
-      );
-      
-      if (response.ok) {
-        const data = await response.json();
-        setIsCompleted(data.completed);
+      } catch (error) {
+        console.error('Error checking completion:', error);
       }
-    } catch (error) {
-      console.error('Error checking completion:', error);
-    }
-  };
+    };
 
-  useEffect(() => {
     checkCompletion();
   }, [exercise.exercise_id]);
 
-  const handleSetsComplete = async () => {
-    try {
-      const token = localStorage.getItem('access_token');
-      await fetch(`${API_URL}/api/exercises/${exercise.exercise_id}/completion`, {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json'
-        }
-      });
-      setIsCompleted(true);
-    } catch (error) {
-      console.error('Error marking exercise complete:', error);
-    }
+  // Create the formatted exercise object for SetsModal
+  const formattedExercise = {
+    id: exercise.exercise_id, // Use exercise_id
+    name: exercise.name,
+    amount_sets: exercise.target_sets,
+    amount_reps: exercise.target_reps,
+    weight: exercise.target_weight,
+    rest_time: exercise.rest_time
   };
 
   return (
@@ -99,18 +100,11 @@ const ExerciseCard = ({ exercise, onDelete }) => {
 
       {showSetsModal && (
         <SetsModal
-          exercise={{
-            id: exercise.exercise_id,
-            name: exercise.name,
-            amount_sets: exercise.target_sets,
-            amount_reps: exercise.target_reps,
-            weight: exercise.target_weight,
-            rest_time: exercise.rest_time
-          }}
+          exercise={formattedExercise}
           isOpen={showSetsModal}
           onClose={() => {
             setShowSetsModal(false);
-            handleSetsComplete();
+            setIsCompleted(true);
           }}
         />
       )}
@@ -131,7 +125,7 @@ const WorkoutExerciseCard = ({ day, exercises, onDeleteExercise }) => {
     <div className="space-y-2">
       {exercises.map((exercise) => (
         <ExerciseCard
-          key={exercise.exercise_id}
+          key={exercise.exercise_id} // Use exercise_id as key
           exercise={exercise}
           onDelete={(exerciseId) => onDeleteExercise(day, exerciseId)}
         />
@@ -139,3 +133,5 @@ const WorkoutExerciseCard = ({ day, exercises, onDeleteExercise }) => {
     </div>
   );
 };
+
+export default WorkoutExerciseCard;

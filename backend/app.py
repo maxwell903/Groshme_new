@@ -6243,108 +6243,6 @@ def delete_workout_week(week_id):
     except Exception as e:
         print(f"Error deleting workout week: {str(e)}")
         return jsonify({'error': str(e)}), 500
-    
-@app.route('/api/workout-weeks/<int:week_id>/exercises/<int:exercise_id>', methods=['DELETE'])
-@auth_required
-def delete_workout_exercise(week_id, exercise_id):
-    try:
-        user_id = g.user_id
-        data = request.json
-        day = data.get('day')
-        
-        if not day:
-            return jsonify({'error': 'Day is required'}), 400
-            
-        with engine.connect() as connection:
-            # First verify the week belongs to the user
-            week_check = connection.execute(
-                text("""
-                    SELECT id FROM workout_weeks 
-                    WHERE id = :week_id AND user_id = :user_id
-                """),
-                {"week_id": week_id, "user_id": user_id}
-            ).fetchone()
-            
-            if not week_check:
-                return jsonify({'error': 'Week not found or unauthorized'}), 404
-                
-            # Delete the exercise from the workout
-            result = connection.execute(
-                text("""
-                    DELETE FROM workout_exercises we
-                    USING daily_workouts dw
-                    WHERE dw.week_id = :week_id
-                    AND dw.day_of_week = :day
-                    AND we.daily_workout_id = dw.id
-                    AND we.exercise_id = :exercise_id
-                """),
-                {
-                    "week_id": week_id,
-                    "day": day,
-                    "exercise_id": exercise_id
-                }
-            )
-            
-            if not result.rowcount:
-                return jsonify({'error': 'Exercise not found in workout'}), 404
-                
-            connection.commit()
-            return jsonify({'message': 'Exercise removed successfully'})
-            
-    except Exception as e:
-        print(f"Error removing exercise: {str(e)}")
-        return jsonify({'error': str(e)}), 500
-
-@app.route('/api/exercises/<int:exercise_id>/completion', methods=['POST'])
-@auth_required
-def mark_exercise_complete(exercise_id):
-    try:
-        user_id = g.user_id
-        
-        with engine.connect() as connection:
-            # Insert completion record
-            connection.execute(
-                text("""
-                    INSERT INTO exercise_completions (exercise_id, user_id, completion_date)
-                    VALUES (:exercise_id, :user_id, CURRENT_DATE)
-                    ON CONFLICT (exercise_id, user_id, completion_date) DO NOTHING
-                """),
-                {"exercise_id": exercise_id, "user_id": user_id}
-            )
-            
-            connection.commit()
-            return jsonify({'message': 'Exercise marked as complete'})
-            
-    except Exception as e:
-        print(f"Error marking exercise complete: {str(e)}")
-        return jsonify({'error': str(e)}), 500
-
-@app.route('/api/exercises/<int:exercise_id>/completion/status', methods=['GET'])
-@auth_required
-def get_exercise_completion(exercise_id):
-    try:
-        user_id = g.user_id
-        
-        with engine.connect() as connection:
-            result = connection.execute(
-                text("""
-                    SELECT EXISTS (
-                        SELECT 1 FROM exercise_completions
-                        WHERE exercise_id = :exercise_id
-                        AND user_id = :user_id
-                        AND completion_date = CURRENT_DATE
-                    ) as is_completed
-                """),
-                {"exercise_id": exercise_id, "user_id": user_id}
-            ).fetchone()
-            
-            return jsonify({
-                'completed': result.is_completed
-            })
-            
-    except Exception as e:
-        print(f"Error checking exercise completion: {str(e)}")
-        return jsonify({'error': str(e)}), 500
 
 @app.route('/api/workout-weeks/<int:week_id>/exercises', methods=['POST'])
 @auth_required
@@ -6409,8 +6307,6 @@ def add_workout_exercises(week_id):
     except Exception as e:
         print(f"Error adding exercises: {str(e)}")
         return jsonify({'error': str(e)}), 500
-    
-
 
      
 def upgrade_database():
