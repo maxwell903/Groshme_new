@@ -27,7 +27,10 @@ const ExerciseCard = ({ exercise, onDelete }) => {
       {isExpanded && (
         <div className="px-4 pb-4 pt-2 bg-gray-50">
           <p className="text-gray-600">
-            Target: {exercise.target_sets} sets × {exercise.target_reps} reps @ {exercise.target_weight} lbs
+            {exercise.target_sets} × {exercise.target_reps}
+          </p>
+          <p className="text-gray-600">
+            @ {exercise.target_weight} lbs
           </p>
           <p className="text-gray-600">
             Rest: {exercise.rest_time} seconds
