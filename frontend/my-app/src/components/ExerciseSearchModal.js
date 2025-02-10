@@ -1,6 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { X, Search, Plus } from 'lucide-react';
 
+const API_URL = process.env.NEXT_PUBLIC_API_URL;
+
 const ExerciseSearchModal = ({ isOpen, onClose, onExercisesSelected, weekId, day }) => {
   const [searchTerm, setSearchTerm] = useState('');
   const [exercises, setExercises] = useState([]);
@@ -27,7 +29,7 @@ const ExerciseSearchModal = ({ isOpen, onClose, onExercisesSelected, weekId, day
     const fetchExercises = async () => {
       try {
         const token = localStorage.getItem('access_token');
-        const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/exercises`, {
+        const response = await fetch(`${API_URL}/api/exercises`, {
           headers: {
             'Authorization': `Bearer ${token}`,
             'Content-Type': 'application/json'
@@ -115,7 +117,7 @@ const ExerciseSearchModal = ({ isOpen, onClose, onExercisesSelected, weekId, day
   const handleSave = async () => {
     try {
       const token = localStorage.getItem('access_token');
-      const response = await fetch(`/api/workout-weeks/${weekId}/exercises`, {
+      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/workout-weeks/${weekId}/exercises`, {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${token}`,
@@ -132,15 +134,19 @@ const ExerciseSearchModal = ({ isOpen, onClose, onExercisesSelected, weekId, day
           }))
         })
       });
-
-      if (!response.ok) throw new Error('Failed to save exercises');
+  
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.error || 'Failed to save exercises');
+      }
       
       onExercisesSelected();
       onClose();
     } catch (error) {
       setError(error.message);
+      console.error('Error saving exercises:', error);
     }
-  };
+  }
 
   if (!isOpen) return null;
 
