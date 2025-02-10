@@ -87,12 +87,14 @@ const ExerciseCard = ({ exercise, onDelete }) => {
           <p className="text-gray-600">
             Rest: {exercise.rest_time} seconds
           </p>
-          <button
-            onClick={() => setShowSetsModal(true)}
-            className="mt-3 px-3 py-1 bg-blue-600 text-white rounded-md text-sm hover:bg-blue-700"
-          >
-            Log Sets
-          </button>
+          <div className="flex justify-end mt-3">
+            <button
+              onClick={() => setShowSetsModal(true)}
+              className="px-3 py-1 bg-blue-600 text-white rounded-md text-sm hover:bg-blue-700"
+            >
+              Log Sets
+            </button>
+          </div>
         </div>
       )}
 
