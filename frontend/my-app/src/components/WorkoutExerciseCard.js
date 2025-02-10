@@ -11,6 +11,8 @@ const ExerciseCard = ({ exercise, onDelete }) => {
   // Check if exercise has been completed today
   useEffect(() => {
     const checkCompletion = async () => {
+      if (!exercise.id) return;
+      
       try {
         const token = localStorage.getItem('access_token');
         const response = await fetch(`${API_URL}/api/exercises/${exercise.id}/sets/latest`, {
@@ -39,6 +41,16 @@ const ExerciseCard = ({ exercise, onDelete }) => {
 
     checkCompletion();
   }, [exercise.id]);
+
+  // Create the formatted exercise object for SetsModal
+  const formattedExercise = {
+    id: exercise.id,
+    name: exercise.name,
+    amount_sets: exercise.target_sets,
+    amount_reps: exercise.target_reps,
+    weight: exercise.target_weight,
+    rest_time: exercise.rest_time
+  };
 
   return (
     <div className={`bg-white rounded-lg shadow border mb-2 overflow-hidden 
@@ -84,20 +96,16 @@ const ExerciseCard = ({ exercise, onDelete }) => {
         </div>
       )}
 
-      <SetsModal
-        exercise={{
-          ...exercise,
-          amount_sets: exercise.target_sets,
-          amount_reps: exercise.target_reps,
-          weight: exercise.target_weight
-        }}
-        isOpen={showSetsModal}
-        onClose={() => {
-          setShowSetsModal(false);
-          // Recheck completion status after logging sets
-          setIsCompleted(true);
-        }}
-      />
+      {showSetsModal && (
+        <SetsModal
+          exercise={formattedExercise}
+          isOpen={showSetsModal}
+          onClose={() => {
+            setShowSetsModal(false);
+            setIsCompleted(true);
+          }}
+        />
+      )}
     </div>
   );
 };
