@@ -290,6 +290,7 @@ class SetHistory(db.Model):
     __tablename__ = 'set_history'
     id = db.Column(db.Integer, primary_key=True)
     exercise_id = db.Column(db.Integer, db.ForeignKey('exercises.id'), nullable=False)
+    user_id = db.Column(UUID(as_uuid=True), db.ForeignKey('users.id'), nullable=False)  # Add this line
     created_at = db.Column(db.DateTime, default=db.func.current_timestamp())
     sets = db.relationship('IndividualSet', backref='history', lazy=True, cascade='all, delete-orphan')
 
@@ -1327,36 +1328,56 @@ def add_exercise_sets(exercise_id):
     try:
         user_id = g.user_id
         data = request.json
+        engine = create_engine(db_url, poolclass=NullPool)
         
-        # Verify exercise exists and belongs to user
-        exercise = Exercise.query.filter_by(id=exercise_id, user_id=user_id).first()
-        if not exercise:
-            return jsonify({'error': 'Exercise not found or unauthorized'}), 404
-        
-        # Create new history entry
-        set_history = SetHistory(
-            exercise_id=exercise_id,
-            user_id=user_id
-        )
-        db.session.add(set_history)
-        db.session.flush()  # Get the ID without committing
-        
-        # Add sets
-        for set_data in data['sets']:
-            individual_set = IndividualSet(
-                exercise_id=exercise_id,
-                set_history_id=set_history.id,
-                set_number=set_data['set_number'],
-                reps=set_data['reps'],
-                weight=set_data['weight']
-            )
-            db.session.add(individual_set)
-        
-        db.session.commit()
-        return jsonify({'message': 'Sets added successfully'})
-        
+        with engine.connect() as connection:
+            with connection.begin():
+                # Verify exercise belongs to user
+                exercise_check = connection.execute(
+                    text("SELECT id FROM exercises WHERE id = :id AND user_id = :user_id"),
+                    {"id": exercise_id, "user_id": user_id}
+                ).fetchone()
+                
+                if not exercise_check:
+                    return jsonify({'error': 'Exercise not found or unauthorized'}), 404
+                
+                # Create history entry
+                history_result = connection.execute(
+                    text("""
+                        INSERT INTO set_history (exercise_id, user_id, created_at)
+                        VALUES (:exercise_id, :user_id, CURRENT_TIMESTAMP)
+                        RETURNING id
+                    """),
+                    {
+                        "exercise_id": exercise_id,
+                        "user_id": user_id
+                    }
+                )
+                
+                history_id = history_result.fetchone()[0]
+                
+                # Add sets
+                for set_data in data['sets']:
+                    connection.execute(
+                        text("""
+                            INSERT INTO individual_set (
+                                exercise_id, set_history_id, set_number, reps, weight
+                            ) VALUES (
+                                :exercise_id, :history_id, :set_number, :reps, :weight
+                            )
+                        """),
+                        {
+                            "exercise_id": exercise_id,
+                            "history_id": history_id,
+                            "set_number": set_data['set_number'],
+                            "reps": set_data['reps'],
+                            "weight": set_data['weight']
+                        }
+                    )
+                
+            return jsonify({'message': 'Sets added successfully'})
+            
     except Exception as e:
-        db.session.rollback()
         print(f"Error saving sets: {str(e)}")
         return jsonify({'error': str(e)}), 500
 
