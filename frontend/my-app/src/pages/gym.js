@@ -130,6 +130,13 @@ const WeekCard = ({ week, onDeleteWeek, onExerciseChange }) => {
     onExerciseChange();
   };
 
+  const formatDateRange = () => {
+    if (!week.start_date || !week.end_date) return '';
+    const startDate = new Date(week.start_date);
+    const endDate = new Date(week.end_date);
+    return `${startDate.toLocaleDateString()} - ${endDate.toLocaleDateString()}`;
+  };
+
   return (
     <div className="bg-white rounded-lg shadow p-4 mb-4">
       <div className="flex justify-between items-start">
