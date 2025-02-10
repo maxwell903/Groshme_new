@@ -93,18 +93,11 @@ const DaySelector = ({ isOpen, onClose, onDaySelect }) => {
   );
 };
 
-const WeekCard = ({ week, onDeleteWeek, onExerciseChange }) => {
+const WeekCard = ({ week, onDeleteWeek }) => {
   const [isExpanded, setIsExpanded] = useState(false);
   const [showExerciseModal, setShowExerciseModal] = useState(false);
   const [selectedDay, setSelectedDay] = useState(null);
   const [error, setError] = useState(null);
-
-  const formatDateRange = () => {
-    if (!week.start_date || !week.end_date) return '';
-    const startDate = new Date(week.start_date);
-    const endDate = new Date(week.end_date);
-    return `${startDate.toLocaleDateString()} - ${endDate.toLocaleDateString()}`;
-  };
 
   const handleDeleteExercise = async (day, exerciseId) => {
     try {
@@ -125,6 +118,8 @@ const WeekCard = ({ week, onDeleteWeek, onExerciseChange }) => {
         throw new Error('Failed to delete exercise');
       }
 
+      // Refresh week data after deletion
+      // You'll need to implement this refresh logic
       onExerciseChange();
     } catch (err) {
       setError(err.message);
@@ -132,20 +127,20 @@ const WeekCard = ({ week, onDeleteWeek, onExerciseChange }) => {
     }
   };
 
-  const handleExercisesSelected = async () => {
-    setShowExerciseModal(false);
-    onExerciseChange();
+  const formatDateRange = () => {
+    if (!week.start_date || !week.end_date) return '';
+    const startDate = new Date(week.start_date);
+    const endDate = new Date(week.end_date);
+    return `${startDate.toLocaleDateString()} - ${endDate.toLocaleDateString()}`;
   };
-
 
   return (
     <div className="bg-white rounded-lg shadow p-4 mb-4">
+      {/* Header */}
       <div className="flex justify-between items-start">
         <div>
           <h3 className="text-lg font-semibold">{week.title}</h3>
-          <p className="text-sm text-gray-600">
-            {formatDateRange(week.start_date, week.end_date)}
-          </p>
+          <p className="text-sm text-gray-600">{formatDateRange()}</p>
         </div>
         <div className="flex gap-2">
           <button
@@ -163,6 +158,7 @@ const WeekCard = ({ week, onDeleteWeek, onExerciseChange }) => {
         </div>
       </div>
 
+      {/* Expanded Content */}
       {isExpanded && (
         <div className="mt-4 grid grid-cols-7 gap-4">
           {['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'].map((day) => (
@@ -174,9 +170,9 @@ const WeekCard = ({ week, onDeleteWeek, onExerciseChange }) => {
                     setSelectedDay(day);
                     setShowExerciseModal(true);
                   }}
-                  className="text-blue-600 hover:text-blue-800"
+                  className="text-blue-600 hover:text-blue-800 text-sm"
                 >
-                  <Plus size={20} />
+                  Add Exercise
                 </button>
               </div>
 
@@ -190,11 +186,17 @@ const WeekCard = ({ week, onDeleteWeek, onExerciseChange }) => {
         </div>
       )}
 
+      {/* Exercise Search Modal */}
       {showExerciseModal && (
         <ExerciseSearchModal
           isOpen={showExerciseModal}
           onClose={() => setShowExerciseModal(false)}
-          onExercisesSelected={handleExercisesSelected}
+          onExercisesSelected={() => {
+            setShowExerciseModal(false);
+            // Refresh week data after adding exercises
+            // You'll need to implement this refresh logic
+            onExerciseChange();
+          }}
           weekId={week.id}
           day={selectedDay}
         />
@@ -202,6 +204,7 @@ const WeekCard = ({ week, onDeleteWeek, onExerciseChange }) => {
     </div>
   );
 };
+
 
 const GymPage = () => {
   const [weeks, setWeeks] = useState([]);
