@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Plus, X, ChevronDown, ChevronUp } from 'lucide-react';
 import Link from 'next/link';
-import WorkoutExerciseCard from './WorkoutExerciseCard';
+import WorkoutExerciseCard from '@/components/WorkoutExerciseCard';
 import ExerciseSearchModal from '@/components/ExerciseSearchModal';
 const API_URL = process.env.NEXT_PUBLIC_API_URL;
 
