@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { ChevronDown, ChevronUp, X } from 'lucide-react';
+import { X } from 'lucide-react';
 
 const ExerciseCard = ({ exercise, onDelete }) => {
   const [isExpanded, setIsExpanded] = useState(false);
@@ -10,12 +10,7 @@ const ExerciseCard = ({ exercise, onDelete }) => {
         className="p-4 cursor-pointer flex justify-between items-center"
         onClick={() => setIsExpanded(!isExpanded)}
       >
-        <div className="flex items-center gap-2">
-          {isExpanded ? (
-            <ChevronUp className="h-5 w-5 text-gray-400" />
-          ) : (
-            <ChevronDown className="h-5 w-5 text-gray-400" />
-          )}
+        <div>
           <h3 className="font-medium text-gray-900">{exercise.name}</h3>
         </div>
         <button
