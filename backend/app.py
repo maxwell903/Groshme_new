@@ -6075,6 +6075,16 @@ def add_one_time_income(entry_id):
         print(f"Error adding one-time income: {str(e)}")
         return jsonify({'error': str(e)}), 500
     
+@app.route('/api/exercises/<int:exercise_id>/sets', methods=['OPTIONS'])
+def handle_sets_options(exercise_id):
+    response = jsonify({'status': 'ok'})
+    response.headers.add('Access-Control-Allow-Origin', 'https://groshmebeta.netlify.app')
+    response.headers.add('Access-Control-Allow-Headers', 'Content-Type,Authorization')
+    response.headers.add('Access-Control-Allow-Methods', 'GET,POST,OPTIONS')
+    response.headers.add('Access-Control-Allow-Credentials', 'true')
+    return response
+
+    
 @app.route('/api/workout-weeks', methods=['OPTIONS'])
 def workout_weeks_options():
     response = jsonify({'status': 'ok'})
