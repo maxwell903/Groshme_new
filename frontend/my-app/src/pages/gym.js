@@ -93,11 +93,18 @@ const DaySelector = ({ isOpen, onClose, onDaySelect }) => {
   );
 };
 
-const WeekCard = ({ week, onDeleteWeek }) => {
+const WeekCard = ({ week, onDeleteWeek, onExerciseChange }) => {
   const [isExpanded, setIsExpanded] = useState(false);
   const [showExerciseModal, setShowExerciseModal] = useState(false);
   const [selectedDay, setSelectedDay] = useState(null);
   const [error, setError] = useState(null);
+
+  const formatDateRange = () => {
+    if (!week.start_date || !week.end_date) return '';
+    const startDate = new Date(week.start_date);
+    const endDate = new Date(week.end_date);
+    return `${startDate.toLocaleDateString()} - ${endDate.toLocaleDateString()}`;
+  };
 
   const handleDeleteExercise = async (day, exerciseId) => {
     try {
@@ -118,8 +125,6 @@ const WeekCard = ({ week, onDeleteWeek }) => {
         throw new Error('Failed to delete exercise');
       }
 
-      // Refresh week data after deletion
-      // You'll need to implement this refresh logic
       onExerciseChange();
     } catch (err) {
       setError(err.message);
@@ -127,20 +132,20 @@ const WeekCard = ({ week, onDeleteWeek }) => {
     }
   };
 
-  const formatDateRange = () => {
-    if (!week.start_date || !week.end_date) return '';
-    const startDate = new Date(week.start_date);
-    const endDate = new Date(week.end_date);
-    return `${startDate.toLocaleDateString()} - ${endDate.toLocaleDateString()}`;
+  const handleExercisesSelected = async () => {
+    setShowExerciseModal(false);
+    onExerciseChange();
   };
+
 
   return (
     <div className="bg-white rounded-lg shadow p-4 mb-4">
-      {/* Header */}
       <div className="flex justify-between items-start">
         <div>
           <h3 className="text-lg font-semibold">{week.title}</h3>
-          <p className="text-sm text-gray-600">{formatDateRange()}</p>
+          <p className="text-sm text-gray-600">
+            {formatDateRange(week.start_date, week.end_date)}
+          </p>
         </div>
         <div className="flex gap-2">
           <button
@@ -158,7 +163,6 @@ const WeekCard = ({ week, onDeleteWeek }) => {
         </div>
       </div>
 
-      {/* Expanded Content */}
       {isExpanded && (
         <div className="mt-4 grid grid-cols-7 gap-4">
           {['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'].map((day) => (
@@ -170,9 +174,9 @@ const WeekCard = ({ week, onDeleteWeek }) => {
                     setSelectedDay(day);
                     setShowExerciseModal(true);
                   }}
-                  className="text-blue-600 hover:text-blue-800 text-sm"
+                  className="text-blue-600 hover:text-blue-800"
                 >
-                  Add Exercise
+                  <Plus size={20} />
                 </button>
               </div>
 
@@ -186,17 +190,11 @@ const WeekCard = ({ week, onDeleteWeek }) => {
         </div>
       )}
 
-      {/* Exercise Search Modal */}
       {showExerciseModal && (
         <ExerciseSearchModal
           isOpen={showExerciseModal}
           onClose={() => setShowExerciseModal(false)}
-          onExercisesSelected={() => {
-            setShowExerciseModal(false);
-            // Refresh week data after adding exercises
-            // You'll need to implement this refresh logic
-            onExerciseChange();
-          }}
+          onExercisesSelected={handleExercisesSelected}
           weekId={week.id}
           day={selectedDay}
         />
@@ -222,7 +220,7 @@ const GymPage = () => {
         return;
       }
 
-      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/workout-weeks`, {
+      const response = await fetch(`${API_URL}/api/workout-weeks`, {
         headers: {
           'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json'
@@ -241,7 +239,6 @@ const GymPage = () => {
       setLoading(false);
     }
   };
-
 
   const handleDaySelect = async (weekData) => {
     try {
