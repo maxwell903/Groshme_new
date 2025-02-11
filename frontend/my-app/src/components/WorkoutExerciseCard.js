@@ -3,114 +3,158 @@ import { X } from 'lucide-react';
 import SetsModal from './SetsModal';
 const API_URL = process.env.NEXT_PUBLIC_API_URL;
 
-const ExerciseCard = ({ exercise, onDelete }) => {
-  const [isExpanded, setIsExpanded] = useState(false);
-  const [showSetsModal, setShowSetsModal] = useState(false);
-  const [isCompleted, setIsCompleted] = useState(false);
-
-  // Check if exercise has been completed today
-  useEffect(() => {
-    const checkCompletion = async () => {
-      if (!exercise.exercise_id) return; // Use exercise_id instead of id
-      
-      try {
-        const token = localStorage.getItem('access_token');
-        const response = await fetch(`${API_URL}/api/exercises/${exercise.exercise_id}/sets/latest`, {
-          headers: {
-            'Authorization': `Bearer ${token}`,
-            'Content-Type': 'application/json'
-          }
-        });
+const ExerciseCard = ({ exercise, onDelete, weekId }) => {
+    const [isExpanded, setIsExpanded] = useState(false);
+    const [showSetsModal, setShowSetsModal] = useState(false);
+    const [isCompleted, setIsCompleted] = useState(false);
+    const [isDeleting, setIsDeleting] = useState(false);
+  
+    // Check completion status on mount
+    useEffect(() => {
+      const checkCompletion = async () => {
+        if (!exercise.exercise_id) return;
         
-        if (response.ok) {
-          const data = await response.json();
-          if (data.latestSet) {
-            const setDate = new Date(data.latestSet.created_at);
-            const today = new Date();
-            setIsCompleted(
-              setDate.getDate() === today.getDate() &&
-              setDate.getMonth() === today.getMonth() &&
-              setDate.getFullYear() === today.getFullYear()
-            );
+        try {
+          const token = localStorage.getItem('access_token');
+          const response = await fetch(
+            `${process.env.NEXT_PUBLIC_API_URL}/api/exercises/${exercise.exercise_id}/sets/latest`,
+            {
+              headers: {
+                'Authorization': `Bearer ${token}`,
+                'Content-Type': 'application/json'
+              }
+            }
+          );
+          
+          if (response.ok) {
+            const data = await response.json();
+            if (data.latestSet) {
+              const setDate = new Date(data.latestSet.created_at);
+              const today = new Date();
+              setIsCompleted(
+                setDate.getDate() === today.getDate() &&
+                setDate.getMonth() === today.getMonth() &&
+                setDate.getFullYear() === today.getFullYear()
+              );
+            }
           }
+        } catch (error) {
+          console.error('Error checking completion:', error);
         }
+      };
+  
+      checkCompletion();
+    }, [exercise.exercise_id]);
+  
+    const handleDelete = async (e) => {
+      e.stopPropagation(); // Prevent expanding the card when clicking delete
+  
+      if (isDeleting) return; // Prevent multiple clicks
+  
+      if (!window.confirm('Are you sure you want to remove this exercise?')) {
+        return;
+      }
+  
+      try {
+        setIsDeleting(true);
+        const token = localStorage.getItem('access_token');
+        
+        const response = await fetch(
+          `${process.env.NEXT_PUBLIC_API_URL}/api/workout-weeks/${weekId}/exercises/${exercise.exercise_id}`,
+          {
+            method: 'DELETE',
+            headers: {
+              'Authorization': `Bearer ${token}`,
+              'Content-Type': 'application/json'
+            }
+          }
+        );
+  
+        if (!response.ok) {
+          const errorData = await response.json();
+          throw new Error(errorData.error || 'Failed to delete exercise');
+        }
+  
+        // Call the parent's onDelete callback
+        onDelete(exercise.exercise_id);
+        
       } catch (error) {
-        console.error('Error checking completion:', error);
+        console.error('Error deleting exercise:', error);
+        alert('Failed to delete exercise. Please try again.');
+      } finally {
+        setIsDeleting(false);
       }
     };
-
-    checkCompletion();
-  }, [exercise.exercise_id]);
-
-  // Create the formatted exercise object for SetsModal
-  const formattedExercise = {
-    id: exercise.exercise_id, // Use exercise_id
-    name: exercise.name,
-    amount_sets: exercise.target_sets,
-    amount_reps: exercise.target_reps,
-    weight: exercise.target_weight,
-    rest_time: exercise.rest_time
-  };
-
-  return (
-    <div className={`bg-white rounded-lg shadow border mb-2 overflow-hidden 
-      ${isCompleted ? 'border-green-500 bg-green-50' : ''}`}>
-      <div 
-        className="p-4 cursor-pointer flex justify-between items-center"
-        onClick={() => setIsExpanded(!isExpanded)}
-      >
-        <div>
-          <h3 className="font-medium text-gray-900">{exercise.name}</h3>
-          {isCompleted && (
-            <span className="text-sm text-green-600">Completed today</span>
-          )}
-        </div>
-        <button
-          onClick={(e) => {
-            e.stopPropagation();
-            onDelete(exercise.exercise_id);
-          }}
-          className="text-red-500 hover:text-red-700 p-1"
+  
+    // Create formatted exercise object for SetsModal
+    const formattedExercise = {
+      id: exercise.exercise_id,
+      name: exercise.name,
+      amount_sets: exercise.target_sets,
+      amount_reps: exercise.target_reps,
+      weight: exercise.target_weight,
+      rest_time: exercise.rest_time
+    };
+  
+    return (
+      <div className={`bg-white rounded-lg shadow border mb-2 overflow-hidden 
+        ${isCompleted ? 'border-green-500 bg-green-50' : ''}`}>
+        <div 
+          className="p-4 cursor-pointer flex justify-between items-center"
+          onClick={() => setIsExpanded(!isExpanded)}
         >
-          <X size={16} />
-        </button>
-      </div>
-
-      {isExpanded && (
-        <div className="px-4 pb-4 pt-2 bg-gray-50">
-          <p className="text-gray-600">
-            {exercise.target_sets} × {exercise.target_reps}
-          </p>
-          <p className="text-gray-600">
-            @ {exercise.target_weight} lbs
-          </p>
-          <p className="text-gray-600">
-            Rest: {exercise.rest_time} seconds
-          </p>
-          <div className="flex justify-end mt-3">
-            <button
-              onClick={() => setShowSetsModal(true)}
-              className="px-3 py-1 bg-blue-600 text-white rounded-md text-sm hover:bg-blue-700"
-            >
-              Log Sets
-            </button>
+          <div>
+            <h3 className="font-medium text-gray-900">{exercise.name}</h3>
+            {isCompleted && (
+              <span className="text-sm text-green-600">Completed today</span>
+            )}
           </div>
+          <button
+            onClick={handleDelete}
+            disabled={isDeleting}
+            className={`text-red-500 hover:text-red-700 p-1 ${
+              isDeleting ? 'opacity-50 cursor-not-allowed' : ''
+            }`}
+          >
+            <X size={16} />
+          </button>
         </div>
-      )}
-
-      {showSetsModal && (
-        <SetsModal
-          exercise={formattedExercise}
-          isOpen={showSetsModal}
-          onClose={() => {
-            setShowSetsModal(false);
-            setIsCompleted(true);
-          }}
-        />
-      )}
-    </div>
-  );
-};
+  
+        {isExpanded && (
+          <div className="px-4 pb-4 pt-2 bg-gray-50">
+            <p className="text-gray-600">
+              {exercise.target_sets} × {exercise.target_reps}
+            </p>
+            <p className="text-gray-600">
+              @ {exercise.target_weight} lbs
+            </p>
+            <p className="text-gray-600">
+              Rest: {exercise.rest_time} seconds
+            </p>
+            <div className="flex justify-end mt-3">
+              <button
+                onClick={() => setShowSetsModal(true)}
+                className="px-3 py-1 bg-blue-600 text-white rounded-md text-sm hover:bg-blue-700"
+              >
+                Log Sets
+              </button>
+            </div>
+          </div>
+        )}
+  
+        {showSetsModal && (
+          <SetsModal
+            exercise={formattedExercise}
+            isOpen={showSetsModal}
+            onClose={() => {
+              setShowSetsModal(false);
+              setIsCompleted(true);
+            }}
+          />
+        )}
+      </div>
+    );
+  };
 
 const WorkoutExerciseCard = ({ day, exercises, onDeleteExercise }) => {
   if (!exercises || exercises.length === 0) {
