@@ -205,7 +205,6 @@ const WeekCard = ({ week, onDeleteWeek }) => {
   );
 };
 
-
 const GymPage = () => {
   const [weeks, setWeeks] = useState([]);
   const [showDaySelector, setShowDaySelector] = useState(false);
@@ -243,9 +242,70 @@ const GymPage = () => {
     }
   };
 
-  const handleDeleteWeek = (weekId) => {
-    // Update local state immediately for better UX
-    setWeeks(prevWeeks => prevWeeks.filter(week => week.id !== weekId));
+
+  const handleDaySelect = async (weekData) => {
+    try {
+      const token = localStorage.getItem('access_token');
+      if (!token) {
+        console.error('No auth token found');
+        return;
+      }
+
+      // Log the data being sent for debugging
+      console.log('Sending workout week data:', weekData);
+
+      const response = await fetch(`${API_URL}/api/workout-weeks`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          title: weekData.title,
+          start_date: weekData.startDate,
+          end_date: weekData.endDate,
+          start_day: weekData.day
+        })
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Failed to create week');
+      }
+
+      const result = await response.json();
+      console.log('Week created successfully:', result);
+      await fetchWeeks();
+      setShowDaySelector(false);
+    } catch (error) {
+      console.error('Error creating week:', error);
+      alert(error.message || 'Failed to create workout week');
+    }
+  };
+
+  const handleDeleteWeek = async (weekId) => {
+    if (!confirm('Are you sure you want to delete this week?')) return;
+
+    try {
+      const token = localStorage.getItem('access_token');
+      if (!token) {
+        console.error('No auth token found');
+        return;
+      }
+
+      const response = await fetch(`${API_URL}/api/workout-weeks/${weekId}`, {
+        method: 'DELETE',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        }
+      });
+
+      if (!response.ok) throw new Error('Failed to delete week');
+      await fetchWeeks();
+    } catch (error) {
+      console.error('Error deleting week:', error);
+    }
   };
 
   return (
@@ -279,7 +339,6 @@ const GymPage = () => {
                 key={week.id}
                 week={week}
                 onDeleteWeek={handleDeleteWeek}
-                onExerciseChange={fetchWeeks}
               />
             ))}
           </div>
@@ -295,4 +354,4 @@ const GymPage = () => {
   );
 };
 
-export default GymPage
+export default GymPage;
