@@ -177,11 +177,10 @@ const WeekCard = ({ week, onDeleteWeek }) => {
               </div>
 
               <WorkoutExerciseCard
-  key={exercise.exercise_id}
-  exercise={exercise}
-  weekId={week.id}  // Add this prop
-  onDelete={(exerciseId) => onDeleteExercise(day, exerciseId)}
-/>
+                day={day}
+                exercises={week.daily_workouts?.[day] || []}
+                onDeleteExercise={handleDeleteExercise}
+              />
             </div>
           ))}
         </div>
