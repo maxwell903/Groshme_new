@@ -6307,7 +6307,55 @@ def add_workout_exercises(week_id):
     except Exception as e:
         print(f"Error adding exercises: {str(e)}")
         return jsonify({'error': str(e)}), 500
+    
 
+@app.route('/api/workout-weeks/<int:week_id>/days/<string:day>/exercises/<int:exercise_id>', methods=['DELETE'])
+@auth_required
+def delete_workout_exercise(week_id, day, exercise_id):
+    try:
+        user_id = g.user_id
+        engine = create_engine(db_url, poolclass=NullPool)
+        
+        with engine.connect() as connection:
+            # First verify the week belongs to the user
+            week_check = connection.execute(
+                text("""
+                    SELECT id FROM workout_weeks 
+                    WHERE id = :week_id AND user_id = :user_id
+                """),
+                {"week_id": week_id, "user_id": user_id}
+            ).fetchone()
+            
+            if not week_check:
+                return jsonify({'error': 'Week not found or unauthorized'}), 404
+
+            # Delete the exercise from the daily workout
+            result = connection.execute(
+                text("""
+                    DELETE FROM workout_exercises
+                    WHERE daily_workout_id IN (
+                        SELECT id FROM daily_workouts
+                        WHERE week_id = :week_id AND day_of_week = :day
+                    )
+                    AND exercise_id = :exercise_id
+                    RETURNING id
+                """),
+                {
+                    "week_id": week_id,
+                    "day": day,
+                    "exercise_id": exercise_id
+                }
+            )
+            
+            if not result.rowcount:
+                return jsonify({'error': 'Exercise not found in workout'}), 404
+
+            connection.commit()
+            return jsonify({'message': 'Exercise removed successfully'})
+            
+    except Exception as e:
+        print(f"Error deleting workout exercise: {str(e)}")
+        return jsonify({'error': str(e)}), 500
      
 def upgrade_database():
     # SQL for PostgreSQL

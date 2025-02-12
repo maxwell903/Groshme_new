@@ -163,7 +163,35 @@ const WorkoutExerciseCard = ({ day, exercises, onDeleteExercise }) => {
         <p className="text-gray-500 text-center">No exercises added</p>
       </div>
     );
+
+    
   }
+  const handleDeleteExercise = async (day, exerciseId) => {
+    try {
+      const token = localStorage.getItem('access_token');
+      const response = await fetch(
+        `${process.env.NEXT_PUBLIC_API_URL}/api/workout-weeks/${week.id}/days/${day}/exercises/${exerciseId}`, 
+        {
+          method: 'DELETE',
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json'
+          }
+        }
+      );
+  
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.error || 'Failed to delete exercise');
+      }
+  
+      // Refresh week data after deletion
+      onExerciseChange();
+    } catch (err) {
+      console.error('Error deleting exercise:', err);
+      setError(err.message);
+    }
+  };
 
   return (
     <div className="space-y-2">
