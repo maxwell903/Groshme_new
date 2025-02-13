@@ -6228,22 +6228,41 @@ def delete_workout_week(week_id):
         
         with engine.connect() as connection:
             with connection.begin():  # Start a transaction
-                # First verify ownership
+                # First verify ownership and check if week exists
+                week_check_query = text("""
+                    SELECT id FROM workout_weeks 
+                    WHERE id = :week_id
+                """)
                 week_check = connection.execute(
-                    text("""
-                        SELECT id FROM workout_weeks 
-                        WHERE id = :week_id AND user_id = :user_id
-                    """),
+                    week_check_query,
+                    {
+                        "week_id": week_id
+                    }
+                ).fetchone()
+                
+                print(f"Week check result (before ownership): {week_check}")  # Debug log
+                
+                if not week_check:
+                    print(f"Week {week_id} not found")  # Debug log
+                    return jsonify({'error': 'Week not found'}), 404
+
+                # Now check ownership specifically
+                ownership_check_query = text("""
+                    SELECT id FROM workout_weeks 
+                    WHERE id = :week_id AND user_id = :user_id
+                """)
+                ownership_check = connection.execute(
+                    ownership_check_query,
                     {
                         "week_id": week_id,
                         "user_id": user_id
                     }
                 ).fetchone()
                 
-                print(f"Week check result: {week_check}")  # Debug log
+                print(f"Ownership check result: {ownership_check}")  # Debug log
                 
-                if not week_check:
-                    print(f"Week {week_id} not found or not owned by user {user_id}")  # Debug log
+                if not ownership_check:
+                    print(f"Week {week_id} not owned by user {user_id}")  # Debug log
                     return jsonify({'error': 'Week not found or unauthorized'}), 404
 
                 # Debug: Check if there are any daily workouts
@@ -6254,7 +6273,7 @@ def delete_workout_week(week_id):
                 print(f"Found {daily_workouts} daily workouts")  # Debug log
 
                 # Delete workout exercises first
-                connection.execute(
+                exercises_delete_result = connection.execute(
                     text("""
                         DELETE FROM workout_exercises
                         WHERE daily_workout_id IN (
@@ -6264,20 +6283,20 @@ def delete_workout_week(week_id):
                     """),
                     {"week_id": week_id}
                 )
-                print("Deleted workout exercises")  # Debug log
+                print(f"Deleted {exercises_delete_result.rowcount} workout exercises")  # Debug log
 
                 # Delete daily workouts
-                connection.execute(
+                daily_workouts_delete_result = connection.execute(
                     text("""
                         DELETE FROM daily_workouts
                         WHERE week_id = :week_id
                     """),
                     {"week_id": week_id}
                 )
-                print("Deleted daily workouts")  # Debug log
+                print(f"Deleted {daily_workouts_delete_result.rowcount} daily workouts")  # Debug log
 
                 # Finally delete the week itself
-                result = connection.execute(
+                week_delete_result = connection.execute(
                     text("""
                         DELETE FROM workout_weeks 
                         WHERE id = :week_id AND user_id = :user_id
@@ -6288,7 +6307,12 @@ def delete_workout_week(week_id):
                         "user_id": user_id
                     }
                 )
-                print(f"Delete week result: {result.rowcount} rows affected")  # Debug log
+                print(f"Delete week result: {week_delete_result.rowcount} rows affected")  # Debug log
+
+                # Explicitly check if the deletion was successful
+                if week_delete_result.rowcount == 0:
+                    print("No rows deleted - potential issue with deletion")
+                    return jsonify({'error': 'Failed to delete week'}), 404
 
             return jsonify({'message': 'Workout week deleted successfully'})
 

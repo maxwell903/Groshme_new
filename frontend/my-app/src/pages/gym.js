@@ -116,7 +116,7 @@ const WeekCard = ({ week, onDeleteWeek, onExerciseChange }) => {
         }
       });
 
-      if (!response.ok) throw new Error('Failed to delete week');
+      if (!response.ok) throw new Error('Failed to delete week Week Card');
       
       // Call the parent's onDeleteWeek callback to update state
       onDeleteWeek(week.id);
@@ -327,14 +327,14 @@ const GymPage = () => {
       });
   
       if (!response.ok) {
-        throw new Error('Failed to delete week');
+        throw new Error('Failed to delete week Gym Page');
       }
   
       // Update local state only after successful deletion
       setWeeks(prevWeeks => prevWeeks.filter(week => week.id !== weekId));
 
       await fetchWeeks();
-      
+
     } catch (error) {
       console.error('Error deleting week:', error);
       alert('Failed to delete week. Please try again.');
