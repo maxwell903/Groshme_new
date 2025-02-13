@@ -726,10 +726,11 @@ const Week = ({ week, onDeleteWeek, onMealDelete, onMealsAdded, onToggleDates })
   };
   
   const MealPrepPage = () => {
+    const router = useRouter();
     const [viewMode, setViewMode] = useState(() => {
         if (typeof window !== 'undefined') {
-            // Get the last selected tab from localStorage, default to 'mealprep' if none exists
-            return localStorage.getItem('lastMealPrepTab') || 'mealprep';
+          const urlParams = new URLSearchParams(window.location.search);
+          return urlParams.get('viewMode') || 'mealprep';
           }
           // Return default value for server-side rendering
           return 'mealprep';

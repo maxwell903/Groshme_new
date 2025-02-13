@@ -83,7 +83,7 @@ const Navigation = () => {
             </Link>
             <Link 
               
-              href="/meal-prep"
+              href="/meal-prep?viewMode=workout"
               
               className="text-gray-600 hover:text-gray-800"
             >
