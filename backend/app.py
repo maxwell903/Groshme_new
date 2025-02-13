@@ -6308,7 +6308,17 @@ def add_workout_exercises(week_id):
         print(f"Error adding exercises: {str(e)}")
         return jsonify({'error': str(e)}), 500
     
+# First, add a separate route for OPTIONS
+@app.route('/api/workout-weeks/<int:week_id>/days/<string:day>/exercises/<int:exercise_id>', methods=['OPTIONS'])
+def workout_exercise_options(week_id, day, exercise_id):
+    response = jsonify({'status': 'ok'})
+    response.headers.add('Access-Control-Allow-Origin', 'https://groshmebeta.netlify.app')  # Your frontend URL
+    response.headers.add('Access-Control-Allow-Methods', 'DELETE, OPTIONS')
+    response.headers.add('Access-Control-Allow-Headers', 'Content-Type, Authorization')
+    response.headers.add('Access-Control-Allow-Credentials', 'true')
+    return response
 
+# Then, the DELETE route with authentication
 @app.route('/api/workout-weeks/<int:week_id>/days/<string:day>/exercises/<int:exercise_id>', methods=['DELETE'])
 @auth_required
 def delete_workout_exercise(week_id, day, exercise_id):
@@ -6351,11 +6361,17 @@ def delete_workout_exercise(week_id, day, exercise_id):
                 return jsonify({'error': 'Exercise not found in workout'}), 404
 
             connection.commit()
-            return jsonify({'message': 'Exercise removed successfully'})
+            
+            # Add CORS headers to the success response
+            response = jsonify({'message': 'Exercise removed successfully'})
+            response.headers.add('Access-Control-Allow-Origin', 'https://groshmebeta.netlify.app')
+            response.headers.add('Access-Control-Allow-Credentials', 'true')
+            return response
             
     except Exception as e:
         print(f"Error deleting workout exercise: {str(e)}")
         return jsonify({'error': str(e)}), 500
+
      
 def upgrade_database():
     # SQL for PostgreSQL

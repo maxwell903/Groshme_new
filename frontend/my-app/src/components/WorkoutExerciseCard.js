@@ -47,17 +47,17 @@ const ExerciseCard = ({ exercise, onDelete, weekId, day }) => {
 
   const handleDelete = async (e) => {
     e.stopPropagation();
-
+  
     if (isDeleting) return;
     if (!weekId) {
       console.error('Week ID is undefined');
       return;
     }
-
+  
     if (!window.confirm('Are you sure you want to remove this exercise?')) {
       return;
     }
-
+  
     try {
       setIsDeleting(true);
       const token = localStorage.getItem('access_token');
@@ -72,12 +72,12 @@ const ExerciseCard = ({ exercise, onDelete, weekId, day }) => {
           }
         }
       );
-
+  
       if (!response.ok) {
         const errorData = await response.json();
         throw new Error(errorData.error || 'Failed to delete exercise');
       }
-
+  
       onDelete(exercise.exercise_id);
       
     } catch (error) {
