@@ -731,7 +731,7 @@ const Week = ({ week, onDeleteWeek, onMealDelete, onMealsAdded, onToggleDates })
     const [viewMode, setViewMode] = useState(() => {
         if (typeof window !== 'undefined') {
           const urlParams = new URLSearchParams(window.location.search);
-          return urlParams.get('viewMode') || 'mealprep';
+          return urlParams.get('viewMode') || localStorage.getItem('lastMealPrepTab') || 'mealprep';
           }
           // Return default value for server-side rendering
           return 'mealprep';
