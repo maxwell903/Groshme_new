@@ -1139,23 +1139,11 @@ const Week = ({ week, onDeleteWeek, onMealDelete, onMealsAdded, onToggleDates })
   
     return (
       <div className="min-h-screen bg-gray-50">
-      <nav className="bg-white shadow-sm">
-        <div className="max-w-6xl mx-auto px-4 py-4">
-            <Link href="/" className="text-blue-600 hover:text-blue-800">
-              ← Back
-            </Link>
-          </div>
-        </nav>
   
         <div className="max-w-7xl mx-auto px-4 py-8">
           <div className="mb-8">
             <div className="flex gap-4 mb-6">
-            <Link
-    href="/menus"
-    className="px-4 py-2 rounded-lg bg-gray-200 text-gray-700 hover:bg-blue-600 hover:text-gray-100"
-  >
-    My Food
-  </Link>
+            
               <button
                 onClick={() => setViewMode('mealprep')}
                 className={`px-4 py-2 rounded-lg ${
@@ -1176,12 +1164,7 @@ const Week = ({ week, onDeleteWeek, onMealDelete, onMealsAdded, onToggleDates })
               >
                 My Exercises
               </button>
-              <Link
-  href="/gym"
-  className="px-4 py-2 rounded-lg bg-gray-200 text-gray-700 hover:bg-blue-600 hover:text-gray-100"
->
-  My Workouts
-</Link>
+              
             </div>
   
             {viewMode === 'workout' && (
