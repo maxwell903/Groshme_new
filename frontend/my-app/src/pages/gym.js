@@ -327,14 +327,17 @@ const GymPage = () => {
       });
   
       if (!response.ok) {
-        throw new Error('Failed to delete week Gym Page');
+        if (response.status === 404) {
+          // Week not found, possibly already deleted
+          console.warn('Week not found, possibly already deleted');
+        } else {
+          throw new Error('Failed to delete week');
+        }
       }
-  
-      // Update local state only after successful deletion
+
+      // Update the local state to remove the deleted week
       setWeeks(prevWeeks => prevWeeks.filter(week => week.id !== weekId));
-
-      await fetchWeeks();
-
+  
     } catch (error) {
       console.error('Error deleting week:', error);
       alert('Failed to delete week. Please try again.');
