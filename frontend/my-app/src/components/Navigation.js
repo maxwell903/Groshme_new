@@ -3,6 +3,7 @@ import Link from 'next/link';
 import { useRouter } from 'next/router';
 import { useAuth } from '../contexts/AuthContext';
 import { LogOut, User } from 'lucide-react';
+import {HouseIcon} from 'lucide-react';
 
 
 const Navigation = () => {
@@ -29,7 +30,7 @@ const Navigation = () => {
               href="/" 
               className="text-blue-600 hover:text-blue-800"
             >
-              Home
+              <HouseIcon size={20} />
             </Link>
             <Link 
               href="/all-recipes"
