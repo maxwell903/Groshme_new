@@ -30,7 +30,7 @@ const Navigation = () => {
               href="/" 
               className="text-blue-600 hover:text-blue-800"
             >
-              <HouseIcon size={20} />
+              <HouseIcon size={24} />
             </Link>
             <Link 
               href="/all-recipes"
