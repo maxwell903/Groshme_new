@@ -69,7 +69,7 @@ const Navigation = () => {
             </Link>
             <Link 
               
-              href="/meal-prep"
+              href="/meal-prep?viewMode=mealprep"
               
               className="text-gray-600 hover:text-gray-800"
             >
