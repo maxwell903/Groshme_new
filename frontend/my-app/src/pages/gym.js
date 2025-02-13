@@ -119,7 +119,6 @@ const WeekCard = ({ week, onDeleteWeek, onExerciseChange }) => {
         throw new Error('Failed to delete exercise');
       }
 
-      // Call parent's refresh function
       if (onExerciseChange) {
         onExerciseChange();
       }
@@ -206,7 +205,6 @@ const WeekCard = ({ week, onDeleteWeek, onExerciseChange }) => {
   );
 };
 
-
 const GymPage = () => {
   const [weeks, setWeeks] = useState([]);
   const [showDaySelector, setShowDaySelector] = useState(false);
@@ -252,9 +250,6 @@ const GymPage = () => {
         return;
       }
 
-      // Log the data being sent for debugging
-      console.log('Sending workout week data:', weekData);
-
       const response = await fetch(`${API_URL}/api/workout-weeks`, {
         method: 'POST',
         headers: {
@@ -274,8 +269,6 @@ const GymPage = () => {
         throw new Error(errorData.error || 'Failed to create week');
       }
 
-      const result = await response.json();
-      console.log('Week created successfully:', result);
       await fetchWeeks();
       setShowDaySelector(false);
     } catch (error) {
@@ -340,6 +333,7 @@ const GymPage = () => {
                 key={week.id}
                 week={week}
                 onDeleteWeek={handleDeleteWeek}
+                onExerciseChange={fetchWeeks}
               />
             ))}
           </div>
