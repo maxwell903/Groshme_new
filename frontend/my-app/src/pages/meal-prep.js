@@ -1,5 +1,6 @@
 // src/pages/meal-prep.js
 import React, { useState, useEffect } from 'react';
+import { useRouter } from 'next/router';
 import Link from 'next/link';
 import { ChevronDown, ChevronRight, Plus, X, Search, Check, Loader } from 'lucide-react';
 import ExerciseDisplay from '../components/ExerciseDisplay';
