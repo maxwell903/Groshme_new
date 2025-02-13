@@ -93,7 +93,7 @@ const DaySelector = ({ isOpen, onClose, onDaySelect }) => {
   );
 };
 
-const WeekCard = ({ week, onDeleteWeek }) => {
+const WeekCard = ({ week, onDeleteWeek, onExerciseChange }) => {
   const [isExpanded, setIsExpanded] = useState(false);
   const [showExerciseModal, setShowExerciseModal] = useState(false);
   const [selectedDay, setSelectedDay] = useState(null);
@@ -103,14 +103,15 @@ const WeekCard = ({ week, onDeleteWeek }) => {
     try {
       const token = localStorage.getItem('access_token');
       const response = await fetch(
-        `${process.env.NEXT_PUBLIC_API_URL}/api/workout-weeks/${week.id}/exercises/${exerciseId}`, 
+        `${API_URL}/api/workout-weeks/${week.id}/days/${day}/exercises/${exerciseId}`, 
         {
           method: 'DELETE',
           headers: {
             'Authorization': `Bearer ${token}`,
-            'Content-Type': 'application/json'
+            'Content-Type': 'application/json',
+            'Accept': 'application/json'
           },
-          body: JSON.stringify({ day })
+          credentials: 'include'
         }
       );
 
@@ -118,9 +119,10 @@ const WeekCard = ({ week, onDeleteWeek }) => {
         throw new Error('Failed to delete exercise');
       }
 
-      // Refresh week data after deletion
-      // You'll need to implement this refresh logic
-      onExerciseChange();
+      // Call parent's refresh function
+      if (onExerciseChange) {
+        onExerciseChange();
+      }
     } catch (err) {
       setError(err.message);
       console.error('Error deleting exercise:', err);
@@ -136,7 +138,6 @@ const WeekCard = ({ week, onDeleteWeek }) => {
 
   return (
     <div className="bg-white rounded-lg shadow p-4 mb-4">
-      {/* Header */}
       <div className="flex justify-between items-start">
         <div>
           <h3 className="text-lg font-semibold">{week.title}</h3>
@@ -158,7 +159,6 @@ const WeekCard = ({ week, onDeleteWeek }) => {
         </div>
       </div>
 
-      {/* Expanded Content */}
       {isExpanded && (
         <div className="mt-4 grid grid-cols-7 gap-4">
           {['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'].map((day) => (
@@ -177,26 +177,26 @@ const WeekCard = ({ week, onDeleteWeek }) => {
               </div>
 
               <WorkoutExerciseCard
-  day={day}
-  exercises={week.daily_workouts?.[day] || []}
-  onDeleteExercise={(day, exerciseId) => handleDeleteExercise(day, exerciseId)}
-  weekId={week.id}  // Make sure this is being passed
-/>
+                day={day}
+                exercises={week.daily_workouts?.[day] || []}
+                onDeleteExercise={handleDeleteExercise}
+                weekId={week.id}
+                onExerciseChange={onExerciseChange}
+              />
             </div>
           ))}
         </div>
       )}
 
-      {/* Exercise Search Modal */}
       {showExerciseModal && (
         <ExerciseSearchModal
           isOpen={showExerciseModal}
           onClose={() => setShowExerciseModal(false)}
           onExercisesSelected={() => {
             setShowExerciseModal(false);
-            // Refresh week data after adding exercises
-            // You'll need to implement this refresh logic
-            onExerciseChange();
+            if (onExerciseChange) {
+              onExerciseChange();
+            }
           }}
           weekId={week.id}
           day={selectedDay}

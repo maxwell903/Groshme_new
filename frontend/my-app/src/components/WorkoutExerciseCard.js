@@ -3,7 +3,7 @@ import { X } from 'lucide-react';
 import SetsModal from './SetsModal';
 const API_URL = process.env.NEXT_PUBLIC_API_URL;
 
-const ExerciseCard = ({ exercise, onDelete, weekId, day }) => {
+const ExerciseCard = ({ exercise, onDelete, weekId, day, onExerciseChange }) => {
   const [isExpanded, setIsExpanded] = useState(false);
   const [showSetsModal, setShowSetsModal] = useState(false);
   const [isCompleted, setIsCompleted] = useState(false);
@@ -68,17 +68,24 @@ const ExerciseCard = ({ exercise, onDelete, weekId, day }) => {
           method: 'DELETE',
           headers: {
             'Authorization': `Bearer ${token}`,
-            'Content-Type': 'application/json'
-          }
+            'Content-Type': 'application/json',
+            'Accept': 'application/json'
+          },
+          credentials: 'include'
         }
       );
   
       if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error || 'Failed to delete exercise');
+        throw new Error('Failed to delete exercise');
       }
   
+      // Call onDelete to remove from local state
       onDelete(exercise.exercise_id);
+      
+      // Trigger parent refresh
+      if (onExerciseChange) {
+        onExerciseChange();
+      }
       
     } catch (error) {
       console.error('Error deleting exercise:', error);
@@ -157,7 +164,9 @@ const ExerciseCard = ({ exercise, onDelete, weekId, day }) => {
   );
 };
 
-const WorkoutExerciseCard = ({ day, exercises, onDeleteExercise, weekId }) => {
+
+
+const WorkoutExerciseCard = ({ day, exercises, onDeleteExercise, weekId, onExerciseChange }) => {
   if (!exercises || exercises.length === 0) {
     return (
       <div className="p-4 bg-gray-50 rounded-lg border border-dashed">
@@ -175,6 +184,7 @@ const WorkoutExerciseCard = ({ day, exercises, onDeleteExercise, weekId }) => {
           onDelete={(exerciseId) => onDeleteExercise(day, exerciseId)}
           weekId={weekId}
           day={day}
+          onExerciseChange={onExerciseChange}
         />
       ))}
     </div>
