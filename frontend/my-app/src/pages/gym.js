@@ -169,9 +169,9 @@ const WeekCard = ({ week, onDeleteWeek, onExerciseChange }) => {
                     setSelectedDay(day);
                     setShowExerciseModal(true);
                   }}
-                  className="text-blue-600 hover:text-blue-800 text-sm"
+                  className="text-blue-600 hover:text-blue-800"
                 >
-                  Add Exercise
+                  <Plus size={16} />
                 </button>
               </div>
 
