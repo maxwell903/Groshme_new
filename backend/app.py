@@ -6222,26 +6222,81 @@ def create_workout_week():
 def delete_workout_week(week_id):
     try:
         user_id = g.user_id
+        print(f"Attempting to delete week {week_id} for user {user_id}")  # Debug log
+        
         engine = create_engine(db_url, poolclass=NullPool)
         
         with engine.connect() as connection:
-            # Verify ownership
-            result = connection.execute(text("""
-                DELETE FROM workout_weeks 
-                WHERE id = :week_id AND user_id = :user_id
-                RETURNING id
-            """), {
-                'week_id': week_id,
-                'user_id': user_id
-            })
+            with connection.begin():  # Start a transaction
+                # First verify ownership
+                week_check = connection.execute(
+                    text("""
+                        SELECT id FROM workout_weeks 
+                        WHERE id = :week_id AND user_id = :user_id
+                    """),
+                    {
+                        "week_id": week_id,
+                        "user_id": user_id
+                    }
+                ).fetchone()
+                
+                print(f"Week check result: {week_check}")  # Debug log
+                
+                if not week_check:
+                    print(f"Week {week_id} not found or not owned by user {user_id}")  # Debug log
+                    return jsonify({'error': 'Week not found or unauthorized'}), 404
 
-            if not result.rowcount:
-                return jsonify({'error': 'Workout week not found or unauthorized'}), 404
+                # Debug: Check if there are any daily workouts
+                daily_workouts = connection.execute(
+                    text("SELECT COUNT(*) FROM daily_workouts WHERE week_id = :week_id"),
+                    {"week_id": week_id}
+                ).scalar()
+                print(f"Found {daily_workouts} daily workouts")  # Debug log
+
+                # Delete workout exercises first
+                connection.execute(
+                    text("""
+                        DELETE FROM workout_exercises
+                        WHERE daily_workout_id IN (
+                            SELECT id FROM daily_workouts
+                            WHERE week_id = :week_id
+                        )
+                    """),
+                    {"week_id": week_id}
+                )
+                print("Deleted workout exercises")  # Debug log
+
+                # Delete daily workouts
+                connection.execute(
+                    text("""
+                        DELETE FROM daily_workouts
+                        WHERE week_id = :week_id
+                    """),
+                    {"week_id": week_id}
+                )
+                print("Deleted daily workouts")  # Debug log
+
+                # Finally delete the week itself
+                result = connection.execute(
+                    text("""
+                        DELETE FROM workout_weeks 
+                        WHERE id = :week_id AND user_id = :user_id
+                        RETURNING id
+                    """),
+                    {
+                        "week_id": week_id,
+                        "user_id": user_id
+                    }
+                )
+                print(f"Delete week result: {result.rowcount} rows affected")  # Debug log
 
             return jsonify({'message': 'Workout week deleted successfully'})
 
     except Exception as e:
         print(f"Error deleting workout week: {str(e)}")
+        print(f"Full error details: {type(e).__name__}")
+        import traceback
+        traceback.print_exc()
         return jsonify({'error': str(e)}), 500
 
 @app.route('/api/workout-weeks/<int:week_id>/exercises', methods=['POST'])

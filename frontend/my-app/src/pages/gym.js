@@ -332,6 +332,9 @@ const GymPage = () => {
   
       // Update local state only after successful deletion
       setWeeks(prevWeeks => prevWeeks.filter(week => week.id !== weekId));
+
+      await fetchWeeks();
+      
     } catch (error) {
       console.error('Error deleting week:', error);
       alert('Failed to delete week. Please try again.');
