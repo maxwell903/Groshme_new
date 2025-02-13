@@ -98,6 +98,36 @@ const WeekCard = ({ week, onDeleteWeek, onExerciseChange }) => {
   const [showExerciseModal, setShowExerciseModal] = useState(false);
   const [selectedDay, setSelectedDay] = useState(null);
   const [error, setError] = useState(null);
+  const [isDeleting, setIsDeleting] = useState(false);
+
+  const handleDeleteWeek = async () => {
+    if (isDeleting) return;
+    
+    if (!confirm('Are you sure you want to delete this week?')) return;
+
+    try {
+      setIsDeleting(true);
+      const token = localStorage.getItem('access_token');
+      const response = await fetch(`${API_URL}/api/workout-weeks/${week.id}`, {
+        method: 'DELETE',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        }
+      });
+
+      if (!response.ok) throw new Error('Failed to delete week');
+      
+      // Call the parent's onDeleteWeek callback to update state
+      onDeleteWeek(week.id);
+      
+    } catch (error) {
+      console.error('Error deleting week:', error);
+      setError('Failed to delete week');
+    } finally {
+      setIsDeleting(false);
+    }
+  };
 
   const handleDeleteExercise = async (day, exerciseId) => {
     try {
@@ -108,10 +138,8 @@ const WeekCard = ({ week, onDeleteWeek, onExerciseChange }) => {
           method: 'DELETE',
           headers: {
             'Authorization': `Bearer ${token}`,
-            'Content-Type': 'application/json',
-            'Accept': 'application/json'
-          },
-          credentials: 'include'
+            'Content-Type': 'application/json'
+          }
         }
       );
 
@@ -150,13 +178,18 @@ const WeekCard = ({ week, onDeleteWeek, onExerciseChange }) => {
             {isExpanded ? <ChevronUp size={20} /> : <ChevronDown size={20} />}
           </button>
           <button
-            onClick={() => onDeleteWeek(week.id)}
-            className="text-red-600 hover:text-red-800"
+            onClick={handleDeleteWeek}
+            disabled={isDeleting}
+            className={`text-red-600 hover:text-red-800 ${isDeleting ? 'opacity-50' : ''}`}
           >
             <X size={20} />
           </button>
         </div>
       </div>
+
+      {error && (
+        <div className="mt-2 text-red-600 text-sm">{error}</div>
+      )}
 
       {isExpanded && (
         <div className="mt-4 grid grid-cols-7 gap-4">
@@ -210,10 +243,6 @@ const GymPage = () => {
   const [showDaySelector, setShowDaySelector] = useState(false);
   const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
-    fetchWeeks();
-  }, []);
-
   const fetchWeeks = async () => {
     try {
       const token = localStorage.getItem('access_token');
@@ -241,6 +270,10 @@ const GymPage = () => {
       setLoading(false);
     }
   };
+
+  useEffect(() => {
+    fetchWeeks();
+  }, []);
 
   const handleDaySelect = async (weekData) => {
     try {
@@ -278,15 +311,13 @@ const GymPage = () => {
   };
 
   const handleDeleteWeek = async (weekId) => {
-    if (!confirm('Are you sure you want to delete this week?')) return;
-
     try {
       const token = localStorage.getItem('access_token');
       if (!token) {
         console.error('No auth token found');
         return;
       }
-
+  
       const response = await fetch(`${API_URL}/api/workout-weeks/${weekId}`, {
         method: 'DELETE',
         headers: {
@@ -294,11 +325,16 @@ const GymPage = () => {
           'Content-Type': 'application/json'
         }
       });
-
-      if (!response.ok) throw new Error('Failed to delete week');
-      await fetchWeeks();
+  
+      if (!response.ok) {
+        throw new Error('Failed to delete week');
+      }
+  
+      // Update local state only after successful deletion
+      setWeeks(prevWeeks => prevWeeks.filter(week => week.id !== weekId));
     } catch (error) {
       console.error('Error deleting week:', error);
+      alert('Failed to delete week. Please try again.');
     }
   };
 
