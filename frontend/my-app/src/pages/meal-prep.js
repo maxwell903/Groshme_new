@@ -731,7 +731,7 @@ const Week = ({ week, onDeleteWeek, onMealDelete, onMealsAdded, onToggleDates })
     const [viewMode, setViewMode] = useState(() => {
         if (typeof window !== 'undefined') {
           const urlParams = new URLSearchParams(window.location.search);
-          return urlParams.get('viewMode') || localStorage.getItem('lastMealPrepTab') || 'mealprep';
+          return urlParams.get('viewMode') || 'mealprep';
           }
           // Return default value for server-side rendering
           return 'mealprep';
@@ -1144,31 +1144,6 @@ const Week = ({ week, onDeleteWeek, onMealDelete, onMealsAdded, onToggleDates })
   
         <div className="max-w-7xl mx-auto px-4 py-8">
           <div className="mb-8">
-            <div className="flex gap-4 mb-6">
-            
-              <button
-                onClick={() => setViewMode('mealprep')}
-                className={`px-4 py-2 rounded-lg ${
-                  viewMode === 'mealprep'
-                    ? 'bg-blue-600 text-white'
-                    : 'bg-gray-200 text-gray-700'
-                }`}
-              >
-                My Meal Prep
-              </button>
-              <button
-                onClick={() => setViewMode('workout')}
-                className={`px-4 py-2 rounded-lg ${
-                  viewMode === 'workout'
-                    ? 'bg-blue-600 text-white'
-                    : 'bg-gray-200 text-gray-700'
-                }`}
-              >
-                My Exercises
-              </button>
-              
-            </div>
-  
             {viewMode === 'workout' && (
               <div>
                 <div className="flex justify-between items-center mb-6">
