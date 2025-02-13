@@ -101,26 +101,7 @@ const WeekCard = ({ week, onDeleteWeek }) => {
 
   const handleDeleteExercise = async (day, exerciseId) => {
     try {
-      const token = localStorage.getItem('access_token');
-      const response = await fetch(
-        `${process.env.NEXT_PUBLIC_API_URL}/api/workout-weeks/${week.id}/exercises/${exerciseId}`, 
-        {
-          method: 'DELETE',
-          headers: {
-            'Authorization': `Bearer ${token}`,
-            'Content-Type': 'application/json'
-          },
-          body: JSON.stringify({ day })
-        }
-      );
-
-      if (!response.ok) {
-        throw new Error('Failed to delete exercise');
-      }
-
-      // Refresh week data after deletion
-      // You'll need to implement this refresh logic
-      onExerciseChange();
+      await onDeleteExercise(day, exerciseId, week.id);
     } catch (err) {
       setError(err.message);
       console.error('Error deleting exercise:', err);
@@ -212,9 +193,7 @@ const GymPage = () => {
   const [showDaySelector, setShowDaySelector] = useState(false);
   const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
-    fetchWeeks();
-  }, []);
+  
 
   const fetchWeeks = async () => {
     try {
@@ -241,6 +220,35 @@ const GymPage = () => {
     } catch (error) {
       console.error('Error fetching weeks:', error);
       setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchWeeks();
+  }, []);
+
+  const handleDeleteExercise = async (day, exerciseId, weekId) => {
+    try {
+      const token = localStorage.getItem('access_token');
+      const response = await fetch(
+        `${API_URL}/api/workout-weeks/${weekId}/days/${day}/exercises/${exerciseId}`, 
+        {
+          method: 'DELETE',
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json'
+          }
+        }
+      );
+
+      if (!response.ok) {
+        throw new Error('Failed to delete exercise');
+      }
+
+      // Refresh the weeks data after successful deletion
+      await fetchWeeks();
+    } catch (error) {
+      console.error('Error deleting exercise:', error);
     }
   };
 
@@ -340,6 +348,7 @@ const GymPage = () => {
                 key={week.id}
                 week={week}
                 onDeleteWeek={handleDeleteWeek}
+                onDeleteExercise={handleDeleteExercise}
               />
             ))}
           </div>

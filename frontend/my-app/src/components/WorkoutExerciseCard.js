@@ -45,41 +45,19 @@ const ExerciseCard = ({ exercise, onDelete, weekId, day }) => {
     checkCompletion();
   }, [exercise.exercise_id]);
 
+  
   const handleDelete = async (e) => {
     e.stopPropagation();
-  
+
     if (isDeleting) return;
-    if (!weekId) {
-      console.error('Week ID is undefined');
-      return;
-    }
-  
+
     if (!window.confirm('Are you sure you want to remove this exercise?')) {
       return;
     }
-  
+
     try {
       setIsDeleting(true);
-      const token = localStorage.getItem('access_token');
-      
-      const response = await fetch(
-        `${API_URL}/api/workout-weeks/${weekId}/days/${day}/exercises/${exercise.exercise_id}`,
-        {
-          method: 'DELETE',
-          headers: {
-            'Authorization': `Bearer ${token}`,
-            'Content-Type': 'application/json'
-          }
-        }
-      );
-  
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error || 'Failed to delete exercise');
-      }
-  
-      onDelete(exercise.exercise_id);
-      
+      await onDelete(day, exercise.exercise_id);
     } catch (error) {
       console.error('Error deleting exercise:', error);
       alert('Failed to delete exercise. Please try again.');
@@ -172,7 +150,7 @@ const WorkoutExerciseCard = ({ day, exercises, onDeleteExercise, weekId }) => {
         <ExerciseCard
           key={exercise.exercise_id}
           exercise={exercise}
-          onDelete={(exerciseId) => onDeleteExercise(day, exerciseId)}
+          onDelete={onDeleteExercise}
           weekId={weekId}
           day={day}
         />
