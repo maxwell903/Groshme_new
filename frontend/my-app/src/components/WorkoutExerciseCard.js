@@ -150,7 +150,7 @@ const WorkoutExerciseCard = ({ day, exercises, onDeleteExercise, weekId }) => {
         <ExerciseCard
           key={exercise.exercise_id}
           exercise={exercise}
-          onDelete={onDeleteExercise}
+          onDelete={(exerciseId) => onDeleteExercise(day, exerciseId)}
           weekId={weekId}
           day={day}
         />
