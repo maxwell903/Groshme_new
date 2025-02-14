@@ -13,96 +13,48 @@ const API_URL = process.env.NEXT_PUBLIC_API_URL
 // Modal Components
 const RecipeSelectionModal = ({ listId, onClose, onSelect }) => {
   const [recipes, setRecipes] = useState([]);
-  const [searchTerm, setSearchTerm] = useState('');
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(null);
-  const [filteredRecipes, setFilteredRecipes] = useState([]);
 
   useEffect(() => {
-    const fetchRecipes = async () => {
-      try {
-        const token = localStorage.getItem('access_token');
-        if (!token) {
-          throw new Error('No authentication token found');
-        }
-
-        const response = await fetch(`${API_URL}/api/all-recipes`, {
-          headers: {
-            'Authorization': `Bearer ${token}`,
-            'Content-Type': 'application/json'
-          }
-        });
-
-        if (!response.ok) {
-          throw new Error('Failed to fetch recipes');
-        }
-
-        const data = await response.json();
+    fetch(`${API_URL}/api/all-recipes`)
+      .then(res => res.json())
+      .then(data => {
         setRecipes(data.recipes || []);
-        setFilteredRecipes(data.recipes || []);
         setLoading(false);
-      } catch (error) {
-        console.error('Error fetching recipes:', error);
-        setError(error.message);
+      })
+      .catch(err => {
+        console.error('Error loading recipes:', err);
         setLoading(false);
-      }
-    };
-
-    fetchRecipes();
+      });
   }, []);
-
-  useEffect(() => {
-    const filtered = recipes.filter(recipe => 
-      recipe.name.toLowerCase().includes(searchTerm.toLowerCase())
-    );
-    setFilteredRecipes(filtered);
-  }, [searchTerm, recipes]);
-
-  if (!isOpen) return null;
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-      <div className="bg-white p-6 rounded-lg shadow-xl w-[600px] max-h-[80vh] overflow-y-auto">
+      <div className="bg-white p-6 rounded-lg shadow-xl w-96 max-h-[80vh] overflow-y-auto">
         <div className="flex justify-between items-center mb-4">
-          <h2 className="text-xl font-semibold">Select Recipe</h2>
-          <button 
-            onClick={onClose} 
+          <h3 className="text-lg font-semibold">Select Recipe</h3>
+          <button
+            onClick={onClose}
             className="text-gray-500 hover:text-gray-700"
           >
             <X size={20} />
           </button>
         </div>
-
-        <div className="mb-4">
-          <div className="relative">
-            <Search className="absolute left-3 top-2.5 h-5 w-5 text-gray-400" />
-            <input
-              type="text"
-              placeholder="Search recipes..."
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              className="pl-10 w-full border rounded-md p-2"
-            />
-          </div>
-        </div>
-
+        
         {loading ? (
           <div className="text-center py-4">Loading recipes...</div>
-        ) : error ? (
-          <div className="text-red-600 py-4">{error}</div>
         ) : (
           <div className="space-y-2">
-            {filteredRecipes.map((recipe) => (
+            {recipes.map((recipe) => (
               <button
                 key={recipe.id}
                 onClick={() => {
                   onSelect(recipe);
                   onClose();
                 }}
-                className="w-full text-left p-4 hover:bg-gray-100 rounded-md"
+                className="w-full text-left px-4 py-2 hover:bg-gray-100 rounded-md"
               >
-                <div className="font-medium">{recipe.name}</div>
-                <div className="text-sm text-gray-600">{recipe.description}</div>
+                {recipe.name}
               </button>
             ))}
           </div>
@@ -191,36 +143,10 @@ const MenuSelectionModal = ({ listId, onClose, onSelect }) => {
 
 
 // GroceryItem component for displaying and editing individual items
-const GroceryItem = ({ item, listId, onUpdate, onDelete }) => {
-  const isHeader = item.name.startsWith('**') || item.name.startsWith('###');
-  const [isMarked, setIsMarked] = useState(item.name.startsWith('✓'));
-  
-  const handleToggleMark = async () => {
-    if (isHeader) return;
-    
-    try {
-      const newName = isMarked ? 
-        item.name.replace('✓', 'X') : 
-        item.name.replace('X', '✓');
-      
-      await fetch(`${API_URL}/api/grocery-lists/${listId}/items/${item.id}`, {
-        method: 'PUT',
-        headers: {
-          'Authorization': `Bearer ${localStorage.getItem('access_token')}`,
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
-          ...item,
-          name: newName
-        })
-      });
-      
-      setIsMarked(!isMarked);
-      onUpdate();
-    } catch (error) {
-      console.error('Error toggling mark:', error);
-    }
-  };
+const GroceryItem = ({ item, listId, onUpdate, onDelete, onToggleMarked }) => {
+  const isMenuHeader = item.name.startsWith('###');
+  const isRecipeHeader = item.name.startsWith('**');
+  const isMarkedForDeletion = item.name.startsWith('✓');
   
   const [localData, setLocalData] = useState({
     quantity: parseFloat(item.quantity) || 0,
@@ -229,7 +155,7 @@ const GroceryItem = ({ item, listId, onUpdate, onDelete }) => {
     total: parseFloat(item.total) || 0
   });
 
-  const handleDeleteMarked = async () => {
+  const handleDelete = async () => {
     if (isRecipeHeader || isMenuHeader) {
       try {
         await fetchWithAuth(`/api/grocery-lists/${listId}/items/${item.id}`, {
@@ -309,25 +235,40 @@ const GroceryItem = ({ item, listId, onUpdate, onDelete }) => {
   }, [item]);
 
   return (
-    <tr className={`border-b ${isHeader ? 'bg-gray-100 font-bold' : ''}`}>
+    <tr className={`border-b ${
+      isMenuHeader ? 'bg-gray-200 font-bold' : 
+      isRecipeHeader ? 'bg-gray-100 font-bold italic' : ''
+    }`}>
       <td className="py-2 px-4">
-        <div className="flex items-center gap-2">
-          <span>{item.name}</span>
-          {item.quantity > 1 && isHeader && (
-            <span className="text-sm text-gray-600">
-              (×{Math.floor(item.quantity)})
-            </span>
-          )}
-        </div>
+        {(isRecipeHeader || isMenuHeader) ? (
+          <div className="flex items-center gap-2">
+            <span>{item.name}</span>
+            {item.quantity > 1 && (
+              <span className="text-sm text-gray-600">
+                (×{Math.floor(item.quantity)})
+              </span>
+            )}
+          </div>
+        ) : (
+          item.name
+        )}
       </td>
-      {!isHeader && (
+      {/* Only show input fields for regular items */}
+      {!isMenuHeader && !isRecipeHeader ? (
         <>
           <td className="py-2 px-4">
             <input
               type="number"
-              value={localQuantity}
-              onChange={(e) => setLocalQuantity(parseFloat(e.target.value) || 0)}
-              onBlur={() => handleUpdate('quantity', parseFloat(localQuantity) || 0)}
+              value={localData.quantity}
+              onChange={(e) => {
+                const value = parseFloat(e.target.value) || 0;
+                setLocalData(prev => ({
+                  ...prev,
+                  quantity: value,
+                  total: value * prev.price_per
+                }));
+              }}
+              onBlur={(e) => handleUpdate('quantity', parseFloat(e.target.value) || 0)}
               className="w-20 p-1 border rounded text-right"
               min="0"
               step="1"
@@ -336,48 +277,60 @@ const GroceryItem = ({ item, listId, onUpdate, onDelete }) => {
           <td className="py-2 px-4">
             <input
               type="text"
-              value={localUnit}
-              onChange={(e) => setLocalUnit(e.target.value)}
-              onBlur={() => handleUpdate('unit', localUnit)}
+              value={localData.unit}
+              onChange={(e) => setLocalData(prev => ({ ...prev, unit: e.target.value }))}
+              onBlur={(e) => handleUpdate('unit', e.target.value)}
               className="w-20 p-1 border rounded"
             />
           </td>
           <td className="py-2 px-4">
             <input
               type="number"
-              value={localPricePer}
+              value={localData.price_per}
               onChange={(e) => {
                 const value = parseFloat(e.target.value) || 0;
-                setLocalPricePer(value);
-                setLocalTotal(value * localQuantity);
+                setLocalData(prev => ({
+                  ...prev,
+                  price_per: value,
+                  total: prev.quantity * value
+                }));
               }}
-              onBlur={() => handleUpdate('price_per', localPricePer)}
+              onBlur={(e) => handleUpdate('price_per', parseFloat(e.target.value) || 0)}
               className="w-24 p-1 border rounded text-right"
               min="0"
-              step="0.01"
+              step="1"
             />
           </td>
           <td className="py-2 px-4 text-right">
-            ${localTotal.toFixed(2)}
+            ${localData.total.toFixed(2)}
+          </td>
+          <td className="py-2 px-4">
+            <button
+              onClick={handleDelete}
+              className={`text-${item.name.startsWith('✓') ? 'red' : 'green'}-500 hover:text-${item.name.startsWith('✓') ? 'red' : 'green'}-700`}
+              aria-label={item.name.startsWith('✓') ? "Unmark for deletion" : "Mark for deletion"}
+            >
+              {item.name.startsWith('✓') ? <X size={20} /> : <Check size={20} />}
+            </button>
           </td>
         </>
-      )}
-      {isHeader ? (
-        <td colSpan={!isHeader ? 1 : 5}></td>
       ) : (
-        <td className="py-2 px-4">
-          <button
-            onClick={handleToggleMark}
-            className={`text-${isMarked ? 'green' : 'red'}-600 hover:text-${isMarked ? 'green' : 'red'}-700`}
-          >
-            {isMarked ? <Check size={20} /> : <X size={20} />}
-          </button>
-        </td>
+        <>
+          <td colSpan="4"></td>
+          <td className="py-2 px-4">
+            <button
+              onClick={handleDelete}
+              className="text-red-500 hover:text-red-700"
+              aria-label="Delete header"
+            >
+              <X size={20} />
+            </button>
+          </td>
+        </>
       )}
     </tr>
   );
 };
-
 
 export default function GroceryListsPage() {
   const [lists, setLists] = useState([]);
@@ -474,7 +427,7 @@ export default function GroceryListsPage() {
     }
   };
 
-  const handleDeleteMarkedList = async (listId) => {
+  const handleDeleteList = async (listId) => {
     if (!listId) return;
   
     if (confirm('Delete this list?')) {
@@ -514,7 +467,7 @@ export default function GroceryListsPage() {
     }
   };
 
-  const handleDeleteMarkedItem = async (itemId) => {
+  const handleDeleteItem = async (itemId) => {
     if (!expandedList || !itemId) return;
     
     try {
@@ -540,47 +493,26 @@ export default function GroceryListsPage() {
 
   const handleAddFromRecipe = async (recipe) => {
     try {
-      const token = localStorage.getItem('access_token');
-      if (!token) {
-        throw new Error('No authentication token found');
-      }
-  
-      // Add recipe name as header
-
-      await fetch(`${API_URL}/api/grocery-lists/${expandedList}/items`, {
+      // First add the recipe name as header
+      await fetchWithAuth(`/api/grocery-lists/${expandedList}/items`, {
         method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json'
-
-        },
         body: JSON.stringify({ name: `**${recipe.name}**` }),
       });
   
-      // Get recipe ingredients
-      const ingredientResponse = await fetch(`${API_URL}/api/recipe/${recipe.id}/ingredients`, {
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json'
-        }
-      });
-  
-      if (!ingredientResponse.ok) {
-        throw new Error('Failed to fetch recipe ingredients');
-      }
-  
-      const ingredientData = await ingredientResponse.json();
-  
-      // Add each ingredient with a check mark
-      for (const ingredient of ingredientData.ingredients) {
-        await fetch(`${API_URL}/api/grocery-lists/${expandedList}/items`, {
+      // Fetch detailed recipe ingredients including quantities
+      const ingredients = await fetchRecipeIngredientDetails(recipe.id);
+      
+      // Add each ingredient with its quantity and unit
+      for (const ingredient of ingredients.ingredients) {
+        const inFridge = fridgeItems.some(item => 
+          item.name.toLowerCase() === ingredient.name.toLowerCase() && 
+          item.quantity > 0
+        );
+        
+        await fetchWithAuth(`/api/grocery-lists/${expandedList}/items`, {
           method: 'POST',
-          headers: {
-            'Authorization': `Bearer ${token}`,
-            'Content-Type': 'application/json'
-          },
           body: JSON.stringify({
-            name: `✓ ${ingredient.name}`,
+            name: `${inFridge ? '✓' : '•'} ${ingredient.name}`,
             quantity: ingredient.quantity,
             unit: ingredient.unit
           }),
@@ -823,7 +755,7 @@ export default function GroceryListsPage() {
                 </div>
                 <div className="flex items-center space-x-2">
                   <button
-                    onClick={() => handleDeleteMarkedList(list.id)}
+                    onClick={() => handleDeleteList(list.id)}
                     className="p-1 rounded-full hover:bg-gray-200"
                   >
                     <Trash size={18} />
@@ -851,7 +783,7 @@ export default function GroceryListsPage() {
                           item={item}
                           listId={list.id}
                           onUpdate={fetchData}
-                          onDelete={handleDeleteMarkedItem}
+                          onDelete={handleDeleteItem}
                         />
                       ))}
                     </tbody>
