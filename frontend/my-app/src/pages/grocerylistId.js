@@ -1,9 +1,10 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/router';
 import Link from 'next/link';
-import { Plus, ChevronUp, ChevronDown, Trash, Layers, X, Check } from 'lucide-react';
+import { Plus, ChevronUp, ChevronDown, Trash, Layers, X, Check, Search } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { fetchWithAuth } from '@/utils/fetch';
+
 
 
 
