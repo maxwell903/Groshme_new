@@ -191,36 +191,10 @@ const MenuSelectionModal = ({ listId, onClose, onSelect }) => {
 
 
 // GroceryItem component for displaying and editing individual items
-const GroceryItem = ({ item, listId, onUpdate, onDelete }) => {
-  const isHeader = item.name.startsWith('**') || item.name.startsWith('###');
-  const [isMarked, setIsMarked] = useState(item.name.startsWith('✓'));
-  
-  const handleToggleMark = async () => {
-    if (isHeader) return;
-    
-    try {
-      const newName = isMarked ? 
-        item.name.replace('✓', 'X') : 
-        item.name.replace('X', '✓');
-      
-      await fetch(`${API_URL}/api/grocery-lists/${listId}/items/${item.id}`, {
-        method: 'PUT',
-        headers: {
-          'Authorization': `Bearer ${localStorage.getItem('access_token')}`,
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
-          ...item,
-          name: newName
-        })
-      });
-      
-      setIsMarked(!isMarked);
-      onUpdate();
-    } catch (error) {
-      console.error('Error toggling mark:', error);
-    }
-  };
+const GroceryItem = ({ item, listId, onUpdate, onDelete, onToggleMarked }) => {
+  const isMenuHeader = item.name.startsWith('###');
+  const isRecipeHeader = item.name.startsWith('**');
+  const isMarkedForDeletion = item.name.startsWith('✓');
   
   const [localData, setLocalData] = useState({
     quantity: parseFloat(item.quantity) || 0,
@@ -229,7 +203,7 @@ const GroceryItem = ({ item, listId, onUpdate, onDelete }) => {
     total: parseFloat(item.total) || 0
   });
 
-  const handleDeleteMarked = async () => {
+  const handleDelete = async () => {
     if (isRecipeHeader || isMenuHeader) {
       try {
         await fetchWithAuth(`/api/grocery-lists/${listId}/items/${item.id}`, {
@@ -309,7 +283,6 @@ const GroceryItem = ({ item, listId, onUpdate, onDelete }) => {
   }, [item]);
 
   return (
-    
     <tr className={`border-b ${
       isMenuHeader ? 'bg-gray-200 font-bold' : 
       isRecipeHeader ? 'bg-gray-100 font-bold italic' : ''
@@ -381,7 +354,7 @@ const GroceryItem = ({ item, listId, onUpdate, onDelete }) => {
           </td>
           <td className="py-2 px-4">
             <button
-              onClick={handleDeleteMarked}
+              onClick={handleDelete}
               className={`text-${item.name.startsWith('✓') ? 'red' : 'green'}-500 hover:text-${item.name.startsWith('✓') ? 'red' : 'green'}-700`}
               aria-label={item.name.startsWith('✓') ? "Unmark for deletion" : "Mark for deletion"}
             >
@@ -394,14 +367,13 @@ const GroceryItem = ({ item, listId, onUpdate, onDelete }) => {
           <td colSpan="4"></td>
           <td className="py-2 px-4">
             <button
-              onClick={handleDeleteMarked}
+              onClick={handleDelete}
               className="text-red-500 hover:text-red-700"
               aria-label="Delete header"
             >
               <X size={20} />
             </button>
           </td>
-
         </>
       )}
     </tr>
@@ -503,7 +475,7 @@ export default function GroceryListsPage() {
     }
   };
 
-  const handleDeleteMarkedList = async (listId) => {
+  const handleDeleteList = async (listId) => {
     if (!listId) return;
   
     if (confirm('Delete this list?')) {
@@ -543,7 +515,7 @@ export default function GroceryListsPage() {
     }
   };
 
-  const handleDeleteMarkedItem = async (itemId) => {
+  const handleDeleteItem = async (itemId) => {
     if (!expandedList || !itemId) return;
     
     try {
@@ -850,7 +822,7 @@ export default function GroceryListsPage() {
                 </div>
                 <div className="flex items-center space-x-2">
                   <button
-                    onClick={() => handleDeleteMarkedList(list.id)}
+                    onClick={() => handleDeleteList(list.id)}
                     className="p-1 rounded-full hover:bg-gray-200"
                   >
                     <Trash size={18} />
@@ -878,7 +850,7 @@ export default function GroceryListsPage() {
                           item={item}
                           listId={list.id}
                           onUpdate={fetchData}
-                          onDelete={handleDeleteMarkedItem}
+                          onDelete={handleDeleteItem}
                         />
                       ))}
                     </tbody>
