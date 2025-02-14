@@ -528,92 +528,92 @@ export default function GroceryListsPage() {
   };
  
   const handleAddFromMenu = async (menuId) => {
-    try {
-      // Get auth token
-      const token = localStorage.getItem('access_token');
-      if (!token) {
-        throw new Error('No authentication token found');
+  try {
+    // Get auth token
+    const token = localStorage.getItem('access_token');
+    if (!token) {
+      throw new Error('No authentication token found');
+    }
+
+    // First get menu details with recipes
+    const menuResponse = await fetch(`${API_URL}/api/menus/${menuId}/recipes`, {
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'Content-Type': 'application/json'
       }
-  
-      // First get menu details with recipes
-      const menuResponse = await fetch(`${API_URL}/api/menus/${menuId}/recipes`, {
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json'
-        }
-      });
-  
-      if (!menuResponse.ok) {
-        throw new Error('Failed to fetch menu details');
-      }
-  
-      const menuData = await menuResponse.json();
-      
-      // Add menu name as header
+    });
+
+    if (!menuResponse.ok) {
+      throw new Error('Failed to fetch menu details');
+    }
+
+    const menuData = await menuResponse.json();
+    
+    // Add menu name as header
+    await fetch(`${API_URL}/api/grocery-lists/${expandedList}/items`, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({ name: `### ${menuData.menu_name} ###` }),
+    });
+
+    // Add each recipe and its ingredients
+    for (const recipe of menuData.recipes) {
+      // Add recipe name as subheader
       await fetch(`${API_URL}/api/grocery-lists/${expandedList}/items`, {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json'
         },
-        body: JSON.stringify({ name: `### ${menuData.menu_name} ###` }),
+        body: JSON.stringify({ name: `**${recipe.name}**` }),
       });
-  
-      // Add each recipe and its ingredients
-      for (const recipe of menuData.recipes) {
-        // Add recipe name as subheader
+
+      // Get recipe ingredients
+      const ingredientResponse = await fetch(`${API_URL}/api/recipe/${recipe.id}/ingredients`, {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        }
+      });
+
+      if (!ingredientResponse.ok) {
+        throw new Error('Failed to fetch recipe ingredients');
+      }
+
+      const ingredientData = await ingredientResponse.json();
+
+      // Add each ingredient
+      for (const ingredient of ingredientData.ingredients) {
+        const inFridge = fridgeItems.some(item => 
+          item.name.toLowerCase() === ingredient.name.toLowerCase() && 
+          item.quantity > 0
+        );
+
         await fetch(`${API_URL}/api/grocery-lists/${expandedList}/items`, {
           method: 'POST',
           headers: {
             'Authorization': `Bearer ${token}`,
             'Content-Type': 'application/json'
           },
-          body: JSON.stringify({ name: `**${recipe.name}**` }),
+          body: JSON.stringify({
+            name: `${inFridge ? '✓' : '•'} ${ingredient.name}`,
+            quantity: ingredient.quantity,
+            unit: ingredient.unit
+          }),
         });
-  
-        // Get recipe ingredients
-        const ingredientResponse = await fetch(`${API_URL}/api/recipe/${recipe.id}/ingredients`, {
-          headers: {
-            'Authorization': `Bearer ${token}`,
-            'Content-Type': 'application/json'
-          }
-        });
-  
-        if (!ingredientResponse.ok) {
-          throw new Error('Failed to fetch recipe ingredients');
-        }
-  
-        const ingredientData = await ingredientResponse.json();
-  
-        // Add each ingredient
-        for (const ingredient of ingredientData.ingredients) {
-          const inFridge = fridgeItems.some(item => 
-            item.name.toLowerCase() === ingredient.name.toLowerCase() && 
-            item.quantity > 0
-          );
-  
-          await fetch(`${API_URL}/api/grocery-lists/${expandedList}/items`, {
-            method: 'POST',
-            headers: {
-              'Authorization': `Bearer ${token}`,
-              'Content-Type': 'application/json'
-            },
-            body: JSON.stringify({
-              name: `${inFridge ? '✓' : '•'} ${ingredient.name}`,
-              quantity: ingredient.quantity,
-              unit: ingredient.unit
-            }),
-          });
-        }
       }
-  
-      setSelectedMenu(false);
-      await fetchData();
-    } catch (err) {
-      setError(err.message);
-      console.error('Error adding menu:', err);
     }
-  };
+
+    setSelectedMenu(false);
+    await fetchData();
+  } catch (err) {
+    setError(err.message);
+    console.error('Error adding menu:', err);
+  }
+};
 
   const calculateListTotal = (items) => {
     return items.reduce((sum, item) => {
