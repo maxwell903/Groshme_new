@@ -1,10 +1,9 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/router';
 import Link from 'next/link';
-import { Plus, ChevronUp, ChevronDown, Trash, Layers, X, Check, Search } from 'lucide-react';
+import { Plus, ChevronUp, ChevronDown, Trash, Layers, X, Check } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { fetchWithAuth } from '@/utils/fetch';
-
 
 
 
@@ -310,25 +309,41 @@ const GroceryItem = ({ item, listId, onUpdate, onDelete }) => {
   }, [item]);
 
   return (
-    <tr className={`border-b ${isHeader ? 'bg-gray-100 font-bold' : ''}`}>
+    
+    <tr className={`border-b ${
+      isMenuHeader ? 'bg-gray-200 font-bold' : 
+      isRecipeHeader ? 'bg-gray-100 font-bold italic' : ''
+    }`}>
       <td className="py-2 px-4">
-        <div className="flex items-center gap-2">
-          <span>{item.name}</span>
-          {item.quantity > 1 && isHeader && (
-            <span className="text-sm text-gray-600">
-              (×{Math.floor(item.quantity)})
-            </span>
-          )}
-        </div>
+        {(isRecipeHeader || isMenuHeader) ? (
+          <div className="flex items-center gap-2">
+            <span>{item.name}</span>
+            {item.quantity > 1 && (
+              <span className="text-sm text-gray-600">
+                (×{Math.floor(item.quantity)})
+              </span>
+            )}
+          </div>
+        ) : (
+          item.name
+        )}
       </td>
-      {!isHeader && (
+      {/* Only show input fields for regular items */}
+      {!isMenuHeader && !isRecipeHeader ? (
         <>
           <td className="py-2 px-4">
             <input
               type="number"
-              value={localQuantity}
-              onChange={(e) => setLocalQuantity(parseFloat(e.target.value) || 0)}
-              onBlur={() => handleUpdate('quantity', parseFloat(localQuantity) || 0)}
+              value={localData.quantity}
+              onChange={(e) => {
+                const value = parseFloat(e.target.value) || 0;
+                setLocalData(prev => ({
+                  ...prev,
+                  quantity: value,
+                  total: value * prev.price_per
+                }));
+              }}
+              onBlur={(e) => handleUpdate('quantity', parseFloat(e.target.value) || 0)}
               className="w-20 p-1 border rounded text-right"
               min="0"
               step="1"
@@ -337,48 +352,61 @@ const GroceryItem = ({ item, listId, onUpdate, onDelete }) => {
           <td className="py-2 px-4">
             <input
               type="text"
-              value={localUnit}
-              onChange={(e) => setLocalUnit(e.target.value)}
-              onBlur={() => handleUpdate('unit', localUnit)}
+              value={localData.unit}
+              onChange={(e) => setLocalData(prev => ({ ...prev, unit: e.target.value }))}
+              onBlur={(e) => handleUpdate('unit', e.target.value)}
               className="w-20 p-1 border rounded"
             />
           </td>
           <td className="py-2 px-4">
             <input
               type="number"
-              value={localPricePer}
+              value={localData.price_per}
               onChange={(e) => {
                 const value = parseFloat(e.target.value) || 0;
-                setLocalPricePer(value);
-                setLocalTotal(value * localQuantity);
+                setLocalData(prev => ({
+                  ...prev,
+                  price_per: value,
+                  total: prev.quantity * value
+                }));
               }}
-              onBlur={() => handleUpdate('price_per', localPricePer)}
+              onBlur={(e) => handleUpdate('price_per', parseFloat(e.target.value) || 0)}
               className="w-24 p-1 border rounded text-right"
               min="0"
-              step="0.01"
+              step="1"
             />
           </td>
           <td className="py-2 px-4 text-right">
-            ${localTotal.toFixed(2)}
+            ${localData.total.toFixed(2)}
+          </td>
+          <td className="py-2 px-4">
+            <button
+              onClick={handleDeleteMarked}
+              className={`text-${item.name.startsWith('✓') ? 'red' : 'green'}-500 hover:text-${item.name.startsWith('✓') ? 'red' : 'green'}-700`}
+              aria-label={item.name.startsWith('✓') ? "Unmark for deletion" : "Mark for deletion"}
+            >
+              {item.name.startsWith('✓') ? <X size={20} /> : <Check size={20} />}
+            </button>
           </td>
         </>
-      )}
-      {isHeader ? (
-        <td colSpan={!isHeader ? 1 : 5}></td>
       ) : (
-        <td className="py-2 px-4">
-          <button
-            onClick={handleToggleMark}
-            className={`text-${isMarked ? 'green' : 'red'}-600 hover:text-${isMarked ? 'green' : 'red'}-700`}
-          >
-            {isMarked ? <Check size={20} /> : <X size={20} />}
-          </button>
-        </td>
+        <>
+          <td colSpan="4"></td>
+          <td className="py-2 px-4">
+            <button
+              onClick={handleDeleteMarked}
+              className="text-red-500 hover:text-red-700"
+              aria-label="Delete header"
+            >
+              <X size={20} />
+            </button>
+          </td>
+
+        </>
       )}
     </tr>
   );
 };
-
 
 export default function GroceryListsPage() {
   const [lists, setLists] = useState([]);
@@ -547,13 +575,11 @@ export default function GroceryListsPage() {
       }
   
       // Add recipe name as header
-
       await fetch(`${API_URL}/api/grocery-lists/${expandedList}/items`, {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json'
-
         },
         body: JSON.stringify({ name: `**${recipe.name}**` }),
       });
