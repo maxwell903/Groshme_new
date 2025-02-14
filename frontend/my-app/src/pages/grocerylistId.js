@@ -191,10 +191,36 @@ const MenuSelectionModal = ({ listId, onClose, onSelect }) => {
 
 
 // GroceryItem component for displaying and editing individual items
-const GroceryItem = ({ item, listId, onUpdate, onDelete, onToggleMarked }) => {
-  const isMenuHeader = item.name.startsWith('###');
-  const isRecipeHeader = item.name.startsWith('**');
-  const isMarkedForDeletion = item.name.startsWith('✓');
+const GroceryItem = ({ item, listId, onUpdate, onDelete }) => {
+  const isHeader = item.name.startsWith('**') || item.name.startsWith('###');
+  const [isMarked, setIsMarked] = useState(item.name.startsWith('✓'));
+  
+  const handleToggleMark = async () => {
+    if (isHeader) return;
+    
+    try {
+      const newName = isMarked ? 
+        item.name.replace('✓', 'X') : 
+        item.name.replace('X', '✓');
+      
+      await fetch(`${API_URL}/api/grocery-lists/${listId}/items/${item.id}`, {
+        method: 'PUT',
+        headers: {
+          'Authorization': `Bearer ${localStorage.getItem('access_token')}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          ...item,
+          name: newName
+        })
+      });
+      
+      setIsMarked(!isMarked);
+      onUpdate();
+    } catch (error) {
+      console.error('Error toggling mark:', error);
+    }
+  };
   
   const [localData, setLocalData] = useState({
     quantity: parseFloat(item.quantity) || 0,
@@ -203,7 +229,7 @@ const GroceryItem = ({ item, listId, onUpdate, onDelete, onToggleMarked }) => {
     total: parseFloat(item.total) || 0
   });
 
-  const handleDelete = async () => {
+  const handleDeleteMarked = async () => {
     if (isRecipeHeader || isMenuHeader) {
       try {
         await fetchWithAuth(`/api/grocery-lists/${listId}/items/${item.id}`, {
@@ -283,40 +309,25 @@ const GroceryItem = ({ item, listId, onUpdate, onDelete, onToggleMarked }) => {
   }, [item]);
 
   return (
-    <tr className={`border-b ${
-      isMenuHeader ? 'bg-gray-200 font-bold' : 
-      isRecipeHeader ? 'bg-gray-100 font-bold italic' : ''
-    }`}>
+    <tr className={`border-b ${isHeader ? 'bg-gray-100 font-bold' : ''}`}>
       <td className="py-2 px-4">
-        {(isRecipeHeader || isMenuHeader) ? (
-          <div className="flex items-center gap-2">
-            <span>{item.name}</span>
-            {item.quantity > 1 && (
-              <span className="text-sm text-gray-600">
-                (×{Math.floor(item.quantity)})
-              </span>
-            )}
-          </div>
-        ) : (
-          item.name
-        )}
+        <div className="flex items-center gap-2">
+          <span>{item.name}</span>
+          {item.quantity > 1 && isHeader && (
+            <span className="text-sm text-gray-600">
+              (×{Math.floor(item.quantity)})
+            </span>
+          )}
+        </div>
       </td>
-      {/* Only show input fields for regular items */}
-      {!isMenuHeader && !isRecipeHeader ? (
+      {!isHeader && (
         <>
           <td className="py-2 px-4">
             <input
               type="number"
-              value={localData.quantity}
-              onChange={(e) => {
-                const value = parseFloat(e.target.value) || 0;
-                setLocalData(prev => ({
-                  ...prev,
-                  quantity: value,
-                  total: value * prev.price_per
-                }));
-              }}
-              onBlur={(e) => handleUpdate('quantity', parseFloat(e.target.value) || 0)}
+              value={localQuantity}
+              onChange={(e) => setLocalQuantity(parseFloat(e.target.value) || 0)}
+              onBlur={() => handleUpdate('quantity', parseFloat(localQuantity) || 0)}
               className="w-20 p-1 border rounded text-right"
               min="0"
               step="1"
@@ -325,60 +336,48 @@ const GroceryItem = ({ item, listId, onUpdate, onDelete, onToggleMarked }) => {
           <td className="py-2 px-4">
             <input
               type="text"
-              value={localData.unit}
-              onChange={(e) => setLocalData(prev => ({ ...prev, unit: e.target.value }))}
-              onBlur={(e) => handleUpdate('unit', e.target.value)}
+              value={localUnit}
+              onChange={(e) => setLocalUnit(e.target.value)}
+              onBlur={() => handleUpdate('unit', localUnit)}
               className="w-20 p-1 border rounded"
             />
           </td>
           <td className="py-2 px-4">
             <input
               type="number"
-              value={localData.price_per}
+              value={localPricePer}
               onChange={(e) => {
                 const value = parseFloat(e.target.value) || 0;
-                setLocalData(prev => ({
-                  ...prev,
-                  price_per: value,
-                  total: prev.quantity * value
-                }));
+                setLocalPricePer(value);
+                setLocalTotal(value * localQuantity);
               }}
-              onBlur={(e) => handleUpdate('price_per', parseFloat(e.target.value) || 0)}
+              onBlur={() => handleUpdate('price_per', localPricePer)}
               className="w-24 p-1 border rounded text-right"
               min="0"
-              step="1"
+              step="0.01"
             />
           </td>
           <td className="py-2 px-4 text-right">
-            ${localData.total.toFixed(2)}
-          </td>
-          <td className="py-2 px-4">
-            <button
-              onClick={handleDelete}
-              className={`text-${item.name.startsWith('✓') ? 'red' : 'green'}-500 hover:text-${item.name.startsWith('✓') ? 'red' : 'green'}-700`}
-              aria-label={item.name.startsWith('✓') ? "Unmark for deletion" : "Mark for deletion"}
-            >
-              {item.name.startsWith('✓') ? <X size={20} /> : <Check size={20} />}
-            </button>
+            ${localTotal.toFixed(2)}
           </td>
         </>
+      )}
+      {isHeader ? (
+        <td colSpan={!isHeader ? 1 : 5}></td>
       ) : (
-        <>
-          <td colSpan="4"></td>
-          <td className="py-2 px-4">
-            <button
-              onClick={handleDelete}
-              className="text-red-500 hover:text-red-700"
-              aria-label="Delete header"
-            >
-              <X size={20} />
-            </button>
-          </td>
-        </>
+        <td className="py-2 px-4">
+          <button
+            onClick={handleToggleMark}
+            className={`text-${isMarked ? 'green' : 'red'}-600 hover:text-${isMarked ? 'green' : 'red'}-700`}
+          >
+            {isMarked ? <Check size={20} /> : <X size={20} />}
+          </button>
+        </td>
       )}
     </tr>
   );
 };
+
 
 export default function GroceryListsPage() {
   const [lists, setLists] = useState([]);
@@ -475,7 +474,7 @@ export default function GroceryListsPage() {
     }
   };
 
-  const handleDeleteList = async (listId) => {
+  const handleDeleteMarkedList = async (listId) => {
     if (!listId) return;
   
     if (confirm('Delete this list?')) {
@@ -515,7 +514,7 @@ export default function GroceryListsPage() {
     }
   };
 
-  const handleDeleteItem = async (itemId) => {
+  const handleDeleteMarkedItem = async (itemId) => {
     if (!expandedList || !itemId) return;
     
     try {
@@ -547,11 +546,13 @@ export default function GroceryListsPage() {
       }
   
       // Add recipe name as header
+
       await fetch(`${API_URL}/api/grocery-lists/${expandedList}/items`, {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json'
+
         },
         body: JSON.stringify({ name: `**${recipe.name}**` }),
       });
@@ -822,7 +823,7 @@ export default function GroceryListsPage() {
                 </div>
                 <div className="flex items-center space-x-2">
                   <button
-                    onClick={() => handleDeleteList(list.id)}
+                    onClick={() => handleDeleteMarkedList(list.id)}
                     className="p-1 rounded-full hover:bg-gray-200"
                   >
                     <Trash size={18} />
@@ -850,7 +851,7 @@ export default function GroceryListsPage() {
                           item={item}
                           listId={list.id}
                           onUpdate={fetchData}
-                          onDelete={handleDeleteItem}
+                          onDelete={handleDeleteMarkedItem}
                         />
                       ))}
                     </tbody>
