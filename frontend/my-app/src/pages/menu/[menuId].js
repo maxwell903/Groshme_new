@@ -151,27 +151,47 @@ const handleShowModal = async () => {
 
   const handleAddToGroceryList = async (listId) => {
     try {
-      // Add recipe name as header
+      // Get the auth token
+      const token = localStorage.getItem('access_token');
+      
+      // First add menu name as header
       await fetchWithAuth(`/api/grocery-lists/${listId}/items`, {
         method: 'POST',
-        body: JSON.stringify({ name: `**${recipe.name}**` }),
+        body: JSON.stringify({ name: `### ${menu?.name || 'Menu'} ###` })
       });
   
-      // Add ingredients
-      for (const ingredient of recipe.ingredients) {
-        const inFridge = fridgeItems.some(item => 
-          item.name.toLowerCase() === ingredient.name.toLowerCase() && 
-          item.quantity > 0
-        );
-        
+      // Process each recipe in the menu
+      for (const recipe of recipes) {
+        // Add recipe name as subheader 
         await fetchWithAuth(`/api/grocery-lists/${listId}/items`, {
           method: 'POST',
-          body: JSON.stringify({
-            name: `${inFridge ? '✓' : '•'} ${ingredient.name}`,
-            quantity: ingredient.quantity,
-            unit: ingredient.unit
-          }),
+          body: JSON.stringify({ name: `**${recipe.name}**` })
         });
+  
+        // Process each ingredient
+        if (Array.isArray(recipe.ingredients)) {
+          for (const ingredient of recipe.ingredients) {
+            const ingredientName = typeof ingredient === 'string' ? ingredient : ingredient.name;
+            
+            // Check if in fridge using authenticated request
+            const fridgeResponse = await fetchWithAuth('/api/fridge');
+            const fridgeItems = fridgeResponse.ingredients || [];
+            
+            const inFridge = fridgeItems.some(item => 
+              item.name.toLowerCase() === ingredientName.toLowerCase() && 
+              item.quantity > 0
+            );
+  
+            await fetchWithAuth(`/api/grocery-lists/${listId}/items`, {
+              method: 'POST',
+              body: JSON.stringify({
+                name: `${inFridge ? '✓' : '•'} ${ingredientName}`,
+                quantity: ingredient.quantity || 0,
+                unit: ingredient.unit || ''
+              })
+            });
+          }
+        }
       }
   
       setShowGroceryListModal(false);
