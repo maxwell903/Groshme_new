@@ -13,64 +13,13 @@ const API_URL = process.env.NEXT_PUBLIC_API_URL
 // Modal Components
 const RecipeSelectionModal = ({ listId, onClose, onSelect }) => {
   const [recipes, setRecipes] = useState([]);
-  const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    fetch(`${API_URL}/api/all-recipes`)
-      .then(res => res.json())
-      .then(data => {
-        setRecipes(data.recipes || []);
-        setLoading(false);
-      })
-      .catch(err => {
-        console.error('Error loading recipes:', err);
-        setLoading(false);
-      });
-  }, []);
-
-  return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-      <div className="bg-white p-6 rounded-lg shadow-xl w-96 max-h-[80vh] overflow-y-auto">
-        <div className="flex justify-between items-center mb-4">
-          <h3 className="text-lg font-semibold">Select Recipe</h3>
-          <button
-            onClick={onClose}
-            className="text-gray-500 hover:text-gray-700"
-          >
-            <X size={20} />
-          </button>
-        </div>
-        
-        {loading ? (
-          <div className="text-center py-4">Loading recipes...</div>
-        ) : (
-          <div className="space-y-2">
-            {recipes.map((recipe) => (
-              <button
-                key={recipe.id}
-                onClick={() => {
-                  onSelect(recipe);
-                  onClose();
-                }}
-                className="w-full text-left px-4 py-2 hover:bg-gray-100 rounded-md"
-              >
-                {recipe.name}
-              </button>
-            ))}
-          </div>
-        )}
-      </div>
-    </div>
-  );
-};
-
-const MenuSelectionModal = ({ listId, onClose, onSelect }) => {
-  const [menus, setMenus] = useState([]);
+  const [searchTerm, setSearchTerm] = useState('');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [filteredRecipes, setFilteredRecipes] = useState([]);
 
   useEffect(() => {
-    const fetchMenus = async () => {
+    const fetchRecipes = async () => {
       try {
         // Get auth token
         const token = localStorage.getItem('access_token');
@@ -78,7 +27,7 @@ const MenuSelectionModal = ({ listId, onClose, onSelect }) => {
           throw new Error('No authentication token found');
         }
 
-        const response = await fetch(`${API_URL}/api/menus`, {
+        const response = await fetch(`${API_URL}/api/all-recipes`, {
           headers: {
             'Authorization': `Bearer ${token}`,
             'Content-Type': 'application/json'
@@ -86,29 +35,99 @@ const MenuSelectionModal = ({ listId, onClose, onSelect }) => {
         });
 
         if (!response.ok) {
-          throw new Error('Failed to fetch menus');
+          throw new Error('Failed to fetch recipes');
         }
 
         const data = await response.json();
-        setMenus(data.menus || []);
+        setRecipes(data.recipes || []);
+        setFilteredRecipes(data.recipes || []);
         setLoading(false);
       } catch (error) {
-        console.error('Error loading menus:', error);
+        console.error('Error loading recipes:', error);
         setError(error.message);
         setLoading(false);
       }
     };
 
-    fetchMenus();
-  }, []);
+    if (isOpen) {
+      fetchRecipes();
+    }
+  }, [isOpen]);
 
-  
+  useEffect(() => {
+    const filtered = recipes.filter(recipe => 
+      recipe.name.toLowerCase().includes(searchTerm.toLowerCase())
+    );
+    setFilteredRecipes(filtered);
+  }, [searchTerm, recipes]);
+
+  const handleAddFromRecipe = async (recipe) => {
+    try {
+      const token = localStorage.getItem('access_token');
+      if (!token) {
+        throw new Error('No authentication token found');
+      }
+
+      // First add recipe name as header
+      await fetch(`${API_URL}/api/grocery-lists/${listId}/items`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ name: `**${recipe.name}**` }),
+      });
+
+      // Get recipe ingredients with quantities
+      const ingredientResponse = await fetch(`${API_URL}/api/recipe/${recipe.id}/ingredients`, {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        }
+      });
+
+      if (!ingredientResponse.ok) {
+        throw new Error('Failed to fetch recipe ingredients');
+      }
+
+      const ingredientData = await ingredientResponse.json();
+
+      // Add each ingredient with its quantity and unit
+      for (const ingredient of ingredientData.ingredients) {
+        const inFridge = fridgeItems.some(item => 
+          item.name.toLowerCase() === ingredient.name.toLowerCase() && 
+          item.quantity > 0
+        );
+
+        await fetch(`${API_URL}/api/grocery-lists/${listId}/items`, {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({
+            name: `${inFridge ? '✓' : '•'} ${ingredient.name}`,
+            quantity: ingredient.quantity,
+            unit: ingredient.unit
+          }),
+        });
+      }
+
+      onSelect(recipe);
+      onClose();
+    } catch (error) {
+      console.error('Error adding recipe:', error);
+      setError(error.message);
+    }
+  };
+
+  if (!isOpen) return null;
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
       <div className="bg-white p-6 rounded-lg shadow-xl w-96 max-h-[80vh] overflow-y-auto">
         <div className="flex justify-between items-center mb-4">
-          <h3 className="text-lg font-semibold">Select Menu</h3>
+          <h2 className="text-lg font-semibold">Select Recipe</h2>
           <button
             onClick={onClose}
             className="text-gray-500 hover:text-gray-700"
@@ -116,21 +135,44 @@ const MenuSelectionModal = ({ listId, onClose, onSelect }) => {
             <X size={20} />
           </button>
         </div>
-        
+
+        {error && (
+          <div className="mb-4 p-3 bg-red-100 text-red-600 rounded-md">
+            {error}
+          </div>
+        )}
+
+        <div className="mb-4">
+          <div className="relative">
+            <Search className="absolute left-3 top-2.5 h-5 w-5 text-gray-400" />
+            <input
+              type="text"
+              placeholder="Search recipes..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className="pl-10 w-full border rounded-md p-2"
+            />
+          </div>
+        </div>
+
         {loading ? (
-          <div className="text-center py-4">Loading menus...</div>
+          <div className="text-center py-4">Loading recipes...</div>
         ) : (
           <div className="space-y-2">
-            {menus.map((menu) => (
+            {filteredRecipes.map((recipe) => (
               <button
-                key={menu.id}
-                onClick={() => {
-                  onSelect(menu.id);
-                  onClose();
-                }}
-                className="w-full text-left px-4 py-2 hover:bg-gray-100 rounded-md"
+                key={recipe.id}
+                onClick={() => handleAddFromRecipe(recipe)}
+                className="w-full text-left p-4 hover:bg-gray-100 rounded-md"
               >
-                {menu.name} ({menu.recipe_count} recipes)
+                <div className="font-medium">{recipe.name}</div>
+                <div className="text-sm text-gray-600">{recipe.description}</div>
+                <div className="text-sm text-gray-500 mt-1">
+                  {recipe.prep_time} mins • 
+                  Protein: {recipe.total_nutrition?.protein_grams || 0}g • 
+                  Fat: {recipe.total_nutrition?.fat_grams || 0}g • 
+                  Carbs: {recipe.total_nutrition?.carbs_grams || 0}g
+                </div>
               </button>
             ))}
           </div>
@@ -139,7 +181,6 @@ const MenuSelectionModal = ({ listId, onClose, onSelect }) => {
     </div>
   );
 };
-
 
 
 // GroceryItem component for displaying and editing individual items
@@ -890,6 +931,7 @@ export default function GroceryListsPage() {
             listId={expandedList}
             onClose={() => setSelectedRecipe(false)}
             onSelect={handleAddFromRecipe}
+            fridgeItems={fridgeItems}
           />
         )}
 
