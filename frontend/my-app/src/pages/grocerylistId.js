@@ -67,19 +67,42 @@ const RecipeSelectionModal = ({ listId, onClose, onSelect }) => {
 const MenuSelectionModal = ({ listId, onClose, onSelect }) => {
   const [menus, setMenus] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
 
   useEffect(() => {
-    fetch(`${API_URL}/api/menus`)
-      .then(res => res.json())
-      .then(data => {
+    const fetchMenus = async () => {
+      try {
+        // Get auth token
+        const token = localStorage.getItem('access_token');
+        if (!token) {
+          throw new Error('No authentication token found');
+        }
+
+        const response = await fetch(`${API_URL}/api/menus`, {
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json'
+          }
+        });
+
+        if (!response.ok) {
+          throw new Error('Failed to fetch menus');
+        }
+
+        const data = await response.json();
         setMenus(data.menus || []);
         setLoading(false);
-      })
-      .catch(err => {
-        console.error('Error loading menus:', err);
+      } catch (error) {
+        console.error('Error loading menus:', error);
+        setError(error.message);
         setLoading(false);
-      });
+      }
+    };
+
+    fetchMenus();
   }, []);
+
+  
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
@@ -506,34 +529,75 @@ export default function GroceryListsPage() {
  
   const handleAddFromMenu = async (menuId) => {
     try {
-      // Fetch menu recipes with ingredient details
-      const menuData = await fetchWithAuth(`/api/menus/${menuId}/recipes`);
+      // Get auth token
+      const token = localStorage.getItem('access_token');
+      if (!token) {
+        throw new Error('No authentication token found');
+      }
+  
+      // First get menu details with recipes
+      const menuResponse = await fetch(`${API_URL}/api/menus/${menuId}/recipes`, {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        }
+      });
+  
+      if (!menuResponse.ok) {
+        throw new Error('Failed to fetch menu details');
+      }
+  
+      const menuData = await menuResponse.json();
       
       // Add menu name as header
-      await fetchWithAuth(`/api/grocery-lists/${expandedList}/items`, {
+      await fetch(`${API_URL}/api/grocery-lists/${expandedList}/items`, {
         method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        },
         body: JSON.stringify({ name: `### ${menuData.menu_name} ###` }),
       });
   
-      // Process each recipe
+      // Add each recipe and its ingredients
       for (const recipe of menuData.recipes) {
-        // Add recipe name
-        await fetchWithAuth(`/api/grocery-lists/${expandedList}/items`, {
+        // Add recipe name as subheader
+        await fetch(`${API_URL}/api/grocery-lists/${expandedList}/items`, {
           method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json'
+          },
           body: JSON.stringify({ name: `**${recipe.name}**` }),
         });
   
-        // Fetch and add recipe ingredients
-        const ingredients = await fetchRecipeIngredientDetails(recipe.id);
-        
-        for (const ingredient of ingredients.ingredients) {
+        // Get recipe ingredients
+        const ingredientResponse = await fetch(`${API_URL}/api/recipe/${recipe.id}/ingredients`, {
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json'
+          }
+        });
+  
+        if (!ingredientResponse.ok) {
+          throw new Error('Failed to fetch recipe ingredients');
+        }
+  
+        const ingredientData = await ingredientResponse.json();
+  
+        // Add each ingredient
+        for (const ingredient of ingredientData.ingredients) {
           const inFridge = fridgeItems.some(item => 
             item.name.toLowerCase() === ingredient.name.toLowerCase() && 
             item.quantity > 0
           );
   
-          await fetchWithAuth(`/api/grocery-lists/${expandedList}/items`, {
+          await fetch(`${API_URL}/api/grocery-lists/${expandedList}/items`, {
             method: 'POST',
+            headers: {
+              'Authorization': `Bearer ${token}`,
+              'Content-Type': 'application/json'
+            },
             body: JSON.stringify({
               name: `${inFridge ? '✓' : '•'} ${ingredient.name}`,
               quantity: ingredient.quantity,
