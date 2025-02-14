@@ -89,16 +89,17 @@ export default function MenuDetail() {
     }
   };
 
-  const handleShowModal = async () => {
-    try {
-      const response = await fetch(`${API_URL}/api/grocery-lists`);
-      const data = await response.json();
-      setGroceryLists(data.lists);
-      setShowGroceryListModal(true);
-    } catch (error) {
-      console.error('Error fetching grocery lists:', error);
-    }
-  };
+  // Update the show modal handler in [menuId].js
+const handleShowModal = async () => {
+  try {
+    const data = await fetchWithAuth('/api/grocery-lists');
+    setGroceryLists(data.lists || []);
+    setShowGroceryListModal(true);
+  } catch (error) {
+    console.error('Error fetching grocery lists:', error);
+    setError('Failed to fetch grocery lists');
+  }
+};
 
   const addToGroceryList = async (listId) => {
     try {
@@ -140,6 +141,39 @@ export default function MenuDetail() {
         }
       }
 
+      setShowGroceryListModal(false);
+      router.push('/grocerylistId');
+    } catch (error) {
+      console.error('Error adding to grocery list:', error);
+      setError('Failed to add to grocery list');
+    }
+  };
+
+  const handleAddToGroceryList = async (listId) => {
+    try {
+      // Add recipe name as header
+      await fetchWithAuth(`/api/grocery-lists/${listId}/items`, {
+        method: 'POST',
+        body: JSON.stringify({ name: `**${recipe.name}**` }),
+      });
+  
+      // Add ingredients
+      for (const ingredient of recipe.ingredients) {
+        const inFridge = fridgeItems.some(item => 
+          item.name.toLowerCase() === ingredient.name.toLowerCase() && 
+          item.quantity > 0
+        );
+        
+        await fetchWithAuth(`/api/grocery-lists/${listId}/items`, {
+          method: 'POST',
+          body: JSON.stringify({
+            name: `${inFridge ? '✓' : '•'} ${ingredient.name}`,
+            quantity: ingredient.quantity,
+            unit: ingredient.unit
+          }),
+        });
+      }
+  
       setShowGroceryListModal(false);
       router.push('/grocerylistId');
     } catch (error) {
@@ -314,31 +348,40 @@ export default function MenuDetail() {
         </div>
 
         {showGroceryListModal && (
-          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-            <div className="bg-white p-6 rounded-lg shadow-xl w-96">
-              <h3 className="text-lg font-semibold mb-4">Select Grocery List</h3>
-              <div className="space-y-2">
-                {groceryLists.map((list) => (
-                  <button
-                    key={list.id}
-                    onClick={() => addToGroceryList(list.id)}
-                    className="w-full text-left px-4 py-2 hover:bg-gray-100 rounded-md"
-                  >
-                    {list.name}
-                  </button>
-                ))}
-              </div>
-              <div className="mt-4 flex justify-end">
-                <button
-                  onClick={() => setShowGroceryListModal(false)}
-                  className="px-4 py-2 text-gray-600 hover:text-gray-800"
-                >
-                  Cancel
-                </button>
-              </div>
-            </div>
+  <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+    <div className="bg-white p-6 rounded-lg shadow-xl w-96">
+      <h3 className="text-lg font-semibold mb-4">Select Grocery List</h3>
+      <div className="space-y-2">
+        {error && (
+          <div className="text-red-600 mb-4">
+            {error}
           </div>
         )}
+        {!groceryLists?.length ? (
+          <div className="text-gray-600">No grocery lists available</div>
+        ) : (
+          groceryLists.map((list) => (
+            <button
+              key={list.id}
+              onClick={() => handleAddToGroceryList(list.id)}
+              className="w-full text-left px-4 py-2 hover:bg-gray-100 rounded-md"
+            >
+              {list.name}
+            </button>
+          ))
+        )}
+      </div>
+      <div className="mt-4 flex justify-end">
+        <button
+          onClick={() => setShowGroceryListModal(false)}
+          className="px-4 py-2 text-gray-600 hover:text-gray-800"
+        >
+          Cancel
+        </button>
+      </div>
+    </div>
+  </div>
+)}
       </div>
     </div>
     </ProtectedRoute>
