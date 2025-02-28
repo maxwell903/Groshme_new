@@ -7,6 +7,7 @@ import { Plus, X, Search, ChevronDown, ChevronUp, Check } from 'lucide-react';
 import { supabase } from '@/lib/supabaseClient'
 import { fetchApi} from '@/utils/api';
 import { useAuth } from '@/contexts/AuthContext';
+import { fetchHomeData } from '@/utils/api';
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL
 
