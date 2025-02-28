@@ -23,7 +23,6 @@ import os
 from werkzeug.utils import secure_filename
 from config import Config
 import traceback  # Make sure this is imported at the top of your file
-from supabase_auth import auth_required
 
 
 
@@ -42,7 +41,45 @@ CORS(app, resources={
 
 JWT_SECRET = os.environ.get('JWT_SECRET')
 
-
+def auth_required(f):
+    @wraps(f)
+    def decorated(*args, **kwargs):
+        auth_header = request.headers.get('Authorization')
+        
+        if not auth_header:
+            return jsonify({'error': 'No authorization header'}), 401
+            
+        try:
+            token = auth_header.replace('Bearer ', '')
+            
+            # Decode without verification first to get the claims
+            unverified_claims = jwt.decode(
+                token,
+                options={
+                    "verify_signature": False,
+                    "verify_aud": False,
+                    "verify_exp": False
+                }
+            )
+            
+            print(f"Decoded claims: {unverified_claims}")  # Debug log
+            
+            # Get the user ID from the sub claim
+            user_id = unverified_claims.get('sub')
+            
+            if not user_id:
+                raise ValueError("No user ID in token")
+            
+            # Store the user ID in Flask's g object
+            g.user_id = user_id
+            
+            return f(*args, **kwargs)
+            
+        except Exception as e:
+            print(f"Auth error: {str(e)}")
+            return jsonify({'error': str(e)}), 401
+            
+    return decorated
 
 @app.route('/api/auth-test', methods=['GET'])
 @auth_required
