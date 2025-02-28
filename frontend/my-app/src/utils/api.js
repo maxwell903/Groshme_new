@@ -1,4 +1,3 @@
-
 // utils/api.js
 import { supabase } from '@/lib/supabaseClient';
 
@@ -27,12 +26,14 @@ export const fetchApi = async (endpoint, options = {}) => {
     ...options.headers,
   };
 
-  console.log(`Fetching ${API_URL}${endpoint} with token`);
+  console.log(`Fetching ${API_URL}${endpoint}`);
   
   try {
     const response = await fetch(`${API_URL}${endpoint}`, {
       ...options,
       headers,
+      credentials: 'include',  // Include credentials for CORS requests
+      mode: 'cors',  // Explicitly set CORS mode
     });
 
     if (!response.ok) {
@@ -61,30 +62,59 @@ export const fetchApi = async (endpoint, options = {}) => {
   }
 };
 
-// This function can be used for requests that need retry logic
-export const fetchWithRetry = async (endpoint, options = {}, maxRetries = 3) => {
-  let retries = 0;
-  
-  while (retries < maxRetries) {
-    try {
-      return await fetchApi(endpoint, options);
-    } catch (error) {
-      retries++;
-      
-      // If we've reached max retries or it's not an auth error, throw
-      if (retries >= maxRetries || !error.message.includes('Authentication')) {
-        throw error;
-      }
-      
-      // Wait a bit before retrying
-      await new Promise(resolve => setTimeout(resolve, 1000));
-      
-      // Try to refresh the token before next retry
-      try {
-        await supabase.auth.refreshSession();
-      } catch (refreshError) {
-        console.error('Session refresh failed:', refreshError);
-      }
+// This function can be used for simple API requests without auth
+export const fetchWithoutAuth = async (endpoint, options = {}) => {
+  const fetchOptions = {
+    ...options,
+    headers: {
+      'Content-Type': 'application/json',
+      ...options.headers,
+    },
+    credentials: 'include',
+    mode: 'cors',
+  };
+
+  try {
+    const response = await fetch(`${API_URL}${endpoint}`, fetchOptions);
+    
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}));
+      throw new Error(errorData.message || response.statusText || `Error: ${response.status}`);
     }
+    
+    return response.json();
+  } catch (error) {
+    console.error('API request failed:', error);
+    throw error;
+  }
+};
+
+// Update the function used in index.js to handle errors more gracefully
+export const fetchHomeData = async () => {
+  try {
+    const response = await fetch(`${API_URL}/api/home-data`, {
+      method: 'GET',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      credentials: 'include',
+      mode: 'cors'
+    });
+    
+    if (!response.ok) {
+      console.error('Failed to fetch home data:', response.statusText);
+      return {
+        total_recipes: 0,
+        latest_recipes: []
+      };
+    }
+    
+    return await response.json();
+  } catch (error) {
+    console.error('Error fetching home data:', error);
+    return {
+      total_recipes: 0,
+      latest_recipes: []
+    };
   }
 };

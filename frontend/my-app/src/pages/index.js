@@ -371,20 +371,27 @@ export default function Home() {
         router.push('/signin');
         return;
       }
-
+  
       try {
         setLoading(true);
-        const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/home-data`);
-        const data = await response.json();
+        setError(null);
+        
+        // Using our improved fetchHomeData function
+        const data = await fetchHomeData();
         setHomeData(data);
       } catch (error) {
         console.error('Error:', error);
-        setError(error.message);
+        setError('Failed to load recipes. Please try again later.');
+        // Provide fallback data
+        setHomeData({
+          total_recipes: 0,
+          latest_recipes: []
+        });
       } finally {
         setLoading(false);
       }
     };
-
+  
     fetchData();
   }, [user, router]);
 
