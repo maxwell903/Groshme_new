@@ -31,28 +31,14 @@ app = Flask(__name__)
 
 # Simplified CORS configuration
 CORS(app, resources={
-    r"/*": {
-        "origins": Config.CORS_ORIGINS,
+    r"/api/*": {
+        "origins": ["https://groshmebeta.netlify.app", "http://localhost:3000"],
         "methods": ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
         "allow_headers": ["Content-Type", "Authorization"],
         "expose_headers": ["Content-Range", "X-Content-Range"],
-        "supports_credentials": True,
-        "max_age": 86400  # 24 hours
+        "supports_credentials": True
     }
 })
-
-@app.route('/*', methods=['OPTIONS'])
-def handle_options():
-    response = app.make_default_options_response()
-    
-    # Add required CORS headers
-    response.headers.add('Access-Control-Allow-Origin', request.headers.get('Origin', '*'))
-    response.headers.add('Access-Control-Allow-Headers', 'Content-Type,Authorization')
-    response.headers.add('Access-Control-Allow-Methods', 'GET,POST,PUT,DELETE,OPTIONS')
-    response.headers.add('Access-Control-Allow-Credentials', 'true')
-    response.headers.add('Access-Control-Max-Age', '86400')
-    
-    return response
 
 JWT_SECRET = os.environ.get('JWT_SECRET')
 
@@ -75,19 +61,13 @@ def handle_recipe_options():
     response.headers.add('Access-Control-Allow-Methods', 'POST,OPTIONS')
     return response
 
-
 @app.errorhandler(Exception)
 def handle_error(error):
-    response = jsonify({
+    return jsonify({
         "error": str(error),
         "message": "An error occurred while processing your request."
     }), 500
-    
-    # Add CORS headers to error responses too
-    response[0].headers.add('Access-Control-Allow-Origin', '*')
-    response[0].headers.add('Access-Control-Allow-Credentials', 'true')
-    
-    return response
+
 
 
 
@@ -2942,17 +2922,8 @@ def delete_grocery_item(list_id, item_id):
         print(f"Error deleting grocery item: {str(e)}")
         return jsonify({'error': str(e)}), 500
     
-@app.route('/api/auth/user', methods=['POST', 'OPTIONS'])
+@app.route('/api/auth/user', methods=['POST'])
 def create_user():
-    # Handle preflight OPTIONS request
-    if request.method == 'OPTIONS':
-        response = jsonify({'status': 'ok'})
-        response.headers.add('Access-Control-Allow-Origin', request.headers.get('Origin', '*'))
-        response.headers.add('Access-Control-Allow-Headers', 'Content-Type,Authorization')
-        response.headers.add('Access-Control-Allow-Methods', 'POST,OPTIONS')
-        response.headers.add('Access-Control-Allow-Credentials', 'true')
-        return response
-        
     try:
         data = request.json
         user_id = data['user_id']
@@ -2971,64 +2942,21 @@ def create_user():
         db.session.add(default_recipe)
         
         db.session.commit()
-        
-        # Include CORS headers in success response
-        response = jsonify({'message': 'User created successfully'})
-        response.headers.add('Access-Control-Allow-Origin', request.headers.get('Origin', '*'))
-        response.headers.add('Access-Control-Allow-Credentials', 'true')
-        return response
-        
+        return jsonify({'message': 'User created successfully'})
     except Exception as e:
         db.session.rollback()
-        
-        # Include CORS headers in error response
-        response = jsonify({'error': str(e)}), 500
-        response[0].headers.add('Access-Control-Allow-Origin', request.headers.get('Origin', '*'))
-        response[0].headers.add('Access-Control-Allow-Credentials', 'true')
-        return response
+        return jsonify({'error': str(e)}), 500
     
-@app.route('/api/auth/validate', methods=['POST', 'OPTIONS'])
+@app.route('/api/auth/validate', methods=['POST'])
 def validate_token():
-    # Handle preflight OPTIONS request
-    if request.method == 'OPTIONS':
-        response = jsonify({'status': 'ok'})
-        response.headers.add('Access-Control-Allow-Origin', request.headers.get('Origin', '*'))
-        response.headers.add('Access-Control-Allow-Headers', 'Content-Type,Authorization')
-        response.headers.add('Access-Control-Allow-Methods', 'POST,OPTIONS')
-        response.headers.add('Access-Control-Allow-Credentials', 'true')
-        return response
-        
     token = request.headers.get('Authorization')
     if not token:
-        response = jsonify({'valid': False}), 401
-        response[0].headers.add('Access-Control-Allow-Origin', request.headers.get('Origin', '*'))
-        response[0].headers.add('Access-Control-Allow-Credentials', 'true')
-        return response
-        
+        return jsonify({'valid': False}), 401
     try:
-        # Initialize SupabaseAuth with your Supabase URLs
-        from supabase_auth import SupabaseAuth
-        from config import Config
-        
-        auth = SupabaseAuth(Config.SUPABASE_URL, Config.SUPABASE_KEY)
-        decoded = auth.verify_token(token.split(' ')[1])
-        
-        if decoded:
-            response = jsonify({'valid': True, 'user': {'id': decoded.get('sub')}})
-        else:
-            response = jsonify({'valid': False}), 401
-            
-        response[0].headers.add('Access-Control-Allow-Origin', request.headers.get('Origin', '*'))
-        response[0].headers.add('Access-Control-Allow-Credentials', 'true')
-        return response
-        
-    except Exception as e:
-        response = jsonify({'valid': False, 'error': str(e)}), 401
-        response[0].headers.add('Access-Control-Allow-Origin', request.headers.get('Origin', '*'))
-        response[0].headers.add('Access-Control-Allow-Credentials', 'true')
-        return response
-
-
+        user = supabase.auth.get_user(token.split(' ')[1])
+        return jsonify({'valid': True, 'user': user})
+    except:
+        return jsonify({'valid': False}), 401
     
 @app.route('/api/auth/logout', methods=['POST'])
 @auth_required
@@ -3175,17 +3103,8 @@ def add_recipe():
         print("=== END RECIPE CREATION ===")
 
 
-@app.route('/api/home-data', methods=['GET', 'OPTIONS'])
+@app.route('/api/home-data')
 def home_data():
-    # Handle preflight OPTIONS request
-    if request.method == 'OPTIONS':
-        response = jsonify({'status': 'ok'})
-        response.headers.add('Access-Control-Allow-Origin', request.headers.get('Origin', '*'))
-        response.headers.add('Access-Control-Allow-Headers', 'Content-Type,Authorization')
-        response.headers.add('Access-Control-Allow-Methods', 'GET,OPTIONS')
-        response.headers.add('Access-Control-Allow-Credentials', 'true')
-        return response
-        
     try:
         # Get total recipes count
         total_recipes = db.session.execute(text('SELECT COUNT(*) FROM recipe')).scalar()
@@ -3242,29 +3161,17 @@ def home_data():
             }
         } for recipe in latest_recipes]
         
-        # When returning the response, add CORS headers
-        response = jsonify({
+        return jsonify({
             'total_recipes': total_recipes,
             'latest_recipes': latest_recipes_data
         })
-        response.headers.add('Access-Control-Allow-Origin', request.headers.get('Origin', '*'))
-        response.headers.add('Access-Control-Allow-Credentials', 'true')
-        return response
-        
     except Exception as e:
         print(f"Error in home_data: {str(e)}")
         db.session.rollback()
-        
-        # Error response with CORS headers
-        response = jsonify({
+        return jsonify({
             'total_recipes': 0,
-            'latest_recipes': [],
-            'error': str(e)
+            'latest_recipes': []
         }), 500
-        
-        response[0].headers.add('Access-Control-Allow-Origin', request.headers.get('Origin', '*'))
-        response[0].headers.add('Access-Control-Allow-Credentials', 'true')
-        return response
     
 # All Recipes Route
 # In app.py

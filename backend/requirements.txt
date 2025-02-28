@@ -2,6 +2,7 @@ flask
 flask_sqlalchemy
 SQLAlchemy>=1.4.36
 flask_migrate 
+flask_cors
 mysql-connector-python
 fuzzywuzzy
 psycopg2-binary>=2.9.3
@@ -11,7 +12,4 @@ python-dotenv
 python-dateutil
 pytz==2022.7.1
 python-Levenshtein==0.25.0
-requests
-pyjwt
-cryptography
-flask-cors
+PyJWT==2.8.0

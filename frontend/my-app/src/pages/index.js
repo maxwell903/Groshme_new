@@ -7,7 +7,6 @@ import { Plus, X, Search, ChevronDown, ChevronUp, Check } from 'lucide-react';
 import { supabase } from '@/lib/supabaseClient'
 import { fetchApi} from '@/utils/api';
 import { useAuth } from '@/contexts/AuthContext';
-import { fetchHomeData } from '@/utils/api';
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL
 
@@ -372,27 +371,20 @@ export default function Home() {
         router.push('/signin');
         return;
       }
-  
+
       try {
         setLoading(true);
-        setError(null);
-        
-        // Using our improved fetchHomeData function
-        const data = await fetchHomeData();
+        const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/home-data`);
+        const data = await response.json();
         setHomeData(data);
       } catch (error) {
         console.error('Error:', error);
-        setError('Failed to load recipes. Please try again later.');
-        // Provide fallback data
-        setHomeData({
-          total_recipes: 0,
-          latest_recipes: []
-        });
+        setError(error.message);
       } finally {
         setLoading(false);
       }
     };
-  
+
     fetchData();
   }, [user, router]);
 
