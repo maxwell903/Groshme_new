@@ -11,9 +11,6 @@ const API_URL = process.env.NEXT_PUBLIC_API_URL
 
 
 
-import React, { useState } from 'react';
-import { X } from 'lucide-react';
-
 const AddIncomeModal = ({ isOpen, onClose, onSubmit, initialData = null, entries = [] }) => {
   const [formData, setFormData] = useState({
     title: '',
@@ -30,14 +27,45 @@ const AddIncomeModal = ({ isOpen, onClose, onSubmit, initialData = null, entries
 
   const [errors, setErrors] = useState({});
 
+   // Helper function to check if an entry is a descendant of another
+   const isDescendantOf = (entry, parentId) => {
+    if (!entry.children) return false;
+    return entry.children.some(child => 
+      child.id === parentId || isDescendantOf(child, parentId)
+    );
+  };
   // Filter out potential parent accounts (exclude current entry if editing and any subaccounts)
-  const availableParents = entries.filter(entry => {
-    // Entry is valid as parent if:
-    // 1. It's not a subaccount itself
-    // 2. It's not the current entry being edited
-    return !entry.is_subaccount && (!initialData || entry.id !== initialData.id);
-  });
+  const availableParents = useMemo(() => {
+    // Get all potential parent accounts (non-subaccounts)
+    const potentialParents = entries.filter(entry => {
+      // Entry is valid as parent if:
+      // 1. It's not a subaccount itself
+      // 2. It's not the current entry being edited
+      return !entry.is_subaccount && (!initialData || entry.id !== initialData.id);
+    });
+  
+    return potentialParents;
+  }, [entries, initialData]);
+  
+  // Then in your select element, make sure to include and select the current parent_id
+  <select
+    value={formData.parent_id || ''}
+    onChange={(e) => setFormData(prev => ({
+      ...prev,
+      parent_id: e.target.value
+    }))}
+    className="w-full border rounded-md p-2"
+    required={formData.is_subaccount}
+  >
+    <option value="">Select a parent account</option>
+    {availableParents.map(parent => (
+      <option key={parent.id} value={parent.id}>
+        {parent.title}
+      </option>
+    ))}
+  </select>
 
+ 
   const validateForm = () => {
     const newErrors = {};
     if (!formData.title.trim()) newErrors.title = 'Title is required';
@@ -65,34 +93,13 @@ const AddIncomeModal = ({ isOpen, onClose, onSubmit, initialData = null, entries
   const handleSubmit = (e) => {
     e.preventDefault();
     if (validateForm()) {
-      // Make sure parent_id is null when not a subaccount
-      const dataToSubmit = {
-        ...formData,
-        parent_id: formData.is_subaccount ? formData.parent_id : null,
-      };
-      onSubmit(dataToSubmit);
+      onSubmit(formData);
     }
   };
 
-  // Helper for recurring option toggle
-  const handleRecurringToggle = (isRecurring) => {
-    setFormData(prev => ({
-      ...prev,
-      is_recurring: isRecurring,
-      // Reset dates if toggling off
-      ...(isRecurring ? {} : {
-        start_date: '',
-        end_date: '',
-        next_payment_date: ''
-      })
-    }));
-  };
-
-  if (!isOpen) return null;
-
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-      <div className="bg-white p-6 rounded-lg shadow-xl w-full max-w-md max-h-[90vh] overflow-y-auto">
+      <div className="bg-white p-6 rounded-lg shadow-xl w-full max-w-md">
         <div className="flex justify-between items-center mb-4">
           <h2 className="text-xl font-semibold">
             {initialData ? 'Edit Income Entry' : 'Add New Income'}
@@ -146,7 +153,6 @@ const AddIncomeModal = ({ isOpen, onClose, onSubmit, initialData = null, entries
                     </option>
                   ))}
                 </select>
-                {errors.parent_id && <p className="text-red-500 text-sm mt-1">{errors.parent_id}</p>}
               </div>
             )}
           </div>
@@ -201,20 +207,8 @@ const AddIncomeModal = ({ isOpen, onClose, onSubmit, initialData = null, entries
               <option value="yearly">Yearly</option>
             </select>
           </div>
-          
-          {/* Recurring Option */}
-          <div className="flex items-center gap-2">
-            <input
-              type="checkbox"
-              id="is_recurring"
-              checked={formData.is_recurring}
-              onChange={(e) => handleRecurringToggle(e.target.checked)}
-              className="rounded border-gray-300"
-            />
-            <label htmlFor="is_recurring" className="text-sm font-medium text-gray-700">
-              This is a recurring payment
-            </label>
-          </div>
+
+        
 
           {/* Date Fields (shown only when recurring is checked) */}
           {formData.is_recurring && (
@@ -286,8 +280,6 @@ const AddIncomeModal = ({ isOpen, onClose, onSubmit, initialData = null, entries
     </div>
   );
 };
-
-
 
 
 const calculateBudgetByFrequency = (amount, frequency) => {
