@@ -1,10 +1,9 @@
-
-
 import React, { useState, useEffect, useMemo } from 'react';
 import { Card, CardHeader, CardTitle, CardContent } from './ui/cards';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, AreaChart, Area } from 'recharts';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { TrendingUp, TrendingDown, PieChart, Calendar } from 'lucide-react';
+import { fetchApi } from '@/utils/api'; // Import fetchApi
 
 import _ from 'lodash';
 
@@ -19,19 +18,9 @@ const BudgetHistoryStats = ({ currentBudgetData }) => {
   useEffect(() => {
     const fetchBudgetHistory = async () => {
       try {
-        const response = await fetch('https://groshmebeta-05487aa160b2.herokuapp.com/api/budget-register', {
-          method: 'GET',
-          headers: {
-            'Content-Type': 'application/json',
-            'Accept': 'application/json'
-          },
-        });
-
-        if (!response.ok) {
-          throw new Error('Failed to fetch budget history');
-        }
-
-        const data = await response.json();
+        // Use fetchApi instead of direct fetch to include auth headers
+        const data = await fetchApi('/api/budget-register');
+        
         if (!data.registers) {
           throw new Error('Invalid data format received');
         }

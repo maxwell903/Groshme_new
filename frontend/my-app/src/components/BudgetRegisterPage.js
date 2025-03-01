@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Card, CardHeader, CardTitle, CardContent } from './ui/cards';
+import { fetchApi } from '@/utils/api'; // Import the fetchApi function
 const API_URL = process.env.NEXT_PUBLIC_API_URL
 
 import { 
@@ -37,16 +38,8 @@ const BudgetRegisterPage = () => {
 
   const fetchRegisters = async () => {
     try {
-      const response = await fetch('https://groshmebeta-05487aa160b2.herokuapp.com/api/budget-register');
-      console.log('Response status:', response.status);
-      
-      if (!response.ok) {
-        const errorData = await response.json();
-        console.error('Server error:', errorData);
-        throw new Error(errorData.error || 'Failed to fetch registers');
-      }
-      
-      const data = await response.json();
+      // Use fetchApi instead of direct fetch to include authentication
+      const data = await fetchApi('/api/budget-register');
       console.log('Received budget registers:', data);
       setRegisters(data.registers);
     } catch (error) {
@@ -57,8 +50,6 @@ const BudgetRegisterPage = () => {
   };
 
   
-  
-
   const formatCurrency = (amount) => {
     return new Intl.NumberFormat('en-US', {
       style: 'currency',
@@ -199,19 +190,19 @@ const BudgetRegisterPage = () => {
 }
 
 const BudgetRegisterDetail = ({ register, onClose, onDelete }) => {
-
   const [expandedEntries, setExpandedEntries] = useState(new Set());
   const [loading, setLoading] = useState(true);
   const [details, setDetails] = useState(null);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  
   useEffect(() => {
     fetchRegisterDetails();
   }, [register.id]);
 
   const fetchRegisterDetails = async () => {
     try {
-      const response = await fetch(`https://groshmebeta-05487aa160b2.herokuapp.com/api/budget-register/${register.id}`);
-      const data = await response.json();
+      // Use fetchApi to include authentication headers
+      const data = await fetchApi(`/api/budget-register/${register.id}`);
       setDetails(data);
     } catch (error) {
       console.error('Error fetching register details:', error);
@@ -287,15 +278,8 @@ const BudgetRegisterDetail = ({ register, onClose, onDelete }) => {
     }
 
     try {
-      const response = await fetch(
-        `https://groshmebeta-05487aa160b2.herokuapp.com/api/budget-register/${register.id}`,
-        { method: 'DELETE' }
-      );
-
-      if (!response.ok) {
-        throw new Error('Failed to delete budget register');
-      }
-
+      // Use fetchApi to include auth headers
+      await fetchApi(`/api/budget-register/${register.id}`, { method: 'DELETE' });
       onDelete();
       onClose();
     } catch (error) {
