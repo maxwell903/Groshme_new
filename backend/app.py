@@ -683,12 +683,11 @@ def get_budget_registers():
                     COALESCE(total_spent, 0) as total_spent,
                     COALESCE(total_saved, 0) as total_saved
                 FROM budget_register
-                WHERE user_id = :user_id  # Filter by user_id
+                WHERE user_id = :user_id
                 ORDER BY created_at DESC
             """)
             
             result = connection.execute(query, {"user_id": user_id})
-            
             
             rows = result.fetchall()
             
