@@ -2,6 +2,7 @@ import React, { useState, useMemo, useEffect } from 'react';
 import { Clock, Plus } from 'lucide-react';
 import IncomeCalculatorModal from './IncomeCalculatorModal';
 import ProfitLossCard from './ProfitLossCard';
+import { fetchApi } from '@/utils/api'; 
 const API_URL = process.env.NEXT_PUBLIC_API_URL
 
 
@@ -183,23 +184,19 @@ const BudgetSummaryCard = ({ entries }) => {
   const [showIncomeModal, setShowIncomeModal] = useState(false);
   const [realSalary, setRealSalary] = useState(null);
   const [averageIncome, setAverageIncome] = useState(null);
-  const [isLoading, setIsLoading] = useState(true);
+  const [loading, setIsLoading] = useState(true);
   const [timeframe, setTimeframe] = useState('monthly');
 
   useEffect(() => {
     const fetchRealSalary = async () => {
       try {
-        const response = await fetch('https://groshmebeta-05487aa160b2.herokuapp.com/api/real-salary');
-        if (response.ok) {
-          const data = await response.json();
-          if (data.salary) {
-            setRealSalary(data.salary);
-            const calcResponse = await fetch('https://groshmebeta-05487aa160b2.herokuapp.com/api/real-salary/calculate');
-            if (calcResponse.ok) {
-              const calcData = await calcResponse.json();
-              setAverageIncome(calcData.calculations);
-            }
-          }
+        // Use fetchApi instead of direct fetch
+        const data = await fetchApi('/api/real-salary');
+        if (data.salary) {
+          setRealSalary(data.salary);
+          // Use fetchApi for the calculation endpoint as well
+          const calcData = await fetchApi('/api/real-salary/calculate');
+          setAverageIncome(calcData.calculations);
         }
       } catch (error) {
         console.error('Error fetching salary data:', error);
@@ -276,11 +273,9 @@ const BudgetSummaryCard = ({ entries }) => {
   const handleIncomeSubmit = async (salaryData) => {
     try {
       setRealSalary(salaryData);
-      const calcResponse = await fetch('https://groshmebeta-05487aa160b2.herokuapp.com/api/real-salary/calculate');
-      if (calcResponse.ok) {
-        const calcData = await calcResponse.json();
-        setAverageIncome(calcData.calculations);
-      }
+      // Use fetchApi here as well
+      const calcData = await fetchApi('/api/real-salary/calculate');
+      setAverageIncome(calcData.calculations);
       setShowIncomeModal(false);
     } catch (error) {
       console.error('Error updating salary calculations:', error);
@@ -309,7 +304,7 @@ const BudgetSummaryCard = ({ entries }) => {
         <AverageIncomeCard 
           averageIncome={averageIncome}
           summaryData={summaryData}
-          isLoading={isLoading}
+          isLoading={loading}
           timeframe={timeframe}
           onTimeframeChange={setTimeframe}
         />

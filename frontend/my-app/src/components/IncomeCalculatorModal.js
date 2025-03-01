@@ -1,5 +1,6 @@
 import React, { useState, useMemo } from 'react';
 import { X, Loader2 } from 'lucide-react';
+import { fetchApi } from '@/utils/api'; // Import fetchApi function
 const API_URL = process.env.NEXT_PUBLIC_API_URL
 
 const IncomeCalculatorModal = ({ isOpen, onClose, onSubmit }) => {
@@ -97,24 +98,15 @@ const IncomeCalculatorModal = ({ isOpen, onClose, onSubmit }) => {
     setIsSubmitting(true);
 
     try {
-      // Add the new salary
-      const response = await fetch('https://groshmebeta-05487aa160b2.herokuapp.com/api/real-salary', {
+      // Use fetchApi instead of direct fetch
+      const data = await fetchApi('/api/real-salary', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
         body: JSON.stringify({
           amount: parseFloat(amount),
           frequency
-        }),
+        })
       });
 
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error || 'Failed to save salary');
-      }
-
-      const data = await response.json();
       onSubmit(data.salary);
       onClose();
     } catch (error) {
@@ -124,7 +116,6 @@ const IncomeCalculatorModal = ({ isOpen, onClose, onSubmit }) => {
       setIsSubmitting(false);
     }
   };
-
 
   if (!isOpen) return null;
 
