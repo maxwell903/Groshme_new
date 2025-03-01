@@ -37,34 +37,10 @@ const BudgetRegisterPage = () => {
 
   const fetchRegisters = async () => {
     try {
-      // Get the auth token from localStorage
-      const token = localStorage.getItem('access_token');
-      
-      if (!token) {
-        console.error('No authentication token found');
-        setError('Please log in to view budget registers');
-        setLoading(false);
-        return;
-      }
-      
-      const response = await fetch('https://groshmebeta-05487aa160b2.herokuapp.com/api/budget-register', {
-        method: 'GET',
-        headers: {
-          'Content-Type': 'application/json',
-          'Accept': 'application/json',
-          'Authorization': `Bearer ${token}`  // Add authorization header
-        },
-      });
-      
+      const response = await fetch('https://groshmebeta-05487aa160b2.herokuapp.com/api/budget-register');
       console.log('Response status:', response.status);
       
       if (!response.ok) {
-        if (response.status === 401) {
-          // Token may be expired, redirect to login
-          router.push('/signin');
-          return;
-        }
-        
         const errorData = await response.json();
         console.error('Server error:', errorData);
         throw new Error(errorData.error || 'Failed to fetch registers');
@@ -75,11 +51,11 @@ const BudgetRegisterPage = () => {
       setRegisters(data.registers);
     } catch (error) {
       console.error('Error fetching registers:', error);
-      setError(error.message || 'Failed to fetch budget registers');
     } finally {
       setLoading(false);
     }
   };
+
   
   
 
@@ -234,41 +210,11 @@ const BudgetRegisterDetail = ({ register, onClose, onDelete }) => {
 
   const fetchRegisterDetails = async () => {
     try {
-      const token = localStorage.getItem('access_token');
-      
-      if (!token) {
-        console.error('No authentication token found');
-        setError('Please log in to view budget details');
-        setLoading(false);
-        return;
-      }
-      
-      const response = await fetch(
-        `https://groshmebeta-05487aa160b2.herokuapp.com/api/budget-register/${register.id}`, 
-        {
-          method: 'GET',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${token}`  // Add authorization header
-          }
-        }
-      );
-      
-      if (!response.ok) {
-        if (response.status === 401) {
-          // Token may be expired, redirect to login
-          router.push('/signin');
-          return;
-        }
-        
-        throw new Error('Failed to fetch register details');
-      }
-      
+      const response = await fetch(`https://groshmebeta-05487aa160b2.herokuapp.com/api/budget-register/${register.id}`);
       const data = await response.json();
       setDetails(data);
     } catch (error) {
       console.error('Error fetching register details:', error);
-      setError('Failed to load budget details');
     } finally {
       setLoading(false);
     }

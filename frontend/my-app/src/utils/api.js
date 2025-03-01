@@ -1,22 +1,10 @@
 import { supabaseClient } from '@/lib/supabaseClient';
-import {router} from 'next/router';
 
 export const API_URL = 'https://groshmebeta-05487aa160b2.herokuapp.com';
 
 export const fetchApi = async (endpoint, options = {}) => {
-  // Try to get token directly from localStorage first (client-side only)
-  let token = null;
-  
-  if (typeof window !== 'undefined') {
-    token = localStorage.getItem('access_token');
-  }
-  
-  // If no token is available and we're client-side, redirect to login
-  if (!token && typeof window !== 'undefined' && !options.skipAuthRedirect) {
-    console.log('No auth token found, redirecting to login');
-    router.push('/signin');
-    throw new Error('Authentication required');
-  }
+  const session = await supabaseClient(options.userId).auth.getSession();
+  const token = session?.data?.session?.access_token;
 
   const headers = {
     'Content-Type': 'application/json',
@@ -24,30 +12,17 @@ export const fetchApi = async (endpoint, options = {}) => {
     ...options.headers,
   };
 
-  try {
-    const response = await fetch(`${API_URL}${endpoint}`, {
-      ...options,
-      headers,
-    });
+  const response = await fetch(`${API_URL}${endpoint}`, {
+    ...options,
+    headers,
+  });
 
-    if (!response.ok) {
-      // Handle authentication errors - redirect to login
-      if (response.status === 401 && typeof window !== 'undefined' && !options.skipAuthRedirect) {
-        console.log('Authentication failed, redirecting to login');
-        localStorage.removeItem('access_token');  // Clear invalid token
-        router.push('/signin');
-        throw new Error('Authentication expired. Please sign in again.');
-      }
-
-      const error = await response.json().catch(() => ({}));
-      throw new Error(error.message || response.statusText || 'API request failed');
-    }
-
-    return response.json();
-  } catch (error) {
-    console.error(`API Error (${endpoint}):`, error);
-    throw error;
+  if (!response.ok) {
+    const error = await response.json().catch(() => ({}));
+    throw new Error(error.message || response.statusText);
   }
+
+  return response.json();
 };
 
 export const supabaseApi = {

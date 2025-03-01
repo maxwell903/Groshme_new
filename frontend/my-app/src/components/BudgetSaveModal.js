@@ -52,19 +52,10 @@ const BudgetSaveModal = ({
       setError(errors);
       return;
     }
-  
+
     setIsSubmitting(true);
     
     try {
-      // Get auth token
-      const token = localStorage.getItem('access_token');
-      
-      if (!token) {
-        setError({ submit: 'Authentication required. Please log in again.' });
-        setTimeout(() => router.push('/signin'), 2000);
-        return;
-      }
-      
       // Prepare data to send to backend
       const saveData = {
         name: formData.name,
@@ -72,34 +63,19 @@ const BudgetSaveModal = ({
         to_date: formData.to_date,
         clear_transactions: formData.clear_transactions
       };
-  
-      // Call the API to save budget register with token
-      const response = await fetch('/api/budget-register', {
+
+      // Call the API to save budget register
+      const response = await fetchApi('/api/budget-register', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
-        },
         body: JSON.stringify(saveData)
       });
-  
-      if (!response.ok) {
-        if (response.status === 401) {
-          setError({ submit: 'Authentication expired. Please log in again.' });
-          setTimeout(() => router.push('/signin'), 2000);
-          return;
-        }
-        
-        const errorData = await response.json();
-        throw new Error(errorData.error || 'Failed to save budget');
-      }
-  
+
       // Show success message or handle response
       alert('Budget saved successfully!');
       onClose(); // Close the modal
     } catch (err) {
       console.error('Error saving budget:', err);
-      setError({ submit: err.message || 'Failed to save budget. Please try again.' });
+      setError({ submit: 'Failed to save budget. Please try again.' });
     } finally {
       setIsSubmitting(false);
     }
