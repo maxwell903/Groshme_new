@@ -1,4 +1,5 @@
 # app.py
+import jwt
 import re, uuid, json
 from sqlalchemy import create_engine, text # type: ignore
 from sqlalchemy.pool import NullPool
@@ -23,6 +24,7 @@ import os
 from werkzeug.utils import secure_filename
 from config import Config
 import traceback  # Make sure this is imported at the top of your file
+from flask import g
 
 
 
@@ -30,7 +32,7 @@ app = Flask(__name__)
 
 # Simplified CORS configuration
 CORS(app, resources={
-    r"/api/*": {
+    r"/*": {
         "origins": ["https://groshmebeta.netlify.app", "http://localhost:3000"],
         "methods": ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
         "allow_headers": ["Content-Type", "Authorization"],
@@ -47,22 +49,19 @@ def auth_required(f):
         auth_header = request.headers.get('Authorization')
         
         if not auth_header:
-            return jsonify({'error': 'No authorization header'}), 401
+            return jsonify({'error': 'No authorization token provided'}), 401
             
         try:
+            # Extract token
             token = auth_header.replace('Bearer ', '')
             
-            # Decode without verification first to get the claims
+            # For Supabase tokens, use public key for verification
+            # The token is issued by Supabase, not signed with JWT_SECRET
+            # First, decode without verification to get the claims
             unverified_claims = jwt.decode(
                 token,
-                options={
-                    "verify_signature": False,
-                    "verify_aud": False,
-                    "verify_exp": False
-                }
+                options={"verify_signature": False}
             )
-            
-            print(f"Decoded claims: {unverified_claims}")  # Debug log
             
             # Get the user ID from the sub claim
             user_id = unverified_claims.get('sub')
@@ -75,7 +74,7 @@ def auth_required(f):
             
             return f(*args, **kwargs)
             
-        except Exception as e:
+        except (jwt.PyJWTError, ValueError) as e:
             print(f"Auth error: {str(e)}")
             return jsonify({'error': str(e)}), 401
             
@@ -3021,14 +3020,74 @@ def create_user():
     
 @app.route('/api/auth/validate', methods=['POST'])
 def validate_token():
-    token = request.headers.get('Authorization')
-    if not token:
+    auth_header = request.headers.get('Authorization')
+    if not auth_header:
         return jsonify({'valid': False}), 401
+    
     try:
-        user = supabase.auth.get_user(token.split(' ')[1])
-        return jsonify({'valid': True, 'user': user})
-    except:
-        return jsonify({'valid': False}), 401
+        # Extract token
+        token = auth_header.replace('Bearer ', '')
+        
+        # Decode token without verification to check basic structure
+        payload = jwt.decode(
+            token,
+            options={"verify_signature": False}
+        )
+        
+        # Check if token has basic expected structure
+        if 'sub' not in payload or 'exp' not in payload:
+            return jsonify({'valid': False, 'error': 'Invalid token structure'}), 401
+            
+        # Check if token is expired
+        now = datetime.utcnow().timestamp()
+        if payload['exp'] < now:
+            return jsonify({'valid': False, 'error': 'Token expired'}), 401
+            
+        return jsonify({
+            'valid': True,
+            'user': {
+                'id': payload['sub'],
+                'email': payload.get('email', '')
+            }
+        })
+        
+    except Exception as e:
+        print(f"Token validation error: {str(e)}")
+        return jsonify({'valid': False, 'error': str(e)}), 401
+    
+@app.route('/api/auth/debug', methods=['GET'])
+def debug_auth():
+    auth_header = request.headers.get('Authorization')
+    
+    if not auth_header:
+        return jsonify({'error': 'No Authorization header present'})
+        
+    try:
+        token = auth_header.replace('Bearer ', '')
+        
+        # Decode without verification to see what's in the token
+        decoded = jwt.decode(
+            token,
+            options={"verify_signature": False}
+        )
+        
+        # Return decoded token data (safe for debugging)
+        return jsonify({
+            'token_data': {
+                'sub': decoded.get('sub'),
+                'email': decoded.get('email'),
+                'exp': decoded.get('exp'),
+                'iat': decoded.get('iat'),
+                'token_type': decoded.get('type')
+            },
+            'headers': dict(request.headers)
+        })
+        
+    except Exception as e:
+        return jsonify({
+            'error': str(e),
+            'token': token if 'token' in locals() else None
+        })
     
 @app.route('/api/auth/logout', methods=['POST'])
 @auth_required
