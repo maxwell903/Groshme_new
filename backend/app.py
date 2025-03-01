@@ -371,14 +371,27 @@ supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
 
 
     
-
 @app.route('/api/budget-register/<uuid:register_id>', methods=['DELETE'])
+@auth_required
 def delete_budget_register(register_id):
     try:
+        user_id = g.user_id
         engine = create_engine(db_url, poolclass=NullPool)
         
         with engine.connect() as connection:
             with connection.begin():
+                # Check if the register belongs to the user
+                register_check = connection.execute(
+                    text("""
+                        SELECT id FROM budget_register
+                        WHERE id = :register_id AND user_id = :user_id
+                    """),
+                    {"register_id": register_id, "user_id": user_id}
+                ).fetchone()
+                
+                if not register_check:
+                    return jsonify({'error': 'Budget register not found or unauthorized'}), 404
+
                 # Delete related transactions first
                 connection.execute(
                     text("""
@@ -421,19 +434,21 @@ def delete_budget_register(register_id):
     
 
 @app.route('/api/budget-register', methods=['POST'])
+@auth_required
 def save_to_register():
     try:
         data = request.json
+        user_id = g.user_id
         print("Received budget register data:", data)  # Debug logging
         
         engine = create_engine(db_url, poolclass=NullPool)
         
         with engine.connect() as connection:
             with connection.begin():
-                # First, calculate budget totals with updated spent amounts
+                # First, calculate budget totals with updated spent amounts for this user
                 budget_totals_query = text("""
                     WITH RECURSIVE BudgetHierarchy AS (
-                        -- Get all parent accounts (non-subaccounts)
+                        -- Get all parent accounts (non-subaccounts) for this user
                         SELECT 
                             id,
                             amount,
@@ -441,7 +456,7 @@ def save_to_register():
                             ARRAY[]::uuid[] as path,
                             0 as level
                         FROM income_entries
-                        WHERE is_subaccount = false
+                        WHERE is_subaccount = false AND user_id = :user_id
                         
                         UNION ALL
                         
@@ -481,6 +496,7 @@ def save_to_register():
                                 END
                             ), 0) as total_spent
                         FROM payments_history
+                        WHERE user_id = :user_id
                         GROUP BY income_entry_id
                     )
                     SELECT 
@@ -495,7 +511,8 @@ def save_to_register():
                     budget_totals_query,
                     {
                         "from_date": data['from_date'],
-                        "to_date": data['to_date']
+                        "to_date": data['to_date'],
+                        "user_id": user_id
                     }
                 ).fetchone()
                 
@@ -506,17 +523,17 @@ def save_to_register():
                 }
                 print("Calculated Budget Totals:", totals)
                 
-                # Create the budget register entry
+                # Create the budget register entry with user_id
                 register_result = connection.execute(
                     text("""
                         INSERT INTO budget_register (
                             name, from_date, to_date, 
                             total_budgeted, total_spent, total_saved,
-                            created_at
+                            created_at, user_id
                         ) VALUES (
                             :name, :from_date, :to_date, 
                             :total_budgeted, :total_spent, :total_saved,
-                            CURRENT_TIMESTAMP
+                            CURRENT_TIMESTAMP, :user_id
                         )
                         RETURNING id
                     """),
@@ -526,14 +543,15 @@ def save_to_register():
                         "to_date": data['to_date'],
                         "total_budgeted": totals['total_budgeted'],
                         "total_spent": totals['total_spent'],
-                        "total_saved": totals['total_saved']
+                        "total_saved": totals['total_saved'],
+                        "user_id": user_id
                     }
                 )
                 
                 register_id = register_result.fetchone().id
                 print(f"Created budget register with ID: {register_id}")
                 
-                # Save budget entries with updated spent calculation
+                # Save budget entries with updated spent calculation and user_id filter
                 entries_result = connection.execute(
                     text("""
                         INSERT INTO budget_register_entries (
@@ -566,6 +584,7 @@ def save_to_register():
                             ), 0) as total_saved
                         FROM income_entries ie
                         LEFT JOIN payments_history ph ON ie.id = ph.income_entry_id
+                        WHERE ie.user_id = :user_id
                         GROUP BY ie.id, ie.title, ie.amount, ie.frequency,
                                 ie.is_recurring, ie.is_subaccount, ie.parent_id
                         RETURNING id, title, amount, total_spent
@@ -573,11 +592,12 @@ def save_to_register():
                     {
                         "register_id": register_id,
                         "from_date": data['from_date'],
-                        "to_date": data['to_date']
+                        "to_date": data['to_date'],
+                        "user_id": user_id
                     }
                 ).fetchall()
                 
-                # Save transactions including all recurring ones
+                # Save transactions including all recurring ones with user filter
                 transactions_result = connection.execute(
                     text("""
                         INSERT INTO budget_register_transactions (
@@ -592,7 +612,7 @@ def save_to_register():
                             ph.is_one_time,
                             ph.id
                         FROM payments_history ph
-                        JOIN income_entries ie ON ph.income_entry_id = ie.id
+                        JOIN income_entries ie ON ph.income_entry_id = ie.id AND ie.user_id = :user_id
                         JOIN budget_register_entries bre ON ie.id = bre.original_entry_id
                         WHERE bre.register_id = :register_id
                         AND (
@@ -606,7 +626,8 @@ def save_to_register():
                     {
                         "register_id": register_id,
                         "from_date": data['from_date'],
-                        "to_date": data['to_date']
+                        "to_date": data['to_date'], 
+                        "user_id": user_id
                     }
                 ).fetchall()
                 
@@ -617,10 +638,12 @@ def save_to_register():
                             DELETE FROM payments_history
                             WHERE payment_date BETWEEN :from_date AND :to_date
                             AND is_one_time = true
+                            AND user_id = :user_id
                         """),
                         {
                             "from_date": data['from_date'],
-                            "to_date": data['to_date']
+                            "to_date": data['to_date'],
+                            "user_id": user_id
                         }
                     )
                 
@@ -642,23 +665,14 @@ def save_to_register():
 
 
 @app.route('/api/budget-register', methods=['GET'])
+@auth_required
 def get_budget_registers():
     try:
-        # Use print for Heroku logs
-        print("Starting get_budget_registers function")
+        user_id = g.user_id  # Get the authenticated user's ID
         
-        # Create engine with explicit connection parameters
-        engine = create_engine(
-            'postgresql://postgres.bvgnlxznztqggtqswovg:RecipeFinder123!@aws-0-us-east-2.pooler.supabase.com:5432/postgres', 
-            poolclass=NullPool
-        )
+        engine = create_engine(db_url, poolclass=NullPool)
         
-        # Explicitly open a connection
         with engine.connect() as connection:
-            # Print connection details for debugging
-            print(f"Connection established: {connection}")
-            
-            # Explicitly use text() with connection
             query = text("""
                 SELECT 
                     id, 
@@ -670,13 +684,13 @@ def get_budget_registers():
                     COALESCE(total_spent, 0) as total_spent,
                     COALESCE(total_saved, 0) as total_saved
                 FROM budget_register
+                WHERE user_id = :user_id  # Filter by user_id
                 ORDER BY created_at DESC
             """)
             
-            # Execute the query
-            result = connection.execute(query)
+            result = connection.execute(query, {"user_id": user_id})
             
-            # Fetch all results
+            
             rows = result.fetchall()
             
             # Print number of rows for debugging
@@ -756,23 +770,26 @@ def diagnostic_budget_register():
         return jsonify({'error': str(e)}), 500
 
 @app.route('/api/budget-register/<uuid:register_id>', methods=['GET'])
+@auth_required
 def get_budget_register_details(register_id):
     try:
+        user_id = g.user_id
         engine = create_engine(db_url, poolclass=NullPool)
         
         with engine.connect() as connection:
-            # Get register details
+            # Get register details with user_id filter
             register_result = connection.execute(
                 text("""
                     SELECT *
                     FROM budget_register
-                    WHERE id = :register_id
+                    WHERE id = :register_id AND user_id = :user_id
                 """),
-                {"register_id": register_id}
+                {"register_id": register_id, "user_id": user_id}
             ).fetchone()
             
             if not register_result:
-                return jsonify({'error': 'Register not found'}), 404
+                return jsonify({'error': 'Register not found or unauthorized'}), 404
+
             
             # Get entries with their transactions
             entries_result = connection.execute(text("""
@@ -837,8 +854,10 @@ def get_budget_register_details(register_id):
         return jsonify({'error': str(e)}), 500
 
 @app.route('/api/real-salary', methods=['GET'])
+@auth_required
 def get_real_salary():
     try:
+        user_id = g.user_id
         engine = create_engine(db_url, poolclass=NullPool)
         
         with engine.connect() as connection:
@@ -846,8 +865,10 @@ def get_real_salary():
                 text("""
                     SELECT id, amount, frequency, created_at, updated_at
                     FROM real_salary
+                    WHERE user_id = :user_id
                     LIMIT 1
-                """)
+                """),
+                {"user_id": user_id}
             ).fetchone()
             
             if result:
@@ -868,25 +889,29 @@ def get_real_salary():
         return jsonify({'error': str(e)}), 500
 
 @app.route('/api/real-salary', methods=['POST'])
+@auth_required
 def set_real_salary():
     try:
         data = request.json
+        user_id = g.user_id
+        
         if not data or 'amount' not in data or 'frequency' not in data:
             return jsonify({'error': 'Amount and frequency are required'}), 400
             
         engine = create_engine(db_url, poolclass=NullPool)
         
         with engine.connect() as connection:
-            # Due to our trigger, this will automatically delete any existing entries
+            # Update to include user_id
             result = connection.execute(
                 text("""
-                    INSERT INTO real_salary (amount, frequency)
-                    VALUES (:amount, :frequency)
+                    INSERT INTO real_salary (amount, frequency, user_id)
+                    VALUES (:amount, :frequency, :user_id)
                     RETURNING id, amount, frequency, created_at, updated_at
                 """),
                 {
                     'amount': float(data['amount']),
-                    'frequency': data['frequency']
+                    'frequency': data['frequency'],
+                    'user_id': user_id
                 }
             )
             
@@ -908,13 +933,19 @@ def set_real_salary():
         print(f"Error setting real salary: {str(e)}")
         return jsonify({'error': str(e)}), 500
 
+
 @app.route('/api/real-salary', methods=['DELETE'])
+@auth_required
 def delete_real_salary():
     try:
+        user_id = g.user_id
         engine = create_engine(db_url, poolclass=NullPool)
         
         with engine.connect() as connection:
-            connection.execute(text("DELETE FROM real_salary"))
+            connection.execute(
+                text("DELETE FROM real_salary WHERE user_id = :user_id"),
+                {"user_id": user_id}
+            )
             connection.commit()
             
             return jsonify({'message': 'Salary entry deleted successfully'})
@@ -924,8 +955,10 @@ def delete_real_salary():
         return jsonify({'error': str(e)}), 500
 
 @app.route('/api/real-salary/calculate', methods=['GET'])
+@auth_required
 def calculate_salary():
     try:
+        user_id = g.user_id
         engine = create_engine(db_url, poolclass=NullPool)
         
         with engine.connect() as connection:
@@ -933,8 +966,10 @@ def calculate_salary():
                 text("""
                     SELECT amount, frequency
                     FROM real_salary
+                    WHERE user_id = :user_id
                     LIMIT 1
-                """)
+                """),
+                {"user_id": user_id}
             ).fetchone()
             
             if not result:
@@ -5486,12 +5521,14 @@ def import_grocerylist_to_fridge(list_id):  # Add list_id as a parameter
         return jsonify({'error': str(e)}), 500
     
 @app.route('/api/income-entries', methods=['GET'])
+@auth_required
 def get_income_entries():
     try:
+        user_id = g.user_id
         engine = create_engine(db_url, poolclass=NullPool)
         
         with engine.connect() as connection:
-            # Modified query to include parent-child relationships
+            # Add user_id filter to the query
             result = connection.execute(text("""
                 WITH RECURSIVE BudgetHierarchy AS (
                     -- Base case: get parent budgets
@@ -5502,7 +5539,7 @@ def get_income_entries():
                         ARRAY[]::uuid[] as path,
                         0 as level
                     FROM income_entries 
-                    WHERE parent_id IS NULL
+                    WHERE parent_id IS NULL AND user_id = :user_id
                     
                     UNION ALL
                     
@@ -5545,7 +5582,7 @@ def get_income_entries():
                     bh.is_subaccount, bh.path, bh.level,
                     tt.total_spent
                 ORDER BY bh.path, bh.level, bh.title
-            """))
+            """),{"user_id": user_id})
             
             entries = []
             parent_map = {}
@@ -5587,11 +5624,11 @@ def get_income_entries():
         return jsonify({'error': str(e)}), 500
 
 @app.route('/api/income-entries', methods=['POST'])
+@auth_required
 def create_income_entry():
     try:
         data = request.json
-        print("Received data for income entry:", data)
-        print("Subaccount status:", data.get('is_subaccount'), "Parent ID:", data.get('parent_id'))
+        user_id = g.user_id
         
         engine = create_engine(db_url, poolclass=NullPool)
         
@@ -5601,17 +5638,17 @@ def create_income_entry():
             if not parent_id or parent_id == '':
                 parent_id = None
             
-            # Modified query to handle NULL parent_id correctly
+            # Add user_id to insert query
             result = connection.execute(
                 text("""
                     INSERT INTO income_entries (
                         title, amount, frequency, is_recurring,
                         start_date, end_date, next_payment_date,
-                        parent_id, is_subaccount
+                        parent_id, is_subaccount, user_id
                     ) VALUES (
                         :title, :amount, :frequency, :is_recurring,
                         :start_date, :end_date, :next_payment_date,
-                        :parent_id, :is_subaccount
+                        :parent_id, :is_subaccount, :user_id
                     ) RETURNING id
                 """),
                 {
@@ -5622,8 +5659,9 @@ def create_income_entry():
                     'start_date': data['start_date'] if data['is_recurring'] else None,
                     'end_date': data['end_date'] if data['is_recurring'] else None,
                     'next_payment_date': data['next_payment_date'] if data['is_recurring'] else None,
-                    'parent_id': parent_id,  # This will now be None instead of empty string
-                    'is_subaccount': bool(data.get('is_subaccount', False))
+                    'parent_id': parent_id,
+                    'is_subaccount': bool(data.get('is_subaccount', False)),
+                    'user_id': user_id  # Add the user_id
                 }
             )
             
@@ -5667,22 +5705,24 @@ def create_income_entry():
         return jsonify({'error': str(e)}), 500
 
 @app.route('/api/income-entries/<uuid:entry_id>', methods=['PUT'])
+@auth_required
 def update_income_entry(entry_id):
     try:
         data = request.json
+        user_id = g.user_id
         engine = create_engine(db_url, poolclass=NullPool)
         
         with engine.connect() as connection:
             # Start a transaction
             with connection.begin():
-                # First verify the entry exists
+                # First verify the entry exists and belongs to the user
                 entry_check = connection.execute(
-                    text("SELECT id FROM income_entries WHERE id = :id"),
-                    {"id": entry_id}
+                    text("SELECT id FROM income_entries WHERE id = :id AND user_id = :user_id"),
+                    {"id": entry_id, "user_id": user_id}
                 ).fetchone()
                 
                 if not entry_check:
-                    return jsonify({'error': 'Income entry not found'}), 404
+                    return jsonify({'error': 'Income entry not found or unauthorized'}), 404
                 
                 # Handle parent_id: if is_subaccount is false, set parent_id to null
                 parent_id = data.get('parent_id') if data.get('is_subaccount') else None
@@ -5779,12 +5819,26 @@ def update_income_entry(entry_id):
         return jsonify({'error': str(e)}), 500
 
 @app.route('/api/income-entries/<uuid:entry_id>', methods=['DELETE'])
+@auth_required
 def delete_income_entry(entry_id):
     try:
+        user_id = g.user_id
         engine = create_engine(db_url, poolclass=NullPool)
         
         with engine.connect() as connection:
-            # First check if this is a parent account with subaccounts
+            # First check if this entry belongs to the user
+            entry_check = connection.execute(
+                text("""
+                    SELECT id FROM income_entries
+                    WHERE id = :entry_id AND user_id = :user_id
+                """),
+                {"entry_id": entry_id, "user_id": user_id}
+            ).fetchone()
+            
+            if not entry_check:
+                return jsonify({'error': 'Income entry not found or unauthorized'}), 404
+                
+            # Then check for subaccounts
             subaccounts = connection.execute(
                 text("""
                     SELECT COUNT(*) as count
@@ -5836,13 +5890,15 @@ def delete_income_entry(entry_id):
         return jsonify({'error': str(e)}), 500
 
 @app.route('/api/income-entries/process-recurring', methods=['POST'])
+@auth_required
 def process_recurring_income():
     try:
+        user_id = g.user_id
         engine = create_engine(db_url, poolclass=NullPool)
         today = datetime.now().date()
         
         with engine.connect() as connection:
-            # Get all active recurring entries that need processing
+            # Get all active recurring entries that need processing for this user
             recurring_entries = connection.execute(
                 text("""
                     SELECT id, amount, frequency, next_payment_date
@@ -5850,22 +5906,24 @@ def process_recurring_income():
                     WHERE is_recurring = true
                     AND next_payment_date <= :today
                     AND (end_date IS NULL OR end_date >= :today)
+                    AND user_id = :user_id
                 """),
-                {"today": today}
+                {"today": today, "user_id": user_id}
             ).fetchall()
             
             for entry in recurring_entries:
-                # Create payment record
+                # Create payment record with user_id
                 connection.execute(
                     text("""
                         INSERT INTO payments_history (
-                            income_entry_id, amount, payment_date
-                        ) VALUES (:entry_id, :amount, :payment_date)
+                            income_entry_id, amount, payment_date, user_id
+                        ) VALUES (:entry_id, :amount, :payment_date, :user_id)
                     """),
                     {
                         'entry_id': entry.id,
                         'amount': float(entry.amount),
-                        'payment_date': entry.next_payment_date
+                        'payment_date': entry.next_payment_date,
+                        'user_id': user_id
                     }
                 )
                 
@@ -5901,12 +5959,26 @@ def process_recurring_income():
     
 
 @app.route('/api/income-entries/<uuid:entry_id>/transactions', methods=['POST'])
+@auth_required
 def update_transactions(entry_id):
     try:
         data = request.json
+        user_id = g.user_id
         engine = create_engine(db_url, poolclass=NullPool)
         
         with engine.connect() as connection:
+            # Verify entry belongs to user
+            entry_check = connection.execute(
+                text("""
+                    SELECT id FROM income_entries 
+                    WHERE id = :entry_id AND user_id = :user_id
+                """),
+                {"entry_id": entry_id, "user_id": user_id}
+            ).fetchone()
+            
+            if not entry_check:
+                return jsonify({'error': 'Income entry not found or unauthorized'}), 404
+            
             with connection.begin():
                 # Handle deletions
                 if data.get('toDelete'):
@@ -6020,28 +6092,30 @@ def update_transactions(entry_id):
         return jsonify({'error': str(e)}), 500
     
 @app.route('/api/income-entries/<uuid:entry_id>/one-time', methods=['POST'])
+@auth_required
 def add_one_time_income(entry_id):
     try:
         data = request.json
+        user_id = g.user_id
         engine = create_engine(db_url, poolclass=NullPool)
         
         with engine.connect() as connection:
-            # Verify the income entry exists
+            # Verify the income entry exists and belongs to user
             entry = connection.execute(
-                text("SELECT id FROM income_entries WHERE id = :id"),
-                {"id": entry_id}
+                text("SELECT id FROM income_entries WHERE id = :id AND user_id = :user_id"),
+                {"id": entry_id, "user_id": user_id}
             ).fetchone()
             
             if not entry:
-                return jsonify({'error': 'Income entry not found'}), 404
+                return jsonify({'error': 'Income entry not found or unauthorized'}), 404
                 
-            # Add one-time transaction
+            # Add one-time transaction with user_id
             result = connection.execute(
                 text("""
                     INSERT INTO payments_history (
-                        income_entry_id, amount, payment_date, title, is_one_time
+                        income_entry_id, amount, payment_date, title, is_one_time, user_id
                     ) VALUES (
-                        :entry_id, :amount, :payment_date, :title, true
+                        :entry_id, :amount, :payment_date, :title, true, :user_id
                     )
                     RETURNING id, amount, payment_date, title, is_one_time
                 """),
@@ -6049,7 +6123,8 @@ def add_one_time_income(entry_id):
                     'entry_id': entry_id,
                     'amount': float(data['amount']),
                     'payment_date': data['transaction_date'],
-                    'title': data.get('title')
+                    'title': data.get('title'),
+                    'user_id': user_id
                 }
             )
             
