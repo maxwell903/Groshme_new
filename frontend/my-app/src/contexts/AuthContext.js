@@ -38,11 +38,15 @@ export const AuthProvider = ({ children }) => {
       } else {
         setUser(null);
         localStorage.removeItem('access_token');
-        router.push('/signin');
+        
+        // Only redirect to signin if not already on signin or signup page
+        const publicPages = ['/signin', '/signup'];
+        if (!publicPages.includes(router.pathname)) {
+          router.push('/signin');
+        }
       }
       setLoading(false);
     });
-
     return () => {
       subscription?.unsubscribe();
     };
