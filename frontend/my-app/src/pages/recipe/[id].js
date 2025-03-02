@@ -19,13 +19,12 @@ const NavigationBar = () => {
     <nav className="bg-white shadow-sm">
       <div className="max-w-6xl mx-auto px-4 py-4">
         <div className="flex items-center justify-between">
-        <Link 
-  href={backPath}
-  className="mb-8 inline-block text-blue-600 hover:text-blue-700"
->
-  ← Back to {getBackLabel(backPath)}
-</Link>
-    
+          <Link 
+            href="/" 
+            className="text-blue-600 hover:text-blue-800"
+          >
+            ← Back
+          </Link>
 
           <div className="flex gap-4">
             <Link
@@ -575,61 +574,52 @@ useEffect(() => {
   // Get the stored paths
   const previousPath = localStorage.getItem('previousPath');
   const actualPreviousPath = localStorage.getItem('actualPreviousPath');
-  const lastPath = localStorage.getItem('lastPath');
-  
-  // Create the correct back path based on available information
-  // Priority: actualPreviousPath > lastPath > previousPath > default
+  const previousViewMode = localStorage.getItem('previousViewMode');
+
+  // Create the correct back path with view mode if needed
   let backPath = '/';
-  
-  if (actualPreviousPath) {
+  if (actualPreviousPath === '/meal-prep' && previousViewMode) {
+    backPath = `${actualPreviousPath}?viewMode=${previousViewMode}`;
+  } else if (actualPreviousPath) {
     backPath = actualPreviousPath;
-    
-    // If the path is meal-prep, check if we need to add viewMode
-    if (actualPreviousPath === '/meal-prep') {
-      const previousViewMode = localStorage.getItem('lastMealPrepTab') || 'mealprep';
-      backPath = `${actualPreviousPath}?viewMode=${previousViewMode}`;
-    }
-  } else if (lastPath) {
-    backPath = lastPath;
   } else if (previousPath) {
     backPath = previousPath;
   }
 
-  console.log('Setting back path to:', backPath);
   setBackPath(backPath);
+
+  // Clear the stored paths
+  return () => {
+    localStorage.removeItem('previousPath');
+    localStorage.removeItem('actualPreviousPath');
+    localStorage.removeItem('previousViewMode');
+  };
 }, []);
 
-// 2. Create a better getBackLabel function to handle different paths
+// Then update the getBackLabel function to handle the query string
 const getBackLabel = (path) => {
   // Parse path to handle query strings
   const basePathMatch = path.match(/^([^?]+)/);
   const basePath = basePathMatch ? basePathMatch[1] : path;
   
   // Check for meal-prep with viewMode
-  if (path.includes('/meal-prep')) {
+  if (path.includes('/meal-prep?viewMode=')) {
     if (path.includes('viewMode=workout')) {
-      return 'Exercise Sets';
-    } else if (path.includes('viewMode=workouts')) {
-      return 'Workouts';
-    } else {
+      return 'Sets';
+    } else if (path.includes('viewMode=mealprep')) {
       return 'Meal Plans';
     }
   }
   
   const pathLabels = {
-    '/': 'Home',
-    '/all-recipes': 'All Recipes',
-    '/search': 'Search',
     '/menus': 'Menus',
-    '/menu': 'Menu Details',
-    '/grocerylistId': 'Grocery Lists',
-    '/my-fridge': 'My Fridge'
+    '/search': 'Search',
+    '/meal-prep': 'Meal Prep',
+    '/all-recipes': 'My Recipes',
+    '/': 'Home',
+    '/my-fridge': 'My Fridge',
+    '/grocery-lists': 'Grocery Lists'
   };
-  
-  // For dynamic paths like /menu/[id]
-  if (basePath.startsWith('/menu/')) {
-    return 'Menu Details';
-  }
   
   return pathLabels[basePath] || 'Previous Page';
 };
@@ -637,7 +627,13 @@ const getBackLabel = (path) => {
 
 
 
-
+// Update your back button JSX
+<Link 
+  href={backPath}
+  className="mb-8 inline-block text-blue-600 hover:text-blue-700"
+>
+  ← Back to {getBackLabel(backPath)}
+</Link>
 
   useEffect(() => {
     const handleClickOutside = (event) => {
