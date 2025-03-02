@@ -4965,56 +4965,85 @@ def add_ingredient_nutrition(recipe_id, ingredient_index):
         data = request.json
         print(f"Received nutrition data: {data}")
         
-        # Get quantity records
-        quantity_records = RecipeIngredientQuantity.query.filter_by(recipe_id=recipe_id).all()
+        # Connect directly with SQLAlchemy engine
+        engine = create_engine(db_url, poolclass=NullPool)
         
-        print(f"Total Quantity Records: {len(quantity_records)}")
-        for idx, record in enumerate(quantity_records):
-            print(f"Record {idx}: ID={record.id}, Ingredient ID={record.ingredient_id}")
-        
-        if ingredient_index >= len(quantity_records):
-            return jsonify({
-                'error': 'Invalid ingredient index', 
-                'total_records': len(quantity_records)
-            }), 400
+        with engine.connect() as connection:
+            with connection.begin():
+                # Get quantity records using SQLAlchemy query
+                quantity_records = connection.execute(
+                    text("""
+                        SELECT id, ingredient_id
+                        FROM recipe_ingredient_quantities
+                        WHERE recipe_id = :recipe_id
+                        ORDER BY id
+                    """),
+                    {"recipe_id": recipe_id}
+                ).fetchall()
+                
+                print(f"Total Quantity Records: {len(quantity_records)}")
+                for idx, record in enumerate(quantity_records):
+                    print(f"Record {idx}: ID={record.id}, Ingredient ID={record.ingredient_id}")
+                
+                if ingredient_index >= len(quantity_records):
+                    return jsonify({
+                        'error': 'Invalid ingredient index', 
+                        'total_records': len(quantity_records)
+                    }), 400
+                    
+                quantity_record_id = quantity_records[ingredient_index].id
+                
+                # Check if nutrition already exists and delete if it does
+                delete_result = connection.execute(
+                    text("""
+                        DELETE FROM recipe_ingredient_nutrition
+                        WHERE recipe_ingredient_quantities_id = :quantity_id
+                    """),
+                    {"quantity_id": quantity_record_id}
+                )
+                
+                # Create new nutrition record
+                connection.execute(
+                    text("""
+                        INSERT INTO recipe_ingredient_nutrition
+                        (recipe_ingredient_quantities_id, protein_grams, fat_grams, 
+                         carbs_grams, serving_size, serving_unit)
+                        VALUES
+                        (:quantity_id, :protein_grams, :fat_grams, 
+                         :carbs_grams, :serving_size, :serving_unit)
+                    """),
+                    {
+                        "quantity_id": quantity_record_id,
+                        "protein_grams": float(data.get('protein_grams', 0)),
+                        "fat_grams": float(data.get('fat_grams', 0)),
+                        "carbs_grams": float(data.get('carbs_grams', 0)),
+                        "serving_size": float(data.get('serving_size', 0)),
+                        "serving_unit": data.get('serving_unit', '')
+                    }
+                )
             
-        quantity_record = quantity_records[ingredient_index]
-        
-        # Check if nutrition already exists and delete if it does
-        existing_nutrition = RecipeIngredientNutrition.query.filter_by(
-            recipe_ingredient_quantities_id=quantity_record.id
-        ).first()
-        
-        if existing_nutrition:
-            db.session.delete(existing_nutrition)
-            db.session.flush()
-        
-        # Create new nutrition record
-        nutrition = RecipeIngredientNutrition(
-            recipe_ingredient_quantities_id=quantity_record.id,
-            protein_grams=float(data.get('protein_grams', 0)),
-            fat_grams=float(data.get('fat_grams', 0)),
-            carbs_grams=float(data.get('carbs_grams', 0)),
-            serving_size=float(data.get('serving_size', 0)),
-            serving_unit=data.get('serving_unit', '')
-        )
-        
-        db.session.add(nutrition)
-        db.session.commit()
-        
-        return jsonify({
-            'message': 'Nutrition info added successfully',
-            'nutrition': {
-                'protein_grams': nutrition.protein_grams,
-                'fat_grams': nutrition.fat_grams,
-                'carbs_grams': nutrition.carbs_grams,
-                'serving_size': nutrition.serving_size,
-                'serving_unit': nutrition.serving_unit
-            }
-        }), 200
+            # Fetch the newly created nutrition info
+            nutrition = connection.execute(
+                text("""
+                    SELECT protein_grams, fat_grams, carbs_grams, serving_size, serving_unit
+                    FROM recipe_ingredient_nutrition
+                    WHERE recipe_ingredient_quantities_id = :quantity_id
+                """),
+                {"quantity_id": quantity_record_id}
+            ).fetchone()
+            
+            return jsonify({
+                'message': 'Nutrition info added successfully',
+                'nutrition': {
+                    'protein_grams': float(nutrition.protein_grams),
+                    'fat_grams': float(nutrition.fat_grams),
+                    'carbs_grams': float(nutrition.carbs_grams),
+                    'serving_size': float(nutrition.serving_size),
+                    'serving_unit': nutrition.serving_unit
+                }
+            }), 200
         
     except Exception as e:
-        db.session.rollback()
         # More comprehensive error logging
         import traceback
         print(f"Error adding nutrition info: {str(e)}")
