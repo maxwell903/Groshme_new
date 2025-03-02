@@ -14,18 +14,23 @@ const API_URL = process.env.NEXT_PUBLIC_API_URL
 const RecipeSelectionModal = ({ listId, onClose, onSelect }) => {
   const [recipes, setRecipes] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
 
   useEffect(() => {
-    fetch(`${API_URL}/api/all-recipes`)
-      .then(res => res.json())
-      .then(data => {
+    const fetchRecipes = async () => {
+      try {
+        // Use fetchWithAuth instead of direct fetch
+        const data = await fetchWithAuth('/api/all-recipes');
         setRecipes(data.recipes || []);
         setLoading(false);
-      })
-      .catch(err => {
+      } catch (err) {
         console.error('Error loading recipes:', err);
+        setError(err.message || 'Failed to load recipes');
         setLoading(false);
-      });
+      }
+    };
+
+    fetchRecipes();
   }, []);
 
   return (
@@ -41,22 +46,32 @@ const RecipeSelectionModal = ({ listId, onClose, onSelect }) => {
           </button>
         </div>
         
+        {error && (
+          <div className="text-red-600 mb-4 p-3 bg-red-50 rounded">
+            {error}
+          </div>
+        )}
+        
         {loading ? (
           <div className="text-center py-4">Loading recipes...</div>
         ) : (
           <div className="space-y-2">
-            {recipes.map((recipe) => (
-              <button
-                key={recipe.id}
-                onClick={() => {
-                  onSelect(recipe);
-                  onClose();
-                }}
-                className="w-full text-left px-4 py-2 hover:bg-gray-100 rounded-md"
-              >
-                {recipe.name}
-              </button>
-            ))}
+            {recipes.length === 0 ? (
+              <div className="text-center py-4 text-gray-500">No recipes found</div>
+            ) : (
+              recipes.map((recipe) => (
+                <button
+                  key={recipe.id}
+                  onClick={() => {
+                    onSelect(recipe);
+                    onClose();
+                  }}
+                  className="w-full text-left px-4 py-2 hover:bg-gray-100 rounded-md"
+                >
+                  {recipe.name}
+                </button>
+              ))
+            )}
           </div>
         )}
       </div>
