@@ -6025,7 +6025,7 @@ def update_transactions(entry_id):
     # Handle OPTIONS request for CORS
     if request.method == 'OPTIONS':
         response = jsonify({'status': 'ok'})
-        response.headers.add('Access-Control-Allow-Origin', 'https://groshmebeta.netlify.app')
+        response.headers.add('Access-Control-Allow-Origin', '*')
         response.headers.add('Access-Control-Allow-Headers', 'Content-Type,Authorization')
         response.headers.add('Access-Control-Allow-Methods', 'POST,OPTIONS')
         response.headers.add('Access-Control-Allow-Credentials', 'true')
@@ -6037,7 +6037,7 @@ def update_transactions(entry_id):
         engine = create_engine(db_url, poolclass=NullPool)
         
         with engine.connect() as connection:
-            # Verify entry belongs to user
+            # Verify entry belongs to user - outside of transaction
             entry_check = connection.execute(
                 text("""
                     SELECT id FROM income_entries 
@@ -6049,7 +6049,7 @@ def update_transactions(entry_id):
             if not entry_check:
                 return jsonify({'error': 'Income entry not found or unauthorized'}), 404
             
-            # Start a single transaction for all updates
+            # Create a single transaction for all updates
             with connection.begin():
                 # Handle deletions
                 if data.get('toDelete'):
@@ -6131,34 +6131,36 @@ def update_transactions(entry_id):
                         }
                     )
             
-            # Fetch updated transactions - outside the transaction
-            result = connection.execute(
-                text("""
-                    SELECT 
-                        id, amount, payment_date,
-                        title, is_one_time, created_at
-                    FROM payments_history
-                    WHERE income_entry_id = :entry_id
-                    ORDER BY payment_date DESC
-                """),
-                {"entry_id": str(entry_id)}
-            )
-            
-            updated_transactions = [{
-                'id': str(row.id),
-                'amount': float(row.amount),
-                'payment_date': row.payment_date.isoformat() if row.payment_date else None,
-                'title': row.title,
-                'is_one_time': row.is_one_time,
-                'created_at': row.created_at.isoformat() if row.created_at else None
-            } for row in result]
+            # Create a new connection for fetching updated transactions
+            # This avoids any transaction conflicts
+            with engine.connect() as fetch_connection:
+                result = fetch_connection.execute(
+                    text("""
+                        SELECT 
+                            id, amount, payment_date,
+                            title, is_one_time, created_at
+                        FROM payments_history
+                        WHERE income_entry_id = :entry_id
+                        ORDER BY payment_date DESC
+                    """),
+                    {"entry_id": str(entry_id)}
+                )
+                
+                updated_transactions = [{
+                    'id': str(row.id),
+                    'amount': float(row.amount),
+                    'payment_date': row.payment_date.isoformat() if row.payment_date else None,
+                    'title': row.title,
+                    'is_one_time': row.is_one_time,
+                    'created_at': row.created_at.isoformat() if row.created_at else None
+                } for row in result]
             
             # Add CORS headers to the response
             response = jsonify({
                 'message': 'Transactions updated successfully',
                 'transactions': updated_transactions
             })
-            response.headers.add('Access-Control-Allow-Origin', 'https://groshmebeta.netlify.app')
+            response.headers.add('Access-Control-Allow-Origin', '*')
             response.headers.add('Access-Control-Allow-Credentials', 'true')
             return response
             
