@@ -35,6 +35,11 @@ function SignIn() {
       setLoading(false);
     }
   };
+
+  const handleSignUpNavigation = () => {
+    console.log("Navigating to signup");
+    router.push('/signup');
+  };
   
   return (
     <div className="min-h-screen flex items-center justify-center bg-gray-50 py-12 px-4 sm:px-6 lg:px-8">
@@ -98,12 +103,12 @@ function SignIn() {
         </form>
 
         <div className="text-center">
-          <Link 
-            href="/signup" 
-            className="font-medium text-blue-600 hover:text-blue-500"
-          >
-            Dont have an account? Sign up
-          </Link>
+        <button 
+  onClick={handleSignUpNavigation}
+  className="font-medium text-blue-600 hover:text-blue-500"
+>
+  Dont have an account? Sign up
+</button>
         </div>
       </div>
     </div>
