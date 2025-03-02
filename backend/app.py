@@ -6022,11 +6022,13 @@ def process_recurring_income():
 @app.route('/api/income-entries/<uuid:entry_id>/transactions', methods=['POST', 'OPTIONS'])
 @auth_required
 def update_transactions(entry_id):
+    # Handle OPTIONS request for CORS
     if request.method == 'OPTIONS':
-        response = jsonify({})
-        response.headers.add('Access-Control-Allow-Origin', '*')
+        response = jsonify({'status': 'ok'})
+        response.headers.add('Access-Control-Allow-Origin', 'https://groshmebeta.netlify.app')
         response.headers.add('Access-Control-Allow-Headers', 'Content-Type,Authorization')
         response.headers.add('Access-Control-Allow-Methods', 'POST,OPTIONS')
+        response.headers.add('Access-Control-Allow-Credentials', 'true')
         return response
         
     try:
@@ -6047,39 +6049,37 @@ def update_transactions(entry_id):
             if not entry_check:
                 return jsonify({'error': 'Income entry not found or unauthorized'}), 404
             
-            # Important: Create a fresh transaction for all operations
+            # Start a single transaction for all updates
             with connection.begin():
                 # Handle deletions
-                if data.get('toDelete') and len(data['toDelete']) > 0:
+                if data.get('toDelete'):
                     connection.execute(
                         text("""
                             DELETE FROM payments_history
-                            WHERE id = ANY(:transaction_ids::uuid[])
+                            WHERE id = ANY(
+                                SELECT uuid(unnest(:transaction_ids))
+                            )
                             AND income_entry_id = :entry_id
-                            AND user_id = :user_id
                         """),
                         {
                             "transaction_ids": data['toDelete'],
-                            "entry_id": str(entry_id),
-                            "user_id": user_id
+                            "entry_id": str(entry_id)
                         }
                     )
 
-                # Handle recurring updates
+                # Handle recurring status updates
                 for transaction_id, is_recurring in data.get('recurringUpdates', {}).items():
                     connection.execute(
                         text("""
                             UPDATE payments_history
                             SET is_one_time = NOT :is_recurring
-                            WHERE id = :transaction_id::uuid
+                            WHERE id = uuid(:transaction_id)
                             AND income_entry_id = :entry_id
-                            AND user_id = :user_id
                         """),
                         {
                             "is_recurring": is_recurring,
                             "transaction_id": transaction_id,
-                            "entry_id": str(entry_id),
-                            "user_id": user_id
+                            "entry_id": str(entry_id)
                         }
                     )
                 
@@ -6089,15 +6089,13 @@ def update_transactions(entry_id):
                         text("""
                             UPDATE payments_history
                             SET amount = :amount
-                            WHERE id = :transaction_id::uuid
-                            AND income_entry_id = :entry_id
-                            AND user_id = :user_id
+                            WHERE id = uuid(:transaction_id)
+                            AND income_entry_id = :entry_id  
                         """),
                         {
                             "amount": float(new_amount),
                             "transaction_id": transaction_id,
-                            "entry_id": str(entry_id),
-                            "user_id": user_id
+                            "entry_id": str(entry_id)
                         }
                     )
                 
@@ -6107,15 +6105,13 @@ def update_transactions(entry_id):
                         text("""
                             UPDATE payments_history
                             SET title = :title
-                            WHERE id = :transaction_id::uuid
+                            WHERE id = uuid(:transaction_id)
                             AND income_entry_id = :entry_id
-                            AND user_id = :user_id
                         """),
                         {
                             "title": new_title,
                             "transaction_id": transaction_id,
-                            "entry_id": str(entry_id),
-                            "user_id": user_id
+                            "entry_id": str(entry_id)
                         }
                     )
 
@@ -6125,19 +6121,17 @@ def update_transactions(entry_id):
                         text("""
                             UPDATE payments_history
                             SET payment_date = :payment_date
-                            WHERE id = :transaction_id::uuid
+                            WHERE id = uuid(:transaction_id)
                             AND income_entry_id = :entry_id
-                            AND user_id = :user_id
                         """),
                         {
                             "payment_date": new_date,
                             "transaction_id": transaction_id,
-                            "entry_id": str(entry_id),
-                            "user_id": user_id
+                            "entry_id": str(entry_id)
                         }
                     )
             
-            # Now fetch updated transactions with a new connection context
+            # Fetch updated transactions - outside the transaction
             result = connection.execute(
                 text("""
                     SELECT 
@@ -6145,10 +6139,9 @@ def update_transactions(entry_id):
                         title, is_one_time, created_at
                     FROM payments_history
                     WHERE income_entry_id = :entry_id
-                    AND user_id = :user_id
                     ORDER BY payment_date DESC
                 """),
-                {"entry_id": str(entry_id), "user_id": user_id}
+                {"entry_id": str(entry_id)}
             )
             
             updated_transactions = [{
@@ -6160,15 +6153,17 @@ def update_transactions(entry_id):
                 'created_at': row.created_at.isoformat() if row.created_at else None
             } for row in result]
             
-            return jsonify({
+            # Add CORS headers to the response
+            response = jsonify({
                 'message': 'Transactions updated successfully',
                 'transactions': updated_transactions
             })
+            response.headers.add('Access-Control-Allow-Origin', 'https://groshmebeta.netlify.app')
+            response.headers.add('Access-Control-Allow-Credentials', 'true')
+            return response
             
     except Exception as e:
         print(f"Error updating transactions: {str(e)}")
-        import traceback
-        traceback.print_exc()
         return jsonify({'error': str(e)}), 500
     
 @app.route('/api/income-entries/<uuid:entry_id>/one-time', methods=['POST'])
