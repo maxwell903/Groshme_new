@@ -6028,15 +6028,6 @@ def handle_transactions_options(entry_id):
     response.headers.add('Access-Control-Allow-Credentials', 'true')
     return response
 
-@app.route('/api/income-entries/<uuid:entry_id>/transactions', methods=['OPTIONS'])
-def handle_transactions_options(entry_id):
-    response = jsonify({'status': 'ok'})
-    response.headers.add('Access-Control-Allow-Origin', 'https://groshmebeta.netlify.app')
-    response.headers.add('Access-Control-Allow-Headers', 'Content-Type,Authorization')
-    response.headers.add('Access-Control-Allow-Methods', 'POST,OPTIONS')
-    response.headers.add('Access-Control-Allow-Credentials', 'true')
-    return response
-
 @app.route('/api/income-entries/<uuid:entry_id>/transactions', methods=['POST'])
 @auth_required
 def update_transactions(entry_id):
