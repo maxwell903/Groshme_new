@@ -6028,18 +6028,28 @@ def handle_transactions_options(entry_id):
     response.headers.add('Access-Control-Allow-Credentials', 'true')
     return response
 
+@app.route('/api/income-entries/<uuid:entry_id>/transactions', methods=['OPTIONS'])
+def handle_transactions_options(entry_id):
+    response = jsonify({'status': 'ok'})
+    response.headers.add('Access-Control-Allow-Origin', 'https://groshmebeta.netlify.app')
+    response.headers.add('Access-Control-Allow-Headers', 'Content-Type,Authorization')
+    response.headers.add('Access-Control-Allow-Methods', 'POST,OPTIONS')
+    response.headers.add('Access-Control-Allow-Credentials', 'true')
+    return response
+
 @app.route('/api/income-entries/<uuid:entry_id>/transactions', methods=['POST'])
 @auth_required
 def update_transactions(entry_id):
     try:
         data = request.json
         user_id = g.user_id
+        
+        # No transaction initialization is happening here
         engine = create_engine(db_url, poolclass=NullPool)
         
-        # Create a single connection for all operations
-        with engine.connect() as connection:
-            # Verify entry belongs to user
-            entry_check = connection.execute(
+        # First verify ownership - outside of any transaction
+        with engine.connect() as check_connection:
+            entry_check = check_connection.execute(
                 text("""
                     SELECT id FROM income_entries 
                     WHERE id = :entry_id AND user_id = :user_id
@@ -6049,12 +6059,13 @@ def update_transactions(entry_id):
             
             if not entry_check:
                 return jsonify({'error': 'Income entry not found or unauthorized'}), 404
-            
-            # Start a single transaction for all updates
-            with connection.begin():
-                # Handle deletions
-                if data.get('toDelete'):
-                    connection.execute(
+        
+        # Use fresh connections for each operation
+        # Handle deletions first
+        if data.get('toDelete') and len(data['toDelete']) > 0:
+            with engine.connect() as delete_connection:
+                with delete_connection.begin():
+                    delete_connection.execute(
                         text("""
                             DELETE FROM payments_history
                             WHERE id = ANY(
@@ -6068,9 +6079,11 @@ def update_transactions(entry_id):
                         }
                     )
 
-                # Handle recurring status updates
-                for transaction_id, is_recurring in data.get('recurringUpdates', {}).items():
-                    connection.execute(
+        # Handle recurring status updates
+        for transaction_id, is_recurring in data.get('recurringUpdates', {}).items():
+            with engine.connect() as update_connection:
+                with update_connection.begin():
+                    update_connection.execute(
                         text("""
                             UPDATE payments_history
                             SET is_one_time = NOT :is_recurring
@@ -6083,10 +6096,12 @@ def update_transactions(entry_id):
                             "entry_id": str(entry_id)
                         }
                     )
-                
-                # Handle amount updates
-                for transaction_id, new_amount in data.get('amountUpdates', {}).items():
-                    connection.execute(
+        
+        # Handle amount updates
+        for transaction_id, new_amount in data.get('amountUpdates', {}).items():
+            with engine.connect() as update_connection:
+                with update_connection.begin():
+                    update_connection.execute(
                         text("""
                             UPDATE payments_history
                             SET amount = :amount
@@ -6099,10 +6114,12 @@ def update_transactions(entry_id):
                             "entry_id": str(entry_id)
                         }
                     )
-                
-                # Handle title updates
-                for transaction_id, new_title in data.get('titleUpdates', {}).items():
-                    connection.execute(
+        
+        # Handle title updates
+        for transaction_id, new_title in data.get('titleUpdates', {}).items():
+            with engine.connect() as update_connection:
+                with update_connection.begin():
+                    update_connection.execute(
                         text("""
                             UPDATE payments_history
                             SET title = :title
@@ -6116,9 +6133,11 @@ def update_transactions(entry_id):
                         }
                     )
 
-                # Handle date updates
-                for transaction_id, new_date in data.get('dateUpdates', {}).items():
-                    connection.execute(
+        # Handle date updates
+        for transaction_id, new_date in data.get('dateUpdates', {}).items():
+            with engine.connect() as update_connection:
+                with update_connection.begin():
+                    update_connection.execute(
                         text("""
                             UPDATE payments_history
                             SET payment_date = :payment_date
@@ -6131,37 +6150,38 @@ def update_transactions(entry_id):
                             "entry_id": str(entry_id)
                         }
                     )
-                
-                # Get updated transactions within the same connection and transaction
-                result = connection.execute(
-                    text("""
-                        SELECT 
-                            id, amount, payment_date,
-                            title, is_one_time, created_at
-                        FROM payments_history
-                        WHERE income_entry_id = :entry_id
-                        ORDER BY payment_date DESC
-                    """),
-                    {"entry_id": str(entry_id)}
-                )
-                
-                updated_transactions = [{
-                    'id': str(row.id),
-                    'amount': float(row.amount),
-                    'payment_date': row.payment_date.isoformat() if row.payment_date else None,
-                    'title': row.title,
-                    'is_one_time': row.is_one_time,
-                    'created_at': row.created_at.isoformat() if row.created_at else None
-                } for row in result]
+        
+        # Fetch updated transactions in a completely separate connection
+        with engine.connect() as fetch_connection:
+            result = fetch_connection.execute(
+                text("""
+                    SELECT 
+                        id, amount, payment_date,
+                        title, is_one_time, created_at
+                    FROM payments_history
+                    WHERE income_entry_id = :entry_id
+                    ORDER BY payment_date DESC
+                """),
+                {"entry_id": str(entry_id)}
+            )
             
-            # Add CORS headers to the response
-            response = jsonify({
-                'message': 'Transactions updated successfully',
-                'transactions': updated_transactions
-            })
-            response.headers.add('Access-Control-Allow-Origin', 'https://groshmebeta.netlify.app')
-            response.headers.add('Access-Control-Allow-Credentials', 'true')
-            return response
+            updated_transactions = [{
+                'id': str(row.id),
+                'amount': float(row.amount),
+                'payment_date': row.payment_date.isoformat() if row.payment_date else None,
+                'title': row.title,
+                'is_one_time': row.is_one_time,
+                'created_at': row.created_at.isoformat() if row.created_at else None
+            } for row in result]
+        
+        # Add CORS headers to the response
+        response = jsonify({
+            'message': 'Transactions updated successfully',
+            'transactions': updated_transactions
+        })
+        response.headers.add('Access-Control-Allow-Origin', 'https://groshmebeta.netlify.app')
+        response.headers.add('Access-Control-Allow-Credentials', 'true')
+        return response
             
     except Exception as e:
         print(f"Error updating transactions: {str(e)}")
