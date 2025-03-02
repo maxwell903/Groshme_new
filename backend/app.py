@@ -6019,18 +6019,19 @@ def process_recurring_income():
     
 
 # Route for updating transactions
-@app.route('/api/income-entries/<uuid:entry_id>/transactions', methods=['POST', 'OPTIONS'])
+@app.route('/api/income-entries/<uuid:entry_id>/transactions', methods=['OPTIONS'])
+def handle_transactions_options(entry_id):
+    response = jsonify({'status': 'ok'})
+    response.headers.add('Access-Control-Allow-Origin', 'https://groshmebeta.netlify.app')
+    response.headers.add('Access-Control-Allow-Headers', 'Content-Type,Authorization')
+    response.headers.add('Access-Control-Allow-Methods', 'POST,OPTIONS')
+    response.headers.add('Access-Control-Allow-Credentials', 'true')
+    return response
+
+# Then define the POST route with auth
+@app.route('/api/income-entries/<uuid:entry_id>/transactions', methods=['POST'])
 @auth_required
 def update_transactions(entry_id):
-    # Handle OPTIONS request for CORS
-    if request.method == 'OPTIONS':
-        response = jsonify({'status': 'ok'})
-        response.headers.add('Access-Control-Allow-Origin', '*')
-        response.headers.add('Access-Control-Allow-Headers', 'Content-Type,Authorization')
-        response.headers.add('Access-Control-Allow-Methods', 'POST,OPTIONS')
-        response.headers.add('Access-Control-Allow-Credentials', 'true')
-        return response
-        
     try:
         data = request.json
         user_id = g.user_id
@@ -6160,7 +6161,7 @@ def update_transactions(entry_id):
                 'message': 'Transactions updated successfully',
                 'transactions': updated_transactions
             })
-            response.headers.add('Access-Control-Allow-Origin', '*')
+            response.headers.add('Access-Control-Allow-Origin', 'https://groshmebeta.netlify.app')
             response.headers.add('Access-Control-Allow-Credentials', 'true')
             return response
             
