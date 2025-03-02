@@ -743,24 +743,32 @@ const Week = ({ week, onDeleteWeek, onMealDelete, onMealsAdded, onToggleDates })
     const [selectedWeek, setSelectedWeek] = useState(null);
     const [groceryLists, setGroceryLists] = useState([]);
   
-   
+    const fetchWeeks = useCallback(async () => {
+      try {
+        const response = await fetch(`${API_URL}/api/meal-prep/weeks`, {
+          headers: {
+            'Authorization': `Bearer ${localStorage.getItem('access_token')}`
+          }
+        });
+        const data = await response.json();
+        setWeeks(data.weeks || []);
+        setLoading(false);
+      } catch (error) {
+        console.error('Error fetching weeks:', error);
+        setLoading(false);
+      }
+    }, []); // Empty dependency array to avoid circular dependencies
+    
+    // Then, handle the view mode update in a separate useEffect with minimal dependencies
     useEffect(() => {
-      // Update viewMode when URL query parameters change
+      // This effect runs only once on mount and sets up the route change listener
       const handleRouteChange = () => {
         if (typeof window !== 'undefined') {
           const urlParams = new URLSearchParams(window.location.search);
           const newViewMode = urlParams.get('viewMode') || 'mealprep';
           setViewMode(newViewMode);
-    
-          // If switching to mealprep mode, ensure data is loaded
-          if (newViewMode === 'mealprep' && weeks.length === 0 && !loading) {
-            fetchWeeks();
-          }
         }
       };
-    
-      // Initial call
-      handleRouteChange();
     
       // Set up listener for route changes
       router.events.on('routeChangeComplete', handleRouteChange);
@@ -769,7 +777,23 @@ const Week = ({ week, onDeleteWeek, onMealDelete, onMealsAdded, onToggleDates })
       return () => {
         router.events.off('routeChangeComplete', handleRouteChange);
       };
-    }, [router.query, fetchWeeks, loading, weeks.length]);
+    }, [router.events]); // Only depend on router.events
+    
+    // Then, handle data fetching in a separate useEffect based on viewMode changes
+    useEffect(() => {
+      // Fetch data when in mealprep mode
+      if (viewMode === 'mealprep') {
+        fetchWeeks();
+      }
+    }, [viewMode, fetchWeeks]); // Depend on viewMode and fetchWeeks only
+    
+    // Finally, save viewMode to localStorage whenever it changes
+    useEffect(() => {
+      if (typeof window !== 'undefined') {
+        localStorage.setItem('lastMealPrepTab', viewMode);
+      }
+    }, [viewMode]);
+    
 
     const handleToggleDates = async (weekId) => {
         try {
@@ -1074,27 +1098,9 @@ const Week = ({ week, onDeleteWeek, onMealDelete, onMealsAdded, onToggleDates })
       }, []);
     
   
-      const fetchWeeks = useCallback(async () => {
-        try {
-          const response = await fetch(`${API_URL}/api/meal-prep/weeks`, {
-            headers: {
-              'Authorization': `Bearer ${localStorage.getItem('access_token')}`
-            }
-          });
-          const data = await response.json();
-          setWeeks(data.weeks || []);
-          setLoading(false);
-        } catch (error) {
-          console.error('Error fetching weeks:', error);
-          setLoading(false);
-        }
-      }, []);
+      
   
-    useEffect(() => {
-      if (viewMode === 'mealprep') {
-        fetchWeeks();
-      }
-    }, [viewMode]);
+    
   
     const handleDaySelect = async (weekData) => {
       try {
