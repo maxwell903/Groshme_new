@@ -375,17 +375,18 @@ const MealDisplay = ({ meal, onDelete, viewMode }) => {
       </p>
       <SafeNutrition meal={meal} />
       <Link 
-        href={`/recipe/${meal.recipe_id}`}
-        className="text-sm text-blue-600 hover:text-blue-800 inline-flex items-center gap-1"
-        onClick={() => {
-          // Store the current view mode to return to the correct tab
-          localStorage.setItem('actualPreviousPath', '/meal-prep');
-          localStorage.setItem('lastPath', '/meal-prep');
-          localStorage.setItem('previousViewMode', viewMode || 'mealprep');
-        }}
-      >
-        View Recipe →
-      </Link>
+  href={`/recipe/${meal.id}`}
+  className="text-sm text-blue-600 hover:text-blue-800 inline-flex items-center gap-1"
+  onClick={() => {
+    const currentViewMode = localStorage.getItem('lastMealPrepTab') || 'mealprep';
+    localStorage.setItem('actualPreviousPath', '/meal-prep');
+    localStorage.setItem('lastPath', '/meal-prep');
+    localStorage.setItem('previousPath', '/meal-prep');
+    localStorage.setItem('lastMealPrepTab', currentViewMode);
+  }}
+>
+  View Recipe →
+</Link>
     </div>
   );
 };

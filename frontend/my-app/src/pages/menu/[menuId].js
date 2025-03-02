@@ -358,11 +358,16 @@ const handleShowModal = async () => {
                 Prep time: {recipe.prep_time} mins
               </p>
               <Link 
-                href={`/recipe/${recipe.id}`}
-                className="mt-4 inline-block text-blue-600 hover:text-blue-700"
-              >
-                View Recipe →
-              </Link>
+  href={`/recipe/${recipe.id}`}
+  className="mt-4 inline-block text-blue-600 hover:text-blue-800"
+  onClick={() => {
+    localStorage.setItem('actualPreviousPath', `/menu/${menu.id}`);
+    localStorage.setItem('lastPath', `/menu/${menu.id}`);
+    localStorage.setItem('previousPath', `/menu/${menu.id}`);
+  }}
+>
+  View Recipe →
+</Link>
             </div>
           ))}
         </div>
