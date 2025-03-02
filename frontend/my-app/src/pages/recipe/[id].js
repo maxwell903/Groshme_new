@@ -565,16 +565,11 @@ const EditRecipeModal = ({ recipe, onClose, onSave }) => {
       </div>
     </div>
   );
-};
+}
 
+//  Modify the back button logic in [id].js (Recipe page) 
 
-  
-  
-  
-  
-  
-
-// Update the useEffect for back path handling
+// First, update the useEffect for back path handling to include view mode
 useEffect(() => {
   // Get the stored paths
   const previousPath = localStorage.getItem('previousPath');
@@ -593,7 +588,7 @@ useEffect(() => {
 
   setBackPath(backPath);
 
-  // Clear the stored paths when unmounting
+  // Clear the stored paths
   return () => {
     localStorage.removeItem('previousPath');
     localStorage.removeItem('actualPreviousPath');
@@ -601,7 +596,7 @@ useEffect(() => {
   };
 }, []);
 
-// Also update the getBackLabel function
+// Then update the getBackLabel function to handle the query string
 const getBackLabel = (path) => {
   // Parse path to handle query strings
   const basePathMatch = path.match(/^([^?]+)/);
