@@ -502,7 +502,7 @@ export default function Home() {
 
       <div className="py-16">
         <div className="mx-auto max-w-6xl px-4 sm:px-6 lg:px-8">
-          <h2 className="mb-8 text-2xl font-bold text-gray-900">Latest Recipes</h2>
+          <h2 className="mb-8 text-2xl font-bold text-gray-900">Community Recipes</h2>
           <div className="grid gap-8 grid-cols-1 sm:grid-cols-2 md:grid-cols-3">
             {homeData.latest_recipes.map((recipe) => (
               <Link 
