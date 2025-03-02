@@ -743,13 +743,33 @@ const Week = ({ week, onDeleteWeek, onMealDelete, onMealsAdded, onToggleDates })
     const [selectedWeek, setSelectedWeek] = useState(null);
     const [groceryLists, setGroceryLists] = useState([]);
   
-    // Update localStorage whenever viewMode changes
+   
     useEffect(() => {
-        // Check if localStorage is available
+      // Update viewMode when URL query parameters change
+      const handleRouteChange = () => {
         if (typeof window !== 'undefined') {
-          localStorage.setItem('lastMealPrepTab', viewMode);
+          const urlParams = new URLSearchParams(window.location.search);
+          const newViewMode = urlParams.get('viewMode') || 'mealprep';
+          setViewMode(newViewMode);
+    
+          // If switching to mealprep mode, ensure data is loaded
+          if (newViewMode === 'mealprep' && weeks.length === 0 && !loading) {
+            fetchWeeks();
+          }
         }
-      }, [viewMode]);
+      };
+    
+      // Initial call
+      handleRouteChange();
+    
+      // Set up listener for route changes
+      router.events.on('routeChangeComplete', handleRouteChange);
+    
+      // Clean up the event listener
+      return () => {
+        router.events.off('routeChangeComplete', handleRouteChange);
+      };
+    }, [router.query, fetchWeeks, loading, weeks.length]);
 
     const handleToggleDates = async (weekId) => {
         try {
@@ -1054,21 +1074,21 @@ const Week = ({ week, onDeleteWeek, onMealDelete, onMealsAdded, onToggleDates })
       }, []);
     
   
-    const fetchWeeks = async () => {
-      try {
-        const response = await fetch(`${API_URL}/api/meal-prep/weeks`, {
-          headers: {
-            'Authorization': `Bearer ${localStorage.getItem('access_token')}`
-          }
-        });
-        const data = await response.json();
-        setWeeks(data.weeks || []);
-        setLoading(false);
-      } catch (error) {
-        console.error('Error fetching weeks:', error);
-        setLoading(false);
-      }
-    };
+      const fetchWeeks = useCallback(async () => {
+        try {
+          const response = await fetch(`${API_URL}/api/meal-prep/weeks`, {
+            headers: {
+              'Authorization': `Bearer ${localStorage.getItem('access_token')}`
+            }
+          });
+          const data = await response.json();
+          setWeeks(data.weeks || []);
+          setLoading(false);
+        } catch (error) {
+          console.error('Error fetching weeks:', error);
+          setLoading(false);
+        }
+      }, []);
   
     useEffect(() => {
       if (viewMode === 'mealprep') {
