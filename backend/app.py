@@ -6028,7 +6028,6 @@ def handle_transactions_options(entry_id):
     response.headers.add('Access-Control-Allow-Credentials', 'true')
     return response
 
-# Then define the POST route with auth
 @app.route('/api/income-entries/<uuid:entry_id>/transactions', methods=['POST'])
 @auth_required
 def update_transactions(entry_id):
@@ -6037,8 +6036,9 @@ def update_transactions(entry_id):
         user_id = g.user_id
         engine = create_engine(db_url, poolclass=NullPool)
         
+        # Create a single connection for all operations
         with engine.connect() as connection:
-            # Verify entry belongs to user - outside of transaction
+            # Verify entry belongs to user
             entry_check = connection.execute(
                 text("""
                     SELECT id FROM income_entries 
@@ -6050,7 +6050,7 @@ def update_transactions(entry_id):
             if not entry_check:
                 return jsonify({'error': 'Income entry not found or unauthorized'}), 404
             
-            # Create a single transaction for all updates
+            # Start a single transaction for all updates
             with connection.begin():
                 # Handle deletions
                 if data.get('toDelete'):
@@ -6131,11 +6131,9 @@ def update_transactions(entry_id):
                             "entry_id": str(entry_id)
                         }
                     )
-            
-            # Create a new connection for fetching updated transactions
-            # This avoids any transaction conflicts
-            with engine.connect() as fetch_connection:
-                result = fetch_connection.execute(
+                
+                # Get updated transactions within the same connection and transaction
+                result = connection.execute(
                     text("""
                         SELECT 
                             id, amount, payment_date,
@@ -6167,6 +6165,8 @@ def update_transactions(entry_id):
             
     except Exception as e:
         print(f"Error updating transactions: {str(e)}")
+        import traceback
+        traceback.print_exc()  # Print full error details for debugging
         return jsonify({'error': str(e)}), 500
     
 @app.route('/api/income-entries/<uuid:entry_id>/one-time', methods=['POST'])
