@@ -3830,7 +3830,10 @@ def create_grocery_list():
         data = request.json
         user_id = g.user_id  # Get authenticated user's ID
         
-        # Create new list in PostgreSQL
+        # Create new list in PostgreSQL - create engine here inside the function
+        db_url = 'postgresql://postgres.bvgnlxznztqggtqswovg:RecipeFinder123!@aws-0-us-east-2.pooler.supabase.com:5432/postgres'
+        engine = create_engine(db_url, poolclass=NullPool)
+        
         with engine.connect() as connection:
             # Insert the grocery list with user_id
             result = connection.execute(
