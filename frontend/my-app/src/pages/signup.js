@@ -3,7 +3,7 @@ import { useRouter } from 'next/router';
 import Link from 'next/link';
 import { supabase } from '@/lib/supabaseClient';
 
-export default function SignUp() {
+export function SignUp() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
@@ -106,4 +106,7 @@ export default function SignUp() {
       </div>
     </div>
   );
+  
 }
+SignUp.noLayout = true;
+export default SignUp;
