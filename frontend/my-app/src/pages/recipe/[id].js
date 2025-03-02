@@ -579,24 +579,43 @@ useEffect(() => {
   // Get the stored paths
   const previousPath = localStorage.getItem('previousPath');
   const actualPreviousPath = localStorage.getItem('actualPreviousPath');
+  const previousViewMode = localStorage.getItem('previousViewMode');
 
-  if (actualPreviousPath) {
-    setBackPath(actualPreviousPath);
+  // Create the correct back path with view mode if needed
+  let backPath = '/';
+  if (actualPreviousPath === '/meal-prep' && previousViewMode) {
+    backPath = `${actualPreviousPath}?viewMode=${previousViewMode}`;
+  } else if (actualPreviousPath) {
+    backPath = actualPreviousPath;
   } else if (previousPath) {
-    setBackPath(previousPath);
-  } else {
-    setBackPath('/');
+    backPath = previousPath;
   }
 
-  // Clear the stored paths
+  setBackPath(backPath);
+
+  // Clear the stored paths when unmounting
   return () => {
     localStorage.removeItem('previousPath');
     localStorage.removeItem('actualPreviousPath');
+    localStorage.removeItem('previousViewMode');
   };
 }, []);
 
-// Helper function to get the correct label
+// Also update the getBackLabel function
 const getBackLabel = (path) => {
+  // Parse path to handle query strings
+  const basePathMatch = path.match(/^([^?]+)/);
+  const basePath = basePathMatch ? basePathMatch[1] : path;
+  
+  // Check for meal-prep with viewMode
+  if (path.includes('/meal-prep?viewMode=')) {
+    if (path.includes('viewMode=workout')) {
+      return 'Sets';
+    } else if (path.includes('viewMode=mealprep')) {
+      return 'Meal Plans';
+    }
+  }
+  
   const pathLabels = {
     '/menus': 'Menus',
     '/search': 'Search',
@@ -606,8 +625,12 @@ const getBackLabel = (path) => {
     '/my-fridge': 'My Fridge',
     '/grocery-lists': 'Grocery Lists'
   };
-  return pathLabels[path] || 'Previous Page';
+  
+  return pathLabels[basePath] || 'Previous Page';
 };
+
+
+
 
 // Update your back button JSX
 <Link 

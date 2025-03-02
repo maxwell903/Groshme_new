@@ -19,6 +19,11 @@ const Navigation = () => {
     }
   };
 
+  // Helper function to determine if we're on the meal-prep page with a specific view mode
+  const isViewMode = (mode) => {
+    if (!router.isReady) return false;
+    return router.pathname === '/meal-prep' && router.query.viewMode === mode;
+  };
   
   return (
     <nav className="bg-white shadow-sm">
@@ -69,10 +74,8 @@ const Navigation = () => {
               Menus
             </Link>
             <Link 
-              
               href="/meal-prep?viewMode=mealprep"
-              
-              className="text-gray-600 hover:text-gray-800"
+              className={`text-gray-600 hover:text-gray-800 ${isViewMode('mealprep') ? 'font-bold' : ''}`}
             >
               Meal Plans
             </Link>
@@ -83,10 +86,8 @@ const Navigation = () => {
               Workouts
             </Link>
             <Link 
-              
               href="/meal-prep?viewMode=workout"
-              
-              className="text-gray-600 hover:text-gray-800"
+              className={`text-gray-600 hover:text-gray-800 ${isViewMode('workout') ? 'font-bold' : ''}`}
             >
               Sets
             </Link>

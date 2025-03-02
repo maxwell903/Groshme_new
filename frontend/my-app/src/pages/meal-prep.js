@@ -358,7 +358,7 @@ const SafeNutrition = ({ meal }) => {
   );
 };
 
-const MealDisplay = ({ meal, onDelete }) => {
+const MealDisplay = ({ meal, onDelete, viewMode }) => {
   if (!meal) return null;
 
   return (
@@ -378,8 +378,10 @@ const MealDisplay = ({ meal, onDelete }) => {
         href={`/recipe/${meal.recipe_id}`}
         className="text-sm text-blue-600 hover:text-blue-800 inline-flex items-center gap-1"
         onClick={() => {
+          // Store the current view mode to return to the correct tab
           localStorage.setItem('actualPreviousPath', '/meal-prep');
           localStorage.setItem('lastPath', '/meal-prep');
+          localStorage.setItem('previousViewMode', viewMode || 'mealprep');
         }}
       >
         View Recipe →
@@ -396,7 +398,8 @@ const DayDropdown = ({
   onMealAdd, 
   onMealDelete, 
   startDate, 
-  showDates 
+  showDates,
+  viewMode = 'mealprep' // Pass this through from parent
 }) => {
   const [showRecipeSelector, setShowRecipeSelector] = useState(false);
   const [selectedMealType, setSelectedMealType] = useState(null);
@@ -459,8 +462,6 @@ const DayDropdown = ({
     }
   };
 
-
-
   return (
     <div className="flex-1 p-2">
       <div className="bg-white rounded-lg shadow p-4">
@@ -497,38 +498,39 @@ const DayDropdown = ({
                 </div>
 
                 {mealsForType.map((meal) => (
-          <div key={`${meal.id}-${meal.name}`} className="bg-white rounded-lg p-4 relative mb-2 border">
-            <button
-              onClick={() => handleDeleteMeal(mealType, meal.id)}
-              disabled={isDeleting}
-              className={`absolute top-2 right-2 text-red-500 hover:text-red-700 
-                ${isDeleting ? 'opacity-50 cursor-not-allowed' : ''}`}
-            >
-              <X size={16} />
-            </button>
-            
-            <p className="text-lg font-bold text-gray-500 mt-2">{meal.name}</p>
-            
-            {meal.total_nutrition && (
-              <p className="text-xs text-gray-500 mb-2">
-                Protein: {meal.total_nutrition.protein_grams}g •
-                Fat: {meal.total_nutrition.fat_grams}g •
-                Carbs: {meal.total_nutrition.carbs_grams}g
-              </p>
-            )}
-            
-            <Link 
-              href={`/recipe/${meal.id}`}
-              className="text-sm text-blue-600 hover:text-blue-800 inline-flex items-center gap-1"
-              onClick={() => {
-                localStorage.setItem('actualPreviousPath', '/meal-prep');
-                localStorage.setItem('lastPath', '/meal-prep');
-              }}
-            >
-              View Recipe →
-            </Link>
-          </div>
-        ))}
+                  <div key={`${meal.id}-${meal.name}`} className="bg-white rounded-lg p-4 relative mb-2 border">
+                    <button
+                      onClick={() => handleDeleteMeal(mealType, meal.id)}
+                      disabled={isDeleting}
+                      className={`absolute top-2 right-2 text-red-500 hover:text-red-700 
+                        ${isDeleting ? 'opacity-50 cursor-not-allowed' : ''}`}
+                    >
+                      <X size={16} />
+                    </button>
+                    
+                    <p className="text-lg font-bold text-gray-500 mt-2">{meal.name}</p>
+                    
+                    {meal.total_nutrition && (
+                      <p className="text-xs text-gray-500 mb-2">
+                        Protein: {meal.total_nutrition.protein_grams}g •
+                        Fat: {meal.total_nutrition.fat_grams}g •
+                        Carbs: {meal.total_nutrition.carbs_grams}g
+                      </p>
+                    )}
+                    
+                    <Link 
+                      href={`/recipe/${meal.id}`}
+                      className="text-sm text-blue-600 hover:text-blue-800 inline-flex items-center gap-1"
+                      onClick={() => {
+                        localStorage.setItem('actualPreviousPath', '/meal-prep');
+                        localStorage.setItem('lastPath', '/meal-prep');
+                        localStorage.setItem('previousViewMode', viewMode); // Add current viewMode
+                      }}
+                    >
+                      View Recipe →
+                    </Link>
+                  </div>
+                ))}
               </div>
             );
           })}
@@ -546,7 +548,7 @@ const DayDropdown = ({
   );
 };
   
-const Week = ({ week, onDeleteWeek, onMealDelete, onMealsAdded, onToggleDates }) => {
+const Week = ({ week, onDeleteWeek, onMealDelete, onMealsAdded, onToggleDates, viewMode }) => {
   const [showMenuSelector, setShowMenuSelector] = useState(false);
   const [error, setError] = useState(null);
 
@@ -555,7 +557,7 @@ const Week = ({ week, onDeleteWeek, onMealDelete, onMealsAdded, onToggleDates })
     const startIndex = days.indexOf(startDay);
     const weekSchedule = [];
     
-    for (let i = 1; i <= 7; i++) {
+    for (let i = 0; i < 7; i++) {
       const index = (startIndex + i) % 7;
       weekSchedule.push(days[index]);
     }
@@ -566,8 +568,7 @@ const Week = ({ week, onDeleteWeek, onMealDelete, onMealsAdded, onToggleDates })
   const formatDateRange = () => {
     if (!week.start_date || !week.end_date) return '';
     const startDate = new Date(week.start_date);
-    const endDate = new Date(startDate);
-    endDate.setDate(startDate.getDate() + 6);
+    const endDate = new Date(week.end_date);
     return `${startDate.toLocaleDateString()} - ${endDate.toLocaleDateString()}`;
   };
 
@@ -631,6 +632,7 @@ const Week = ({ week, onDeleteWeek, onMealDelete, onMealsAdded, onToggleDates })
             onMealDelete={handleMealDelete}
             startDate={week.start_date}
             showDates={week.show_dates}
+            viewMode={viewMode} // Pass viewMode down
           />
         ))}
       </div>
@@ -728,14 +730,52 @@ const Week = ({ week, onDeleteWeek, onMealDelete, onMealsAdded, onToggleDates })
   
   const MealPrepPage = () => {
     const router = useRouter();
+    // Initialize viewMode from URL or localStorage
     const [viewMode, setViewMode] = useState(() => {
-        if (typeof window !== 'undefined') {
-          const urlParams = new URLSearchParams(window.location.search);
-          return urlParams.get('viewMode') || 'mealprep';
-          }
-          // Return default value for server-side rendering
-          return 'mealprep';
-        });
+      // First check URL params
+      if (typeof window !== 'undefined') {
+        const urlParams = new URLSearchParams(window.location.search);
+        const queryViewMode = urlParams.get('viewMode');
+        if (queryViewMode) {
+          return queryViewMode;
+        }
+        
+        // Then check localStorage for last used tab
+        const savedViewMode = localStorage.getItem('lastMealPrepTab');
+        if (savedViewMode) {
+          return savedViewMode;
+        }
+      }
+      
+      // Default to mealprep if neither is available
+      return 'mealprep';
+    });
+  
+    // Update URL when viewMode changes
+    useEffect(() => {
+      if (router.isReady) {
+        // Update URL without refreshing the page
+        router.push(`/meal-prep?viewMode=${viewMode}`, undefined, { shallow: true });
+        
+        // Also save to localStorage for persistence
+        localStorage.setItem('lastMealPrepTab', viewMode);
+      }
+    }, [viewMode, router.isReady]);
+  
+    // Update viewMode when URL changes
+    useEffect(() => {
+      if (router.isReady && router.query.viewMode) {
+        setViewMode(router.query.viewMode);
+      }
+    }, [router.query.viewMode, router.isReady]);
+    
+    // Update viewMode when URL changes
+    useEffect(() => {
+      if (router.isReady && router.query.viewMode) {
+        setViewMode(router.query.viewMode);
+      }
+    }, [router.query.viewMode, router.isReady]);
+    
     const [showDaySelector, setShowDaySelector] = useState(false);
     const [weeks, setWeeks] = useState([]);
     const [loading, setLoading] = useState(true);
@@ -1208,15 +1248,16 @@ const Week = ({ week, onDeleteWeek, onMealDelete, onMealsAdded, onToggleDates })
                 ) : (
                   <div className="space-y-8">
                     {weeks.map((week) => (
-                      <Week
-                        key={week.id}
-                        week={week}
-                        onDeleteWeek={handleDeleteWeek}
-                        onMealDelete={handleDeleteMeal}
-                        onMealsAdded={fetchWeeks}
-                        onToggleDates={handleToggleDates}  
-                      />
-                    ))}
+  <Week
+    key={week.id}
+    week={week}
+    onDeleteWeek={handleDeleteWeek}
+    onMealDelete={handleDeleteMeal}
+    onMealsAdded={fetchWeeks}
+    onToggleDates={handleToggleDates}
+    viewMode={viewMode}  // Add this line to pass the current viewMode
+  />
+))}
                   </div>
                   
                 )}
