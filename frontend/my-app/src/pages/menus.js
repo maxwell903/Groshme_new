@@ -277,7 +277,6 @@ export default function Menus() {
       onClick={() => {
         localStorage.setItem('actualPreviousPath', `/menus`);
         localStorage.setItem('lastPath', `/menus`);
-        localStorage.setItem('previousPath', `/menu/${menu.id}`);
       }}
     >
       <div className="rounded-lg bg-white p-6 shadow-lg transition-all hover:-translate-y-1 hover:shadow-xl cursor-pointer">

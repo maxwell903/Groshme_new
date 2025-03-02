@@ -506,14 +506,13 @@ export default function Home() {
           <div className="grid gap-8 grid-cols-1 sm:grid-cols-2 md:grid-cols-3">
             {homeData.latest_recipes.map((recipe) => (
               <Link 
-              href={`/recipe/${recipe.id}`}
-              key={recipe.id}
-              className="block no-underline"
-              onClick={() => {
-                localStorage.setItem('actualPreviousPath', '/');
-                localStorage.setItem('lastPath', '/');
-                localStorage.setItem('previousPath', '/');
-              }}
+                href={`/recipe/${recipe.id}`}
+                key={recipe.id}
+                className="block no-underline"
+                onClick={() => {
+                  localStorage.setItem('actualPreviousPath', '/');
+                  localStorage.setItem('lastPath', '/');
+                }}
               >
                 <div className="rounded-lg bg-white p-6 shadow-lg transition-all hover:-translate-y-1 hover:shadow-xl cursor-pointer">
                   <h3 className="mb-2 text-lg font-semibold text-gray-900">{recipe.name}</h3>

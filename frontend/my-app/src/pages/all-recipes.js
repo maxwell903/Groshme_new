@@ -112,7 +112,6 @@ export default function AllRecipes() {
     onClick={() => {
       localStorage.setItem('previousPath', '/all-recipes');
       localStorage.setItem('actualPreviousPath', '/all-recipes');
-      localStorage.setItem('lastPath', '/all-recipes')
     }}
   >
     <div className="rounded-lg bg-white p-6 shadow-lg transition-all hover:-translate-y-1 hover:shadow-xl cursor-pointer">
